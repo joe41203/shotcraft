@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
 	addShape,
+	type CropRect,
 	type EditorDoc,
 	emptyDoc,
 	findShape,
 	type RectShape,
 	removeShape,
 	replaceShape,
+	setCrop,
 	type Shape,
 	updateShape,
 } from "../lib/editor/doc";
@@ -136,5 +138,60 @@ describe("findShape", () => {
 
 	it("無ければ undefined", () => {
 		expect(findShape(emptyDoc(), "a")).toBeUndefined();
+	});
+});
+
+describe("emptyDoc", () => {
+	it("crop は null で初期化される", () => {
+		expect(emptyDoc().crop).toBeNull();
+	});
+});
+
+describe("setCrop", () => {
+	it("crop を差し替えた新しい doc を返す", () => {
+		const crop: CropRect = { x: 10, y: 20, width: 100, height: 80 };
+		const next = setCrop(emptyDoc(), crop);
+		expect(next.crop).toEqual(crop);
+	});
+
+	it("null でクロップ解除できる", () => {
+		const doc = setCrop(emptyDoc(), { x: 0, y: 0, width: 5, height: 5 });
+		expect(setCrop(doc, null).crop).toBeNull();
+	});
+
+	it("shapes は保持される", () => {
+		const doc = addShape(emptyDoc(), rect("a"));
+		const next = setCrop(doc, { x: 0, y: 0, width: 5, height: 5 });
+		expect(next.shapes).toBe(doc.shapes);
+	});
+});
+
+describe("crop の保持", () => {
+	const withCrop = (): EditorDoc =>
+		setCrop(addShape(emptyDoc(), rect("a")), {
+			x: 1,
+			y: 2,
+			width: 3,
+			height: 4,
+		});
+
+	it("addShape は crop を保持する", () => {
+		const next = addShape(withCrop(), rect("b"));
+		expect(next.crop).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+	});
+
+	it("updateShape は crop を保持する", () => {
+		const next = updateShape(withCrop(), "a", { x: 99 });
+		expect(next.crop).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+	});
+
+	it("replaceShape は crop を保持する", () => {
+		const next = replaceShape(withCrop(), "a", rect("a", 50));
+		expect(next.crop).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+	});
+
+	it("removeShape は crop を保持する", () => {
+		const next = removeShape(withCrop(), "a");
+		expect(next.crop).toEqual({ x: 1, y: 2, width: 3, height: 4 });
 	});
 });
