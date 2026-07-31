@@ -22,12 +22,19 @@ import {
 } from "@/lib/editor/history";
 import { CropController } from "./crop-controller";
 import {
+	canvasToPngBlob,
+	downloadBlob,
+	exportFilename,
+	exportToCanvas,
+} from "./export";
+import {
 	fitTransform,
 	type Point,
 	type ViewTransform,
 	zoomAtTransform,
 } from "./geometry-view";
 import { renderShapes, shapeFromNode } from "./render";
+import { Toast } from "./toast";
 import { Toolbar } from "./toolbar";
 import type { EditorContext, Tool, ToolName } from "./tools/types";
 
@@ -46,6 +53,8 @@ export class EditorApp {
 	private contentSize: { width: number; height: number };
 	/** クロップ操作の UI とライフサイクルを持つコントローラ。 */
 	private crop: CropController;
+	/** 操作成功を知らせる軽量トースト。 */
+	private toast: Toast;
 
 	private history: History<EditorDoc>;
 	private currentTool: ToolName = "select";
@@ -123,12 +132,17 @@ export class EditorApp {
 		this.crop = new CropController(this);
 		this.crop.attach(this.stage);
 
+		// トーストは stage コンテナの親（相対配置の main）に載せる。
+		this.toast = new Toast(container.parentElement ?? container);
+
 		this.toolbar = new Toolbar(toolbarRoot, {
 			onToolChange: (t) => this.setTool(t),
 			onColorChange: (c) => this.setColor(c),
 			onStrokeWidthChange: (w) => this.setStrokeWidth(w),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
+			onSavePng: () => this.savePng(),
+			onCopy: () => void this.copyToClipboard(),
 		});
 
 		this.bindStageEvents();
@@ -490,6 +504,14 @@ export class EditorApp {
 				this.redo();
 				return;
 			}
+			// Cmd/Ctrl+C でクリップボードへコピー。
+			// テキスト編集中は冒頭で return 済み。クロップ操作中は無効（範囲確定を優先）。
+			if (mod && (e.key === "c" || e.key === "C")) {
+				if (this.currentTool === "crop") return;
+				e.preventDefault();
+				void this.copyToClipboard();
+				return;
+			}
 			if (mod) return; // 他の修飾キー付きは無視
 
 			// クロップ操作中は Enter で適用 / Esc でキャンセル（他ショートカットより優先）。
@@ -572,6 +594,44 @@ export class EditorApp {
 		if (!id) return;
 		this.select(null);
 		this.commitDoc(removeShape(this.history.present, id));
+	}
+
+	// --- 出力 ---
+
+	/** 現在の doc からキャプチャ原寸の PNG canvas を組み立てる（表示ズーム非依存）。 */
+	private exportCanvas(): HTMLCanvasElement {
+		return exportToCanvas({
+			doc: this.history.present,
+			image: this.baseImage,
+			imageSize: this.contentSize,
+		});
+	}
+
+	/** クロップ適用後の原寸 PNG をダウンロードする。 */
+	savePng(): void {
+		const canvas = this.exportCanvas();
+		canvasToPngBlob(canvas)
+			.then((blob) => {
+				downloadBlob(blob, exportFilename());
+				this.toast.show("保存しました");
+			})
+			.catch(() => this.toast.show("保存に失敗しました"));
+	}
+
+	/**
+	 * クロップ適用後の原寸 PNG をクリップボードへコピーする。
+	 * ユーザージェスチャ判定を切らさないよう、ClipboardItem には Blob の Promise を
+	 * そのまま渡す（await してから作らない）。拡張タブのクリック起点なので追加権限は不要。
+	 */
+	async copyToClipboard(): Promise<void> {
+		try {
+			const canvas = this.exportCanvas();
+			const item = new ClipboardItem({ "image/png": canvasToPngBlob(canvas) });
+			await navigator.clipboard.write([item]);
+			this.toast.show("コピーしました");
+		} catch {
+			this.toast.show("コピーに失敗しました");
+		}
 	}
 
 	private bindResize(container: HTMLDivElement): void {

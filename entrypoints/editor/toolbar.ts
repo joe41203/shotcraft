@@ -44,6 +44,10 @@ export interface ToolbarCallbacks {
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
+	/** PNG 保存（ダウンロード）。 */
+	onSavePng(): void;
+	/** クリップボードへコピー。 */
+	onCopy(): void;
 }
 
 /**
@@ -130,6 +134,25 @@ export class Toolbar {
 		this.zoomLabel.className = "zoom-label";
 		this.zoomLabel.title = "0 キーで全体フィット";
 		this.root.append(this.zoomLabel);
+
+		// 出力ボタンを右端へ押しやるスペーサー。
+		const spacer = document.createElement("span");
+		spacer.className = "toolbar-spacer";
+		this.root.append(spacer);
+
+		// 出力: コピー（通常ボタン）と PNG 保存（主要アクション）。
+		const exportGroup = group();
+		const copyBtn = textButton(
+			icons.copy,
+			"コピー",
+			"クリップボードへコピー (Ctrl/Cmd+C)",
+		);
+		copyBtn.addEventListener("click", () => this.callbacks.onCopy());
+		const saveBtn = textButton(icons.download, "PNG保存", "PNG をダウンロード");
+		saveBtn.classList.add("primary");
+		saveBtn.addEventListener("click", () => this.callbacks.onSavePng());
+		exportGroup.append(copyBtn, saveBtn);
+		this.root.append(exportGroup);
 	}
 
 	setTool(tool: ToolName): void {
@@ -179,5 +202,24 @@ function iconButton(iconSvg: string, title: string): HTMLButtonElement {
 	btn.title = title;
 	btn.setAttribute("aria-label", title);
 	btn.innerHTML = iconSvg;
+	return btn;
+}
+
+/** SVG アイコン + テキストラベルのボタン（出力アクション用）。 */
+function textButton(
+	iconSvg: string,
+	label: string,
+	title: string,
+): HTMLButtonElement {
+	const btn = document.createElement("button");
+	btn.type = "button";
+	btn.className = "text-btn";
+	btn.title = title;
+	const icon = document.createElement("span");
+	icon.className = "text-btn-icon";
+	icon.innerHTML = iconSvg;
+	const text = document.createElement("span");
+	text.textContent = label;
+	btn.append(icon, text);
 	return btn;
 }

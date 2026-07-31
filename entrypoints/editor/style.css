@@ -196,6 +196,107 @@ header {
   text-align: right;
 }
 
+/* 出力ボタンを右端へ押しやる伸縮スペーサー */
+.toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+/* アイコン + ラベルのボタン（コピー・PNG保存） */
+.text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.text-btn .text-btn-icon {
+  display: inline-flex;
+}
+
+.text-btn:hover {
+  background: var(--surface-hover);
+}
+
+.text-btn:active {
+  background: var(--border);
+}
+
+.text-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* 主要アクション（PNG保存）は accent 背景 */
+.text-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.text-btn.primary:hover {
+  filter: brightness(1.08);
+}
+
+.text-btn.primary:active {
+  filter: brightness(0.94);
+}
+
+/* --- トースト --- */
+
+.toast-region {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+  animation: toast-in 200ms ease;
+}
+
+.toast-leaving {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* --- ステージ --- */
 
 main {
@@ -244,7 +345,16 @@ main {
 @media (prefers-reduced-motion: reduce) {
   .icon-btn,
   .width-btn,
-  .swatch {
+  .swatch,
+  .text-btn {
+    transition: none;
+  }
+
+  .toast {
+    animation: none;
+  }
+
+  .toast-leaving {
     transition: none;
   }
 }

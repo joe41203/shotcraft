@@ -44,6 +44,14 @@ export const icons = {
 	redo: svg(
 		'<polyline points="15 7 20 12 15 17"/><path d="M20 12H9a5 5 0 0 0 0 10h1"/>',
 	),
+	// ダウンロード（PNG 保存）
+	download: svg(
+		'<path d="M12 3v12"/><polyline points="7 11 12 16 17 11"/><path d="M5 20h14"/>',
+	),
+	// クリップボードへコピー
+	copy: svg(
+		'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+	),
 	// 表示範囲キャプチャ（カメラ）
 	camera: svg(
 		'<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
