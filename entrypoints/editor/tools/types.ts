@@ -34,6 +34,8 @@ export interface EditorContext {
 		strokeWidth: number;
 		fontFamily: FontFamilyKey;
 		fontSize: number;
+		/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。 */
+		dash: boolean;
 	};
 	/** ステージ（座標変換・コンテナ取得に使う）。 */
 	readonly stage: Konva.Stage;

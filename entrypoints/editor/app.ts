@@ -12,6 +12,7 @@ import {
 	setCrop,
 	updateShape,
 } from "@/lib/editor/doc";
+import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
 	canRedo,
 	canUndo,
@@ -93,6 +94,8 @@ export class EditorApp {
 		strokeWidth: 4,
 		fontFamily: DEFAULT_FONT_FAMILY,
 		fontSize: DEFAULT_FONT_SIZE,
+		/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。既定は実線。 */
+		dash: false,
 	};
 
 	private toolbar: Toolbar;
@@ -173,6 +176,7 @@ export class EditorApp {
 			onColorChange: (c) => this.setColor(c),
 			onStrokeWidthChange: (w) => this.setStrokeWidth(w),
 			onFontFamilyChange: (f) => this.setFontFamily(f),
+			onDashChange: (d) => this.setDash(d),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
@@ -480,6 +484,32 @@ export class EditorApp {
 	setStrokeWidth(width: number): void {
 		this.style.strokeWidth = width;
 		this.toolbar.setStrokeWidth(width);
+	}
+
+	/**
+	 * 線種（実線/破線）を新規の線系図形の既定にする。線系シェイプを選択中は
+	 * そのシェイプへ即時適用して履歴に 1 回 commit する（同値なら no-op）。
+	 */
+	setDash(dash: boolean): void {
+		this.style.dash = dash;
+		this.applyDashToSelection(dash);
+		this.toolbar.setDash(dash);
+	}
+
+	/**
+	 * 選択中が線種を持つ図形（矢印・矩形・楕円・ペン）なら dash を適用して commit する。
+	 * 現在値と同じなら何もしない（連続選択で履歴が荒れないように）。
+	 * マーカー・テキスト・モザイク・ステップ・フキダシは線種を持たないので対象外。
+	 */
+	private applyDashToSelection(dash: boolean): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || !shapeSupportsDash(shape.type)) return;
+		// 未設定（レガシー）は実線相当。false を指定したときも実質同値なので
+		// 現在の解決値（?? false）と比較して no-op を判定する。
+		if ((shape.dash ?? false) === dash) return;
+		this.commitDoc(updateShape(this.history.present, id, { dash }));
 	}
 
 	/**
@@ -801,8 +831,33 @@ export class EditorApp {
 		this.toolbar.setColor(this.style.stroke);
 		this.toolbar.setStrokeWidth(this.style.strokeWidth);
 		this.syncTextControls();
+		this.syncDashControls();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
+	}
+
+	/**
+	 * 線種（実線/破線）コントロールの表示と現在値を同期する。
+	 * 線系図形（矢印・矩形・楕円・ペン）を選択中はそのシェイプの線種を、
+	 * そうでなく線系ツールを選択中は新規デフォルト（style）の線種を表示する。
+	 * どちらでもなければ隠す（線種を持たない図形・ツールでは出さない）。
+	 */
+	private syncDashControls(): void {
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const selectedLine =
+			selected && shapeSupportsDash(selected.type) ? selected : undefined;
+		const toolIsLine =
+			this.currentTool === "arrow" ||
+			this.currentTool === "rect" ||
+			this.currentTool === "ellipse" ||
+			this.currentTool === "pen";
+		const visible = selectedLine != null || toolIsLine;
+		this.toolbar.setDashControlsVisible(visible);
+		if (!visible) return;
+		const dash = selectedLine?.dash ?? this.style.dash;
+		this.toolbar.setDash(dash);
 	}
 
 	/**

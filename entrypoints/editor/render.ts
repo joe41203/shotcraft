@@ -15,6 +15,7 @@ import type {
 	Shape,
 	StepShape,
 } from "@/lib/editor/doc";
+import { resolveDash } from "@/lib/editor/dash";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
 import { STEP_RADIUS, stepFontSize } from "@/lib/editor/step";
 import { clampFontSize } from "@/lib/editor/text";
@@ -87,6 +88,7 @@ export function shapeToNode(
 				stroke: shape.stroke,
 				fill: shape.stroke,
 				strokeWidth: shape.strokeWidth,
+				dash: resolveDash(shape.dash, shape.strokeWidth),
 				lineCap: "round",
 				lineJoin: "round",
 				hitStrokeWidth: Math.max(shape.strokeWidth, 12),
@@ -101,6 +103,7 @@ export function shapeToNode(
 				height: shape.height,
 				stroke: shape.stroke,
 				strokeWidth: shape.strokeWidth,
+				dash: resolveDash(shape.dash, shape.strokeWidth),
 			});
 		case "ellipse":
 			return new Konva.Ellipse({
@@ -111,6 +114,7 @@ export function shapeToNode(
 				radiusY: shape.height / 2,
 				stroke: shape.stroke,
 				strokeWidth: shape.strokeWidth,
+				dash: resolveDash(shape.dash, shape.strokeWidth),
 			});
 		case "text":
 			return new Konva.Text({
@@ -134,6 +138,7 @@ export function shapeToNode(
 				points: shape.points,
 				stroke: shape.stroke,
 				strokeWidth: shape.strokeWidth,
+				dash: resolveDash(shape.dash, shape.strokeWidth),
 				lineCap: "round",
 				lineJoin: "round",
 				tension: 0,

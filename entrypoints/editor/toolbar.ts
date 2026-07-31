@@ -49,12 +49,20 @@ const TOOLS: ToolDef[] = [
 	{ name: "crop", label: "クロップ", shortcut: "C", icon: icons.crop },
 ];
 
+/** 線種（実線/破線）の選択肢。 */
+export const DASH_OPTIONS = [
+	{ value: false, label: "実線" },
+	{ value: true, label: "破線" },
+] as const;
+
 export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
 	onStrokeWidthChange(width: number): void;
 	/** テキストのフォント種別（FONT_CHOICES の key）が選ばれたとき。 */
 	onFontFamilyChange(family: FontFamilyKey): void;
+	/** 線種（実線/破線）が選ばれたとき。 */
+	onDashChange(dash: boolean): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
@@ -72,6 +80,10 @@ export class Toolbar {
 	private toolButtons = new Map<ToolName, HTMLButtonElement>();
 	private colorButtons = new Map<string, HTMLButtonElement>();
 	private widthButtons = new Map<number, HTMLButtonElement>();
+	/** 線種（実線/破線）の文脈グループと各ボタン。 */
+	private dashGroup!: HTMLDivElement;
+	private dashDivider!: HTMLSpanElement;
+	private dashButtons = new Map<boolean, HTMLButtonElement>();
 	/** テキスト向けの文脈グループ（テキストツール/テキスト選択中のみ表示）。 */
 	private textGroup!: HTMLDivElement;
 	private textDivider!: HTMLSpanElement;
@@ -137,6 +149,28 @@ export class Toolbar {
 			widthGroup.append(btn);
 		}
 		this.root.append(widthGroup, divider());
+
+		// 線種（実線/破線）群。線・輪郭を持つツール/図形（矢印・矩形・楕円・ペン）の
+		// ときだけ表示する（setDashControlsVisible で制御）。
+		this.dashGroup = group();
+		for (const opt of DASH_OPTIONS) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "dash-btn";
+			btn.title = `線種: ${opt.label}`;
+			btn.setAttribute("aria-label", `線種: ${opt.label}`);
+			const line = document.createElement("span");
+			line.className = opt.value ? "dash-line dashed" : "dash-line";
+			btn.append(line);
+			btn.addEventListener("click", () =>
+				this.callbacks.onDashChange(opt.value),
+			);
+			this.dashButtons.set(opt.value, btn);
+			this.dashGroup.append(btn);
+		}
+		this.dashDivider = divider();
+		this.root.append(this.dashGroup, this.dashDivider);
+		this.setDashControlsVisible(false);
 
 		// テキスト用グループ（フォント選択のみ）。テキストツール選択中または
 		// テキストシェイプ選択中のときだけ表示する（setTextControlsVisible で制御）。
@@ -213,6 +247,19 @@ export class Toolbar {
 		for (const [value, btn] of this.widthButtons) {
 			btn.classList.toggle("active", value === width);
 		}
+	}
+
+	/** 線種（実線/破線）の現在値を反映する。 */
+	setDash(dash: boolean): void {
+		for (const [value, btn] of this.dashButtons) {
+			btn.classList.toggle("active", value === dash);
+		}
+	}
+
+	/** 線種コントロール群の表示/非表示を切り替える。 */
+	setDashControlsVisible(visible: boolean): void {
+		this.dashGroup.hidden = !visible;
+		this.dashDivider.hidden = !visible;
 	}
 
 	/** フォント選択の現在値を反映する。 */

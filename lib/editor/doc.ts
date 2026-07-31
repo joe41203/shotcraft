@@ -18,6 +18,12 @@ export interface ShapeBase {
 	rotation: number;
 	/** 0〜1。マーカーの半透明表現などに使う。 */
 	opacity: number;
+	/**
+	 * 線種を破線にするか。線・輪郭を持つ図形（矢印・矩形・楕円・ペン・マーカー）
+	 * でのみ意味を持ち、render.ts が Konva の dash プロパティへ解決する。
+	 * 省略・false は実線（レガシー doc 互換）。
+	 */
+	dash?: boolean;
 }
 
 /** 矢印。points は始点・終点の [x1, y1, x2, y2]。 */

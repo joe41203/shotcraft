@@ -78,6 +78,8 @@ export abstract class StrokeTool implements Tool {
 			points: [...this.points],
 			stroke: this.ctx.style.stroke,
 			strokeWidth: this.ctx.style.strokeWidth,
+			// 破線はペンのみ。マーカー（太い半透明のハイライト）は常に実線にする。
+			dash: this.shapeType === "pen" ? this.ctx.style.dash : false,
 			rotation: 0,
 			opacity: 1,
 		};

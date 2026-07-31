@@ -69,6 +69,7 @@ export abstract class DragTool implements Tool {
 			id: this.ctx.newId(),
 			stroke: this.ctx.style.stroke,
 			strokeWidth: this.ctx.style.strokeWidth,
+			dash: this.ctx.style.dash,
 			rotation: 0,
 			opacity: 1,
 		};
