@@ -1,4 +1,5 @@
 import { type CaptureRecord, loadCapture } from "@/lib/capture-store";
+import { createDocAutosaver, loadDoc } from "@/lib/editor/doc-store";
 import { EditorApp } from "./app";
 import { registerTools } from "./tools";
 
@@ -40,9 +41,24 @@ async function main(): Promise<void> {
 	title.textContent = record.sourceTitle;
 	document.title = `shotcraft - ${record.sourceTitle || "編集"}`;
 
+	// 前回の編集内容があれば復元し、履歴の初期状態にする。
+	const savedDoc = await loadDoc(id);
+
 	const imageEl = await loadImage(record.dataUrl);
-	const app = new EditorApp(stageContainer, toolbarRoot, record, imageEl);
+	const app = new EditorApp(
+		stageContainer,
+		toolbarRoot,
+		record,
+		imageEl,
+		savedDoc ?? undefined,
+	);
 	registerTools(app);
+
+	// 編集内容を debounce して storage.session に自動保存する。
+	const autosaver = createDocAutosaver(id, 300);
+	app.onDocCommitted = (doc) => autosaver.schedule(doc);
+	// リロード/離脱の直前に未保存分を書き出す。
+	window.addEventListener("pagehide", () => void autosaver.flush());
 }
 
 void main();
