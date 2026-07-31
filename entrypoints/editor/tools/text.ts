@@ -85,9 +85,6 @@ export class TextTool implements Tool {
 		this.overlay = ta;
 		this.autoSize(ta);
 
-		ta.focus();
-		ta.setSelectionRange(ta.value.length, ta.value.length);
-
 		let settled = false;
 		const finish = (commitText: boolean): void => {
 			if (settled) return;
@@ -133,7 +130,25 @@ export class TextTool implements Tool {
 			e.stopPropagation();
 		});
 		ta.addEventListener("input", () => this.autoSize(ta));
-		ta.addEventListener("blur", () => finish(true));
+
+		// blur 確定は生成の次フレーム以降のみ有効にする。textarea 生成と同じ
+		// pointerdown 処理の流れで stage 側にフォーカスが戻ると、生成直後に
+		// blur→即確定→即削除されてしまう。それまでの blur は無視して再フォーカスする。
+		let allowBlur = false;
+		requestAnimationFrame(() => {
+			allowBlur = true;
+		});
+		ta.addEventListener("blur", () => {
+			if (settled) return;
+			if (allowBlur) {
+				finish(true);
+			} else {
+				ta.focus();
+			}
+		});
+
+		ta.focus();
+		ta.setSelectionRange(ta.value.length, ta.value.length);
 	}
 
 	/** textarea の内容量に合わせて幅・高さを広げる。 */

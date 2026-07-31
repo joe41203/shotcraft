@@ -198,6 +198,7 @@ main {
 /* テキスト編集オーバーレイ（tools/text.ts が生成） */
 .text-overlay {
   position: absolute;
+  z-index: 10;
   margin: 0;
   padding: 0;
   border: none;
