@@ -11,7 +11,7 @@
 [![Built with WXT](https://img.shields.io/badge/built%20with-WXT-67d4f8)](https://wxt.dev/)
 [![Konva](https://img.shields.io/badge/canvas-Konva-0d83cd)](https://konvajs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
-[![font: SIL OFL 1.1](https://img.shields.io/badge/font-SIL%20OFL%201.1-informational)](public/fonts/hachi-maru-pop/OFL.txt)
+[![fonts: OFL 1.1 & Apache 2.0](https://img.shields.io/badge/fonts-OFL%201.1%20%26%20Apache%202.0-informational)](public/fonts/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-yellow)](./LICENSE)
 
 <!--
@@ -49,7 +49,7 @@ shotcraft は、いま見ているタブを撮影し、そのまま**矢印・�
 - **9 種類のツール**: 選択・矢印・矩形・楕円・テキスト・ペン・蛍光マーカー・モザイク・クロップ。
 - **モザイク**: ドラッグした矩形をピクセル化して情報を伏せます。粗さは範囲の大きさから自動で決まり、移動・リサイズすると都度計算し直します。
 - **クロップ**: トリミング枠で不要部分を切り落とします。確定後にさらに絞り込むこともでき、元に戻すで解除できます。
-- **テキスト注釈**: キャンバス上に直接文字を書き込めます。書体ははちまるポップ（同梱の Hachi Maru Pop・既定）・よもぎ（同梱の Yomogi）・キウイ丸（同梱の Kiwi Maru）・ゴシック・明朝・等幅の 6 種、サイズは小・中・大・特大（14 / 18 / 24 / 32px）から選べます。
+- **テキスト注釈**: キャンバス上に直接文字を書き込めます。書体はモッチーポップ（同梱の Mochiy Pop One・既定）・はちまるポップ（同梱の Hachi Maru Pop）・よもぎ（同梱の Yomogi）・キウイ丸（同梱の Kiwi Maru）・M PLUS Rounded（同梱の M PLUS Rounded 1c）・小杉丸（同梱の Kosugi Maru）・ゴシック・明朝・等幅の 9 種、サイズは小・中・大・特大（14 / 18 / 24 / 32px）から選べます。
 - **やり直し自在**: すべての操作を undo / redo でき、色や線の太さも選べます。
 
 ### 出力
@@ -96,7 +96,7 @@ pnpm build
 どちらもキャプチャ後に新しいタブでエディタが開きます。上部のツールバーからツール・色・線の太さを選び、画像の上にドラッグやクリックで注釈を描きます。
 
 - **描画**: 矢印・矩形・楕円はドラッグで描画します。ペンと蛍光マーカーはフリーハンドで、マーカーは太く半透明に描かれます。
-- **テキスト**: テキストツールでクリックした位置に入力欄が開きます。`Enter` で確定、`Shift+Enter` で改行、`Esc` でキャンセルです。図形をダブルクリックすると再編集できます。テキストツールまたはテキストを選択している間はツールバーにフォント欄が現れ、書体（はちまるポップ・よもぎ・キウイ丸・ゴシック・明朝・等幅の 6 種）とサイズ（小 / 中 / 大 / 特大 = 14 / 18 / 24 / 32px）を選べます。ここで選んだ値は次に作るテキストの既定になり、テキストを選択中に変更した場合はそのテキストへ即座に反映されます。
+- **テキスト**: テキストツールでクリックした位置に入力欄が開きます。`Enter` で確定、`Shift+Enter` で改行、`Esc` でキャンセルです。図形をダブルクリックすると再編集できます。テキストツールまたはテキストを選択している間はツールバーにフォント欄が現れ、書体（モッチーポップ・はちまるポップ・よもぎ・キウイ丸・M PLUS Rounded・小杉丸・ゴシック・明朝・等幅の 9 種）とサイズ（小 / 中 / 大 / 特大 = 14 / 18 / 24 / 32px）を選べます。ここで選んだ値は次に作るテキストの既定になり、テキストを選択中に変更した場合はそのテキストへ即座に反映されます。
 - **モザイク**: モザイクツール（`X`）でドラッグした矩形範囲をピクセル化します。選択ツールで移動・リサイズ・削除でき、変形するとピクセル化を計算し直します。
 - **クロップ**: クロップツール（`C`）でトリミング枠を出し、ハンドルや枠をドラッグして範囲を調整して `Enter` で確定します。もう一度クロップするとさらに絞り込め、元に戻すで解除できます。
 - **選択・変形**: 選択ツールで図形をクリックすると、周囲のハンドルで移動・リサイズ・回転できます（モザイクは回転できません）。
@@ -167,7 +167,7 @@ lib/
 assets/
   tokens.css               デザイントークン（CSS 変数）と @font-face
 public/
-  fonts/                   同梱フォント（はちまるポップ / よもぎ / キウイ丸の WOFF2）と家族ごとの OFL.txt
+  fonts/                   同梱フォント6家族の WOFF2 と家族ごとのライセンス（OFL.txt / LICENSE.txt）
   icon/                    拡張アイコン
 ```
 
@@ -236,14 +236,17 @@ pnpm test
 
 ## クレジット
 
-- **フォント**: いずれも [SIL Open Font License 1.1](https://openfontlicense.org/) のもとで配布されているかわいい系フォント 3 種を拡張に同梱しています。
-  - [Hachi Maru Pop](https://fonts.google.com/specimen/Hachi+Maru+Pop)（Copyright 2020 The Hachi Maru Pop Project Authors、[`public/fonts/hachi-maru-pop/OFL.txt`](public/fonts/hachi-maru-pop/OFL.txt)）— テキスト注釈の既定書体（はちまるポップ）に使っています。
-  - [Yomogi](https://fonts.google.com/specimen/Yomogi)（Copyright 2020 The Yomogi Project Authors、[`public/fonts/yomogi/OFL.txt`](public/fonts/yomogi/OFL.txt)）— テキスト注釈の書体（よもぎ）に使っています。
-  - [Kiwi Maru](https://fonts.google.com/specimen/Kiwi+Maru)（Copyright 2020 The Kiwi Maru Project Authors、[`public/fonts/kiwi-maru/OFL.txt`](public/fonts/kiwi-maru/OFL.txt)）— UI（ポップアップ・エディタ）とテキスト注釈の書体（キウイ丸）に使っています。
+- **フォント**: かわいく読みやすいフォント 6 家族を拡張に同梱しています。UI（ポップアップ・エディタ）にはローマ字が読みやすい M PLUS Rounded 1c を、テキスト注釈の既定にはモッチーポップを使っています。5 家族は [SIL Open Font License 1.1](https://openfontlicense.org/)、小杉丸のみ [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) で配布されています。
+  - [Mochiy Pop One](https://fonts.google.com/specimen/Mochiy+Pop+One)（SIL OFL 1.1、Copyright 2020 The Mochiypop Project Authors、[`public/fonts/mochiy-pop-one/OFL.txt`](public/fonts/mochiy-pop-one/OFL.txt)）— テキスト注釈の既定書体（モッチーポップ）に使っています。
+  - [Hachi Maru Pop](https://fonts.google.com/specimen/Hachi+Maru+Pop)（SIL OFL 1.1、Copyright 2020 The Hachi Maru Pop Project Authors、[`public/fonts/hachi-maru-pop/OFL.txt`](public/fonts/hachi-maru-pop/OFL.txt)）— テキスト注釈の書体（はちまるポップ）に使っています。
+  - [Yomogi](https://fonts.google.com/specimen/Yomogi)（SIL OFL 1.1、Copyright 2020 The Yomogi Project Authors、[`public/fonts/yomogi/OFL.txt`](public/fonts/yomogi/OFL.txt)）— テキスト注釈の書体（よもぎ）に使っています。
+  - [Kiwi Maru](https://fonts.google.com/specimen/Kiwi+Maru)（SIL OFL 1.1、Copyright 2020 The Kiwi Maru Project Authors、[`public/fonts/kiwi-maru/OFL.txt`](public/fonts/kiwi-maru/OFL.txt)）— テキスト注釈の書体（キウイ丸）に使っています。
+  - [M PLUS Rounded 1c](https://fonts.google.com/specimen/M+PLUS+Rounded+1c)（SIL OFL 1.1、Copyright 2016 The Rounded M+ Project Authors、[`public/fonts/m-plus-rounded-1c/OFL.txt`](public/fonts/m-plus-rounded-1c/OFL.txt)）— UI とテキスト注釈の書体（M PLUS Rounded）に使っています。ライセンス本文は正規配布元 [coz-m/MPLUS_FONTS](https://github.com/coz-m/MPLUS_FONTS) のものを同梱しています。
+  - [Kosugi Maru](https://fonts.google.com/specimen/Kosugi+Maru)（Apache License 2.0、Copyright 2010 The Kosugi Maru Project Authors、[`public/fonts/kosugi-maru/LICENSE.txt`](public/fonts/kosugi-maru/LICENSE.txt)）— テキスト注釈の書体（小杉丸）に使っています。
 
-  外部リクエストを避けるため CSS の Web フォント読み込みは使わず、WOFF2 を同梱しています。かわいい系フォントは字形データが大きいため、この 3 種の同梱で拡張サイズは合計約 7 MB 増えています。
+  外部リクエストを避けるため CSS の Web フォント読み込みは使わず、WOFF2 を同梱しています。かわいい系フォントは字形データが大きいため、この 6 家族（計 8 ファイル）の同梱で拡張サイズは合計約 12.6 MB 増えています。
 - **アイコン**: 本リポジトリオリジナルの拡張アイコン（`public/icon/`）を使用しています。
 
 ## ライセンス
 
-このプロジェクトのソースコードは [MIT License](./LICENSE) のもとで公開しています。同梱フォント（Hachi Maru Pop・Yomogi・Kiwi Maru）はいずれも SIL Open Font License 1.1 のもとで配布されており、ソースコードのライセンスとは独立にこの条件が適用されます。ライセンス全文は各家族の OFL.txt（[`public/fonts/hachi-maru-pop/OFL.txt`](public/fonts/hachi-maru-pop/OFL.txt) / [`public/fonts/yomogi/OFL.txt`](public/fonts/yomogi/OFL.txt) / [`public/fonts/kiwi-maru/OFL.txt`](public/fonts/kiwi-maru/OFL.txt)）を参照してください。
+このプロジェクトのソースコードは [MIT License](./LICENSE) のもとで公開しています。同梱フォント 6 家族はソースコードのライセンスとは独立に、それぞれのフォントライセンスが適用されます。Mochiy Pop One・Hachi Maru Pop・Yomogi・Kiwi Maru・M PLUS Rounded 1c の 5 家族は SIL Open Font License 1.1、Kosugi Maru は Apache License 2.0 のもとで配布されています。ライセンス全文は各家族の `public/fonts/<家族>/` 配下の `OFL.txt`（Kosugi Maru のみ `LICENSE.txt`）を参照してください。
