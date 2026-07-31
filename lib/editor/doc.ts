@@ -6,8 +6,6 @@
  * undo/redo はこの EditorDoc のスナップショット履歴で実現する（history.ts）。
  */
 
-import type { FontFamilyKey } from "@/lib/theme";
-
 /** 図形の色・太さ・回転など、種類によらず共通のスタイル。 */
 export interface ShapeBase {
 	id: string;
@@ -58,11 +56,13 @@ export interface TextShape extends ShapeBase {
 	text: string;
 	fontSize: number;
 	/**
-	 * フォントの種類（FONT_CHOICES の key）。描画時に stack へ解決する。
-	 * 省略時は既定（mochiy / モッチーポップ）相当。旧保存データ（未設定や
-	 * レガシー key "rounded" / "pop"）は resolveFontStack がフォールバック・移行する。
+	 * 後方互換のためだけに残す旧フィールド。かつてフォント選択機能があった頃に
+	 * 保存された注釈に key（"mochiy" 等）が残っていても型エラーにせず読み込むための
+	 * 受け皿。現在はフォント固定（Mochiy Pop One）なので値は無視して描画する
+	 * （render.ts / text.ts / callout.ts は theme.fontAnnotation を使う）。
+	 * 新規保存ではこのフィールドは書かない。
 	 */
-	fontFamily?: FontFamilyKey;
+	fontFamily?: string;
 }
 
 /** フリーハンドのペン。points は [x0, y0, x1, y1, ...] の連続点。 */
@@ -120,8 +120,11 @@ export interface CalloutShape extends ShapeBase {
 	height: number;
 	text: string;
 	fontSize: number;
-	/** フォントの種類（FONT_CHOICES の key）。省略時は既定。 */
-	fontFamily?: FontFamilyKey;
+	/**
+	 * 後方互換のためだけに残す旧フィールド（TextShape.fontFamily と同じ扱い）。
+	 * 現在はフォント固定なので値は無視する。新規保存では書かない。
+	 */
+	fontFamily?: string;
 }
 
 /** 全図形の判別可能ユニオン。type で分岐する。 */

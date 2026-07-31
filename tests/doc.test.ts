@@ -37,6 +37,8 @@ function text(id: string): TextShape {
 		y: 0,
 		text: "こんにちは",
 		fontSize: 24,
+		// fontFamily は後方互換の受け流しフィールド（旧データが持つ値の再現）。
+		// 現在はフォント固定なので描画では無視されるが、型・更新は壊れないこと。
 		fontFamily: "mochiy",
 		stroke: "#ef4444",
 		strokeWidth: 4,
@@ -101,13 +103,11 @@ describe("updateShape", () => {
 		expect(next.shapes[0]).toBe(doc.shapes[0]);
 	});
 
-	it("テキストの fontFamily パッチが通る", () => {
+	it("旧データ由来の fontFamily（後方互換フィールド）を保持して読み込める", () => {
+		// フォント選択機能撤去後も、旧保存データに残る fontFamily key で壊れないこと。
 		const doc = addShape(emptyDoc(), text("t"));
-		const next = updateShape(doc, "t", { fontFamily: "serif" });
-		const shape = next.shapes[0] as TextShape;
-		expect(shape.fontFamily).toBe("serif");
-		// 触っていないプロパティは維持
-		expect(shape.fontSize).toBe(24);
+		const shape = doc.shapes[0] as TextShape;
+		expect(shape.fontFamily).toBe("mochiy");
 		expect(shape.text).toBe("こんにちは");
 	});
 
@@ -116,15 +116,8 @@ describe("updateShape", () => {
 		const next = updateShape(doc, "t", { fontSize: 32 });
 		const shape = next.shapes[0] as TextShape;
 		expect(shape.fontSize).toBe(32);
+		// 触っていないプロパティ（後方互換の fontFamily 含む）は維持
 		expect(shape.fontFamily).toBe("mochiy");
-	});
-
-	it("fontFamily と fontSize を同時にパッチできる", () => {
-		const doc = addShape(emptyDoc(), text("t"));
-		const next = updateShape(doc, "t", { fontFamily: "mono", fontSize: 14 });
-		const shape = next.shapes[0] as TextShape;
-		expect(shape.fontFamily).toBe("mono");
-		expect(shape.fontSize).toBe(14);
 	});
 });
 

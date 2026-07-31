@@ -248,31 +248,6 @@ header {
   border-bottom-color: var(--ring);
 }
 
-/* フォント選択（ダークテーマの select） */
-.font-select {
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease;
-}
-
-.font-select:hover {
-  background: var(--surface-hover);
-}
-
-.font-select:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
 .zoom-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -475,8 +450,7 @@ main {
   .width-btn,
   .dash-btn,
   .swatch,
-  .text-btn,
-  .font-select {
+  .text-btn {
     transition: none;
   }
 

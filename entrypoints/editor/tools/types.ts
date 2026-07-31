@@ -1,6 +1,5 @@
 import type Konva from "konva";
 import type { EditorDoc, Shape } from "@/lib/editor/doc";
-import type { FontFamilyKey } from "@/lib/theme";
 import type { Point } from "../geometry-view";
 
 /** ツール識別子。ツールバーのボタン・ショートカットと対応する。 */
@@ -26,13 +25,13 @@ export interface EditorContext {
 	/** ドラッグ中のプレビュー図形を載せる一時レイヤー（doc には入らない）。 */
 	readonly previewLayer: Konva.Layer;
 	/**
-	 * 新規図形に適用する現在のスタイル。fontFamily/fontSize は新規テキストの
-	 * デフォルトに使う（色・線幅と同じ扱いで、直近の選択を記憶する）。
+	 * 新規図形に適用する現在のスタイル。fontSize は新規テキストのデフォルトに
+	 * 使う（色・線幅と同じ扱いで、直近の選択を記憶する）。フォントは Mochiy Pop
+	 * One 固定なのでスタイルには持たない。
 	 */
 	readonly style: {
 		stroke: string;
 		strokeWidth: number;
-		fontFamily: FontFamilyKey;
 		fontSize: number;
 		/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。 */
 		dash: boolean;

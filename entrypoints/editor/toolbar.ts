@@ -1,5 +1,4 @@
 import { icons } from "@/lib/icons";
-import { FONT_CHOICES, type FontFamilyKey } from "@/lib/theme";
 import type { ToolName } from "./tools/types";
 
 /** 色スウォッチ（モダンミュート）。デフォルトはコーラル。 */
@@ -19,14 +18,6 @@ export const STROKE_WIDTHS = [
 	{ value: 4, label: "中" },
 	{ value: 8, label: "太" },
 ] as const;
-
-/** フォント選択肢を FONT_CHOICES から並べる（mochiy が先頭＝既定）。 */
-const FONT_FAMILY_OPTIONS = (
-	Object.entries(FONT_CHOICES) as [
-		FontFamilyKey,
-		(typeof FONT_CHOICES)[FontFamilyKey],
-	][]
-).map(([key, def]) => ({ value: key, label: def.label }));
 
 interface ToolDef {
 	name: ToolName;
@@ -59,8 +50,6 @@ export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
 	onStrokeWidthChange(width: number): void;
-	/** テキストのフォント種別（FONT_CHOICES の key）が選ばれたとき。 */
-	onFontFamilyChange(family: FontFamilyKey): void;
 	/** 線種（実線/破線）が選ばれたとき。 */
 	onDashChange(dash: boolean): void;
 	onUndo(): void;
@@ -84,10 +73,6 @@ export class Toolbar {
 	private dashGroup!: HTMLDivElement;
 	private dashDivider!: HTMLSpanElement;
 	private dashButtons = new Map<boolean, HTMLButtonElement>();
-	/** テキスト向けの文脈グループ（テキストツール/テキスト選択中のみ表示）。 */
-	private textGroup!: HTMLDivElement;
-	private textDivider!: HTMLSpanElement;
-	private fontSelect!: HTMLSelectElement;
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
@@ -172,30 +157,6 @@ export class Toolbar {
 		this.root.append(this.dashGroup, this.dashDivider);
 		this.setDashControlsVisible(false);
 
-		// テキスト用グループ（フォント選択のみ）。テキストツール選択中または
-		// テキストシェイプ選択中のときだけ表示する（setTextControlsVisible で制御）。
-		// サイズは選択したテキストの四隅ハンドルをドラッグして変える（ボタンは持たない）。
-		this.textGroup = group();
-
-		this.fontSelect = document.createElement("select");
-		this.fontSelect.className = "font-select";
-		this.fontSelect.title = "フォント";
-		this.fontSelect.setAttribute("aria-label", "フォント");
-		for (const opt of FONT_FAMILY_OPTIONS) {
-			const o = document.createElement("option");
-			o.value = opt.value;
-			o.textContent = opt.label;
-			this.fontSelect.append(o);
-		}
-		this.fontSelect.addEventListener("change", () =>
-			this.callbacks.onFontFamilyChange(this.fontSelect.value as FontFamilyKey),
-		);
-		this.textGroup.append(this.fontSelect);
-
-		this.textDivider = divider();
-		this.root.append(this.textGroup, this.textDivider);
-		this.setTextControlsVisible(false);
-
 		// undo/redo
 		const historyGroup = group();
 		this.undoButton = iconButton(icons.undo, "元に戻す (Ctrl/Cmd+Z)");
@@ -260,17 +221,6 @@ export class Toolbar {
 	setDashControlsVisible(visible: boolean): void {
 		this.dashGroup.hidden = !visible;
 		this.dashDivider.hidden = !visible;
-	}
-
-	/** フォント選択の現在値を反映する。 */
-	setFontFamily(family: FontFamilyKey): void {
-		this.fontSelect.value = family;
-	}
-
-	/** テキスト用コントロール群（フォント）の表示/非表示を切り替える。 */
-	setTextControlsVisible(visible: boolean): void {
-		this.textGroup.hidden = !visible;
-		this.textDivider.hidden = !visible;
 	}
 
 	setUndoRedo(canUndo: boolean, canRedo: boolean): void {

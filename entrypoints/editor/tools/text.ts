@@ -6,7 +6,7 @@ import {
 	type TextShape,
 	updateShape,
 } from "@/lib/editor/doc";
-import { resolveFontStack } from "@/lib/theme";
+import { theme } from "@/lib/theme";
 import type { Point } from "../geometry-view";
 import { openTextOverlay } from "./text-overlay";
 import type { EditorContext, Tool, ToolName } from "./types";
@@ -36,7 +36,6 @@ export class TextTool implements Tool {
 			y: pos.y,
 			text: "",
 			fontSize: this.ctx.style.fontSize,
-			fontFamily: this.ctx.style.fontFamily,
 			stroke: this.ctx.style.stroke,
 			strokeWidth: this.ctx.style.strokeWidth,
 			rotation: 0,
@@ -77,8 +76,8 @@ export class TextTool implements Tool {
 				value: shape.text,
 				docPos: { x: shape.x, y: shape.y },
 				fontSize: shape.fontSize,
-				// render.ts の Konva.Text と同じ stack を使い、編集中と確定後の見た目を一致させる。
-				fontFamily: resolveFontStack(shape.fontFamily),
+				// render.ts の Konva.Text と同じ固定スタックを使い、編集中と確定後の見た目を一致させる。
+				fontFamily: theme.fontAnnotation,
 				color: shape.stroke,
 			},
 			(text) => {

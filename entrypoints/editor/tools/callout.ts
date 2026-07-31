@@ -17,7 +17,7 @@ import {
 	updateShape,
 } from "@/lib/editor/doc";
 import { normalizeRect } from "@/lib/geometry";
-import { resolveFontStack } from "@/lib/theme";
+import { theme } from "@/lib/theme";
 import type { Point } from "../geometry-view";
 import { openTextOverlay } from "./text-overlay";
 import type { EditorContext, Tool, ToolName } from "./types";
@@ -87,7 +87,6 @@ export class CalloutTool implements Tool {
 			height,
 			text: "",
 			fontSize: this.ctx.style.fontSize,
-			fontFamily: this.ctx.style.fontFamily,
 			stroke: this.ctx.style.stroke,
 			strokeWidth: this.ctx.style.strokeWidth,
 			rotation: 0,
@@ -122,7 +121,7 @@ export class CalloutTool implements Tool {
 				value: shape.text,
 				docPos: { x: shape.x + CALLOUT_PADDING, y: shape.y + CALLOUT_PADDING },
 				fontSize: shape.fontSize,
-				fontFamily: resolveFontStack(shape.fontFamily),
+				fontFamily: theme.fontAnnotation,
 				color: "#0b0f19",
 				wrapWidth: calloutInnerWidth(shape.width, CALLOUT_PADDING),
 			},

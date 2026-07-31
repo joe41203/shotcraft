@@ -23,7 +23,6 @@ import {
 	undo,
 } from "@/lib/editor/history";
 import { DEFAULT_FONT_SIZE } from "@/lib/editor/text";
-import { DEFAULT_FONT_FAMILY, type FontFamilyKey } from "@/lib/theme";
 import { CropController } from "./crop-controller";
 import {
 	canvasToPngBlob,
@@ -85,14 +84,14 @@ export class EditorApp {
 	private tools = new Map<ToolName, Tool>();
 	private selectedId: string | null = null;
 	/**
-	 * 新規図形に適用する現在のスタイル。fontFamily/fontSize は新規テキストの
-	 * デフォルト。作成後のサイズ変更は選択して四隅ハンドルをドラッグする
-	 * （fontSize=24 は従来と同じ既定値で、既存保存データの互換を壊さない）。
+	 * 新規図形に適用する現在のスタイル。fontSize は新規テキストのデフォルト。
+	 * 作成後のサイズ変更は選択して四隅ハンドルをドラッグする（fontSize=24 は
+	 * 従来と同じ既定値で、既存保存データの互換を壊さない）。フォントは
+	 * Mochiy Pop One 固定なのでスタイルには持たない。
 	 */
 	style = {
 		stroke: "#fb7185",
 		strokeWidth: 4,
-		fontFamily: DEFAULT_FONT_FAMILY,
 		fontSize: DEFAULT_FONT_SIZE,
 		/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。既定は実線。 */
 		dash: false,
@@ -175,7 +174,6 @@ export class EditorApp {
 			onToolChange: (t) => this.setTool(t),
 			onColorChange: (c) => this.setColor(c),
 			onStrokeWidthChange: (w) => this.setStrokeWidth(w),
-			onFontFamilyChange: (f) => this.setFontFamily(f),
 			onDashChange: (d) => this.setDash(d),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
@@ -512,35 +510,6 @@ export class EditorApp {
 		this.commitDoc(updateShape(this.history.present, id, { dash }));
 	}
 
-	/**
-	 * フォント種別を新規テキストの既定にする。テキストシェイプ選択中は
-	 * そのシェイプへ即時適用して履歴に 1 回 commit する（同値なら no-op）。
-	 */
-	setFontFamily(family: FontFamilyKey): void {
-		this.style.fontFamily = family;
-		this.applyTextStyleToSelection({ fontFamily: family });
-		this.syncToolbar();
-	}
-
-	/**
-	 * 選択中がテキストシェイプなら fontFamily を適用して commit する。
-	 * 連続選択で履歴が荒れないよう、現在値と同じなら何もしない。
-	 * フォントサイズは四隅ハンドルのドラッグ（Transformer の比例スケール）で変えるため、
-	 * ここでは扱わない。fontFamily 差し替えは変形と独立なので、適用後もリサイズは機能する。
-	 */
-	private applyTextStyleToSelection(patch: {
-		fontFamily: FontFamilyKey;
-	}): void {
-		const id = this.selectedId;
-		if (!id) return;
-		const shape = findShape(this.history.present, id);
-		if (!shape || shape.type !== "text") return;
-		// 旧データは fontFamily 未設定（＝既定の mochiy 相当）。未設定へ mochiy を
-		// 指定したときも実質同値だが、明示保存は無害なので値の一致だけで判定する。
-		if (shape.fontFamily === patch.fontFamily) return;
-		this.commitDoc(updateShape(this.history.present, id, patch));
-	}
-
 	private updateCursor(): void {
 		const container = this.stage.container();
 		// select と crop はハンドル操作なので通常カーソル、描画系は十字。
@@ -555,8 +524,8 @@ export class EditorApp {
 		if (id === this.selectedId) return;
 		this.selectedId = id;
 		this.syncTransformer();
-		// テキスト選択の有無でフォント・サイズコントロールの表示と値が変わる。
-		this.syncTextControls();
+		// 線系図形の選択有無で線種コントロールの表示と値が変わる。
+		this.syncDashControls();
 		this.onSelectionChanged?.(id);
 	}
 
@@ -830,7 +799,6 @@ export class EditorApp {
 		this.toolbar.setTool(this.currentTool);
 		this.toolbar.setColor(this.style.stroke);
 		this.toolbar.setStrokeWidth(this.style.strokeWidth);
-		this.syncTextControls();
 		this.syncDashControls();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
@@ -858,24 +826,6 @@ export class EditorApp {
 		if (!visible) return;
 		const dash = selectedLine?.dash ?? this.style.dash;
 		this.toolbar.setDash(dash);
-	}
-
-	/**
-	 * テキスト用コントロール（フォント）の表示と現在値を同期する。
-	 * テキストシェイプ選択中はそのシェイプの書体を、そうでなくテキストツール
-	 * 選択中は新規デフォルト（style）の書体を表示する。どちらでもなければ隠す。
-	 * サイズは四隅ハンドルのドラッグで変えるためツールバーには持たない。
-	 */
-	private syncTextControls(): void {
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
-		const selectedText = selected?.type === "text" ? selected : undefined;
-		const visible = selectedText != null || this.currentTool === "text";
-		this.toolbar.setTextControlsVisible(visible);
-		if (!visible) return;
-		const family = selectedText?.fontFamily ?? this.style.fontFamily;
-		this.toolbar.setFontFamily(family ?? DEFAULT_FONT_FAMILY);
 	}
 
 	getContentSize(): { width: number; height: number } {

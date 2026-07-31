@@ -19,7 +19,7 @@ import { resolveDash } from "@/lib/editor/dash";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
 import { STEP_RADIUS, stepFontSize } from "@/lib/editor/step";
 import { clampFontSize } from "@/lib/editor/text";
-import { resolveFontStack } from "@/lib/theme";
+import { theme } from "@/lib/theme";
 
 /** マーカー（蛍光ペン）の描画パラメータ。入力の太さを基準に太く半透明にする。 */
 const MARKER_WIDTH_SCALE = 3;
@@ -124,12 +124,12 @@ export function shapeToNode(
 				text: shape.text,
 				fontSize: shape.fontSize,
 				fill: shape.stroke,
-				// text-overlay（textarea）と同じ見た目にするため fontFamily key を
-				// stack へ解決して使う（未指定・旧データは既定の mochiy/モッチーポップに
-				// フォールバック。レガシー "rounded"→kiwi、"pop"→hachi へ移行）。canvas 描画
+				// テキスト注釈は Mochiy Pop One 固定。text-overlay（textarea）と同じ
+				// stack を使い、編集中と確定後の見た目を一致させる。旧データに
+				// fontFamily key が残っていても無視して固定スタックで描く。canvas 描画
 				// なので、フォント読み込み完了前に描くとフォールバックされる。エディタ
 				// 初期化時に main.ts で document.fonts.load() を await してから描画に入る。
-				fontFamily: resolveFontStack(shape.fontFamily),
+				fontFamily: theme.fontAnnotation,
 				lineHeight: 1.2,
 			});
 		case "pen":
@@ -265,7 +265,7 @@ function buildCalloutNode(
 	const group = new Konva.Group({ ...common, x: shape.x, y: shape.y });
 
 	const innerWidth = calloutInnerWidth(shape.width, CALLOUT_PADDING);
-	const fontFamily = resolveFontStack(shape.fontFamily);
+	const fontFamily = theme.fontAnnotation;
 
 	// テキストを先に組んで折返し後の高さを測り、本体高さへ反映する。
 	const text = new Konva.Text({

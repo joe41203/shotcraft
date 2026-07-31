@@ -12,7 +12,7 @@
 [![Built with WXT](https://img.shields.io/badge/built%20with-WXT-67d4f8)](https://wxt.dev/)
 [![Konva](https://img.shields.io/badge/canvas-Konva-0d83cd)](https://konvajs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
-[![fonts: OFL 1.1 & Apache 2.0](https://img.shields.io/badge/fonts-OFL%201.1%20%26%20Apache%202.0-informational)](public/fonts/)
+[![font: OFL 1.1](https://img.shields.io/badge/font-OFL%201.1-informational)](public/fonts/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-yellow)](./LICENSE)
 
 <!--
@@ -55,7 +55,7 @@ shotcraft は、いま見ているタブを撮影し、そのまま**矢印・�
 - **線種（実線 / 破線）**: 矢印・矩形・楕円・ペンでは、ツールバーの線種トグルで実線と破線を切り替えられます。新しく描く図形に反映され、線系の図形を選択中に切り替えるとその図形へ即座に適用されます。
 - **モザイク**: ドラッグした矩形をピクセル化して情報を伏せます。粗さは範囲の大きさから自動で決まり、移動・リサイズすると都度計算し直します。
 - **クロップ**: トリミング枠で不要部分を切り落とします。確定後にさらに絞り込むこともでき、元に戻すで解除できます。
-- **テキスト注釈**: キャンバス上に直接文字を書き込めます。書体はモッチーポップ（同梱の Mochiy Pop One・既定）・はちまるポップ（同梱の Hachi Maru Pop）・よもぎ（同梱の Yomogi）・キウイ丸（同梱の Kiwi Maru）・M PLUS Rounded（同梱の M PLUS Rounded 1c）・小杉丸（同梱の Kosugi Maru）・ゴシック・明朝・等幅の 9 種から選べます。サイズは選択したテキストの四隅ハンドルをドラッグして拡大縮小し、移動は選択ツールまたはテキストツールでドラッグ、修正はダブルクリックで再編集できます。
+- **テキスト注釈**: キャンバス上に直接文字を書き込めます。書体はかわいい丸文字フォント Mochiy Pop One（モッチーポップ）を同梱・固定で使います。サイズは選択したテキストの四隅ハンドルをドラッグして拡大縮小し、移動は選択ツールまたはテキストツールでドラッグ、修正はダブルクリックで再編集できます。
 - **やり直し自在**: すべての操作を undo / redo でき、色や線の太さも選べます。
 
 ### 出力
@@ -67,7 +67,7 @@ shotcraft は、いま見ているタブを撮影し、そのまま**矢印・�
 ### プライバシー
 
 - **完全ローカル動作**: 撮影・編集・書き出しのすべてがブラウザ内で完結します。画像データを外部サーバーへ送信しません。
-- **外部リクエストなし**: フォントも含めて拡張に同梱しており、実行時に外部へ通信しません。
+- **外部リクエストなし**: 注釈フォント（Mochiy Pop One）も拡張に同梱しており、実行時に外部へ通信しません。UI は OS のシステムフォントを使います。
 - **最小権限**: 要求する権限は `activeTab` / `scripting` / `storage` の 3 つだけです。`host_permissions` は要求しません。
 - **ディスクに残さない**: 撮影データと編集内容は `storage.session`（ブラウザを閉じるまで有効なセッションストレージ）に保存し、明示的な保存操作をするまでディスクへは書き出しません。
 
@@ -110,7 +110,7 @@ pnpm build
   - **サイズ**: 作成したテキストを選択すると四隅にハンドルが出ます。ハンドルをドラッグすると縦横比を保ったまま拡大縮小し、フォントサイズが連続的に変わります（8〜200px）。
   - **移動**: 選択ツールでもテキストツールでも、テキストをドラッグして動かせます。テキストツール中に既存テキストの上でクリックすると、新規作成ではなくそのテキストが選択され、そのままドラッグで移動できます。
   - **修正**: テキストをダブルクリックすると入力欄が再び開き、文言を編集できます（選択ツール・テキストツールのどちらでも動きます）。
-  - **書体**: テキストツールまたはテキストを選択している間はツールバーにフォント欄が現れ、書体（モッチーポップ・はちまるポップ・よもぎ・キウイ丸・M PLUS Rounded・小杉丸・ゴシック・明朝・等幅の 9 種）を選べます。ここで選んだ書体は次に作るテキストの既定になり、テキストを選択中に変更した場合はそのテキストへ即座に反映されます。
+  - **書体**: テキスト注釈の書体は同梱のかわいい丸文字フォント Mochiy Pop One（モッチーポップ）に固定です。UI（ツールバー・ポップアップ）は OS のシステムフォントを使います。
 - **モザイク**: モザイクツール（`X`）でドラッグした矩形範囲をピクセル化します。選択ツールで移動・リサイズ・削除でき、変形するとピクセル化を計算し直します。
 - **クロップ**: クロップツール（`C`）でトリミング枠を出し、ハンドルや枠をドラッグして範囲を調整して `Enter` で確定します。もう一度クロップするとさらに絞り込め、元に戻すで解除できます。
 - **選択・変形**: 選択ツールで図形をクリックすると、周囲のハンドルで移動・リサイズ・回転できます（モザイクは回転できません。テキストは四隅ハンドルのみで縦横比を保った拡大縮小になり、回転はしません。ステップの丸バッジは固定サイズで、移動と削除のみできます）。
@@ -183,7 +183,7 @@ lib/
 assets/
   tokens.css               デザイントークン（CSS 変数）と @font-face
 public/
-  fonts/                   同梱フォント6家族の WOFF2 と家族ごとのライセンス（OFL.txt / LICENSE.txt）
+  fonts/                   同梱フォント（Mochiy Pop One）の WOFF2 とライセンス（OFL.txt）
   icon/                    拡張アイコン
 ```
 
@@ -264,17 +264,12 @@ pnpm test
 
 ## クレジット
 
-- **フォント**: かわいく読みやすいフォント 6 家族を拡張に同梱しています。UI（ポップアップ・エディタ）にはローマ字が読みやすい M PLUS Rounded 1c を、テキスト注釈の既定にはモッチーポップを使っています。5 家族は [SIL Open Font License 1.1](https://openfontlicense.org/)、小杉丸のみ [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) で配布されています。
-  - [Mochiy Pop One](https://fonts.google.com/specimen/Mochiy+Pop+One)（SIL OFL 1.1、Copyright 2020 The Mochiypop Project Authors、[`public/fonts/mochiy-pop-one/OFL.txt`](public/fonts/mochiy-pop-one/OFL.txt)）— テキスト注釈の既定書体（モッチーポップ）に使っています。
-  - [Hachi Maru Pop](https://fonts.google.com/specimen/Hachi+Maru+Pop)（SIL OFL 1.1、Copyright 2020 The Hachi Maru Pop Project Authors、[`public/fonts/hachi-maru-pop/OFL.txt`](public/fonts/hachi-maru-pop/OFL.txt)）— テキスト注釈の書体（はちまるポップ）に使っています。
-  - [Yomogi](https://fonts.google.com/specimen/Yomogi)（SIL OFL 1.1、Copyright 2020 The Yomogi Project Authors、[`public/fonts/yomogi/OFL.txt`](public/fonts/yomogi/OFL.txt)）— テキスト注釈の書体（よもぎ）に使っています。
-  - [Kiwi Maru](https://fonts.google.com/specimen/Kiwi+Maru)（SIL OFL 1.1、Copyright 2020 The Kiwi Maru Project Authors、[`public/fonts/kiwi-maru/OFL.txt`](public/fonts/kiwi-maru/OFL.txt)）— テキスト注釈の書体（キウイ丸）に使っています。
-  - [M PLUS Rounded 1c](https://fonts.google.com/specimen/M+PLUS+Rounded+1c)（SIL OFL 1.1、Copyright 2016 The Rounded M+ Project Authors、[`public/fonts/m-plus-rounded-1c/OFL.txt`](public/fonts/m-plus-rounded-1c/OFL.txt)）— UI とテキスト注釈の書体（M PLUS Rounded）に使っています。ライセンス本文は正規配布元 [coz-m/MPLUS_FONTS](https://github.com/coz-m/MPLUS_FONTS) のものを同梱しています。
-  - [Kosugi Maru](https://fonts.google.com/specimen/Kosugi+Maru)（Apache License 2.0、Copyright 2010 The Kosugi Maru Project Authors、[`public/fonts/kosugi-maru/LICENSE.txt`](public/fonts/kosugi-maru/LICENSE.txt)）— テキスト注釈の書体（小杉丸）に使っています。
+- **フォント**: テキスト注釈にはかわいい丸文字フォント Mochiy Pop One を 1 種だけ同梱しています。UI（ポップアップ・エディタ）は同梱フォントを使わず OS のシステムフォントに依存します。フォントは [SIL Open Font License 1.1](https://openfontlicense.org/) で配布されています。
+  - [Mochiy Pop One](https://fonts.google.com/specimen/Mochiy+Pop+One)（SIL OFL 1.1、Copyright 2020 The Mochiypop Project Authors、[`public/fonts/mochiy-pop-one/OFL.txt`](public/fonts/mochiy-pop-one/OFL.txt)）— テキスト注釈の書体（モッチーポップ）に使っています。
 
-  外部リクエストを避けるため CSS の Web フォント読み込みは使わず、WOFF2 を同梱しています。かわいい系フォントは字形データが大きいため、この 6 家族（計 8 ファイル）の同梱で拡張サイズは合計約 12.6 MB 増えています。
+  外部リクエストを避けるため CSS の Web フォント読み込みは使わず、WOFF2 を同梱しています。同梱するのはこの Mochiy Pop One 1 種（WOFF2 1 ファイル）だけで、同梱フォントの容量は約 2.6 MB です（かつて 6 家族を同梱していた頃の約 12.6 MB から削減しました）。
 - **アイコン**: 本リポジトリオリジナルの拡張アイコン（`public/icon/`）を使用しています。
 
 ## ライセンス
 
-このプロジェクトのソースコードは [MIT License](./LICENSE) のもとで公開しています。同梱フォント 6 家族はソースコードのライセンスとは独立に、それぞれのフォントライセンスが適用されます。Mochiy Pop One・Hachi Maru Pop・Yomogi・Kiwi Maru・M PLUS Rounded 1c の 5 家族は SIL Open Font License 1.1、Kosugi Maru は Apache License 2.0 のもとで配布されています。ライセンス全文は各家族の `public/fonts/<家族>/` 配下の `OFL.txt`（Kosugi Maru のみ `LICENSE.txt`）を参照してください。
+このプロジェクトのソースコードは [MIT License](./LICENSE) のもとで公開しています。同梱フォント Mochiy Pop One はソースコードのライセンスとは独立に、フォント自身のライセンス（SIL Open Font License 1.1）が適用されます。ライセンス全文は [`public/fonts/mochiy-pop-one/OFL.txt`](public/fonts/mochiy-pop-one/OFL.txt) を参照してください。
