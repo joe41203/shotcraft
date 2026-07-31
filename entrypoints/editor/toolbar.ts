@@ -1,12 +1,13 @@
 import { icons } from "@/lib/icons";
 import type { ToolName } from "./tools/types";
 
-/** 色スウォッチ。デフォルトは赤。 */
+/** 色スウォッチ（モダンミュート）。デフォルトはコーラル。 */
 export const COLORS = [
-	{ value: "#ef4444", label: "赤" },
-	{ value: "#f97316", label: "オレンジ" },
-	{ value: "#22c55e", label: "緑" },
-	{ value: "#3b82f6", label: "青" },
+	{ value: "#fb7185", label: "コーラル" },
+	{ value: "#fbbf24", label: "アンバー" },
+	{ value: "#34d399", label: "エメラルド" },
+	{ value: "#38bdf8", label: "スカイ" },
+	{ value: "#a78bfa", label: "バイオレット" },
 	{ value: "#18181b", label: "黒" },
 	{ value: "#fafafa", label: "白" },
 ] as const;

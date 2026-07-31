@@ -60,7 +60,7 @@ export class EditorApp {
 	private currentTool: ToolName = "select";
 	private tools = new Map<ToolName, Tool>();
 	private selectedId: string | null = null;
-	style = { stroke: "#ef4444", strokeWidth: 4 };
+	style = { stroke: "#fb7185", strokeWidth: 4 };
 
 	private toolbar: Toolbar;
 	private idCounter = 0;
