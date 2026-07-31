@@ -323,6 +323,12 @@ main {
   color: var(--text-muted);
 }
 
+/* display: flex が UA スタイルの [hidden] { display: none } に勝ってしまい、
+   非表示のはずの空状態がキャンバス全面を覆ってポインタ操作を奪うため明示する */
+.empty[hidden] {
+  display: none;
+}
+
 /* テキスト編集オーバーレイ（tools/text.ts が生成）。
    キャンバス上での直接編集なので、枠は控えめな点線のみ。文字色は図形色を継承。 */
 .text-overlay {
