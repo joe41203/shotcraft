@@ -1,28 +1,55 @@
 :root {
   color-scheme: light dark;
   font-family: system-ui, sans-serif;
+
+  --bg: light-dark(#f4f4f5, #18181b);
+  --fg: light-dark(#18181b, #fafafa);
+  --panel: light-dark(#ffffff, #27272a);
+  --border: light-dark(#e4e4e7, #3f3f46);
+  --muted: light-dark(#52525b, #a1a1aa);
+  --hover: light-dark(#f4f4f5, #3f3f46);
+  --active: light-dark(#e0e7ff, #1e3a8a);
+  --active-fg: light-dark(#1d4ed8, #bfdbfe);
+  --accent: #3b82f6;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  background: light-dark(#f4f4f5, #18181b);
-  color: light-dark(#18181b, #fafafa);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
 }
 
 header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+
+.header-meta {
+  display: flex;
   align-items: baseline;
   gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid light-dark(#e4e4e7, #3f3f46);
-  background: light-dark(#ffffff, #27272a);
+  min-width: 0;
 }
 
 .meta {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  color: light-dark(#52525b, #a1a1aa);
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .title {
@@ -30,24 +57,157 @@ header {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--muted);
 }
+
+/* --- ツールバー --- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--border);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+}
+
+.icon-btn.active {
+  background: var(--active);
+  color: var(--active-fg);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.icon-btn:disabled:hover {
+  background: transparent;
+}
+
+/* 色スウォッチ */
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--panel);
+}
+
+.swatch.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 線の太さ */
+.width-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.width-btn:hover {
+  background: var(--hover);
+}
+
+.width-btn.active {
+  background: var(--active);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.width-dot {
+  display: block;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.zoom-label {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* --- ステージ --- */
 
 main {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 24px;
+  position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
-/* 原寸表示。横幅がビューポートを超えるときだけ縮小する */
-#image {
-  max-width: 100%;
-  height: auto;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+.stage {
+  position: absolute;
+  inset: 0;
+  background: light-dark(#e4e4e7, #27272a);
+  overflow: hidden;
 }
 
 .empty {
-  margin: 48px 0;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
   font-size: 14px;
-  color: light-dark(#71717a, #a1a1aa);
+  color: var(--muted);
+}
+
+/* テキスト編集オーバーレイ（tools/text.ts が生成） */
+.text-overlay {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: 1px dashed var(--accent);
+  background: transparent;
+  color: inherit;
+  font-family: system-ui, sans-serif;
+  line-height: 1.2;
+  overflow: hidden;
+  resize: none;
+  white-space: pre;
+  transform-origin: top left;
 }
