@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      konva:
+        specifier: ^10.3.0
+        version: 10.3.0
     devDependencies:
       typescript:
         specifier: ^7.0.2
@@ -1284,6 +1288,9 @@ packages:
   kleur@3.0.3:
     resolution: {integrity: sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==}
     engines: {node: '>=6'}
+
+  konva@10.3.0:
+    resolution: {integrity: sha512-gt19K2gzY4lHbnkvsku7eSmB+A9PTS2jG4F9coBMsdjM1UKfJNxJbDbXVpeCW1wjEGRwBD3nBamcHnqJhAeKlg==}
 
   ky@1.14.3:
     resolution: {integrity: sha512-9zy9lkjac+TR1c2tG+mkNSVlyOpInnWdSMiue4F+kq8TwJSgv6o8jhLRg8Ho6SnZ9wOYUq/yozts9qQCfk7bIw==}
@@ -3287,6 +3294,8 @@ snapshots:
       json-buffer: 3.0.1
 
   kleur@3.0.3: {}
+
+  konva@10.3.0: {}
 
   ky@1.14.3: {}
 
