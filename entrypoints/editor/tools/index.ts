@@ -2,6 +2,7 @@ import type { EditorApp } from "../app";
 import { ArrowTool } from "./arrow";
 import { EllipseTool } from "./ellipse";
 import { RectTool } from "./rect";
+import { SelectTool } from "./select";
 import { MarkerTool, PenTool } from "./stroke";
 import { TextTool } from "./text";
 
@@ -11,6 +12,7 @@ import { TextTool } from "./text";
  */
 export function registerTools(app: EditorApp): void {
 	const ctx = app.context();
+	app.registerTool(new SelectTool());
 	app.registerTool(new ArrowTool(ctx));
 	app.registerTool(new RectTool(ctx));
 	app.registerTool(new EllipseTool(ctx));

@@ -120,6 +120,25 @@ export function updateShape(
 	return changed ? { shapes } : doc;
 }
 
+/**
+ * id の図形を shape で丸ごと置き換えた新しい doc を返す。
+ * Transformer による変形結果（shapeFromNode の戻り値）を焼き込む用途。
+ * 対象 id が無ければ doc をそのまま返す。
+ */
+export function replaceShape(
+	doc: EditorDoc,
+	id: string,
+	shape: Shape,
+): EditorDoc {
+	let changed = false;
+	const shapes = doc.shapes.map((s) => {
+		if (s.id !== id) return s;
+		changed = true;
+		return shape;
+	});
+	return changed ? { shapes } : doc;
+}
+
 /** id の図形を除いた新しい doc を返す。無ければそのまま返す。 */
 export function removeShape(doc: EditorDoc, id: string): EditorDoc {
 	const shapes = doc.shapes.filter((shape) => shape.id !== id);

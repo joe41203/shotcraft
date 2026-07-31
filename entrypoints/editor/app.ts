@@ -4,6 +4,8 @@ import {
 	type EditorDoc,
 	emptyDoc,
 	findShape,
+	removeShape,
+	replaceShape,
 	type Shape,
 } from "@/lib/editor/doc";
 import {
@@ -21,7 +23,7 @@ import {
 	type ViewTransform,
 	zoomAtTransform,
 } from "./geometry-view";
-import { renderShapes } from "./render";
+import { renderShapes, shapeFromNode } from "./render";
 import { Toolbar } from "./toolbar";
 import type { EditorContext, Tool, ToolName } from "./tools/types";
 
@@ -31,6 +33,9 @@ export class EditorApp {
 	private bgLayer: Konva.Layer;
 	private shapeLayer: Konva.Layer;
 	readonly previewLayer: Konva.Layer;
+	/** Transformer など操作用 UI を載せるレイヤー（shapeLayer 再構築の影響を受けない）。 */
+	private uiLayer: Konva.Layer;
+	private transformer: Konva.Transformer;
 	private image: Konva.Image;
 	private contentSize: { width: number; height: number };
 
@@ -67,6 +72,7 @@ export class EditorApp {
 		this.bgLayer = new Konva.Layer({ listening: false });
 		this.shapeLayer = new Konva.Layer();
 		this.previewLayer = new Konva.Layer({ listening: false });
+		this.uiLayer = new Konva.Layer();
 
 		this.image = new Konva.Image({
 			image: imageEl,
@@ -76,7 +82,24 @@ export class EditorApp {
 			height: record.height,
 		});
 		this.bgLayer.add(this.image);
-		this.stage.add(this.bgLayer, this.shapeLayer, this.previewLayer);
+
+		this.transformer = new Konva.Transformer({
+			flipEnabled: false,
+			ignoreStroke: true,
+			rotateEnabled: true,
+			anchorSize: 9,
+			borderStroke: "#3b82f6",
+			anchorStroke: "#3b82f6",
+			anchorFill: "#ffffff",
+		});
+		this.uiLayer.add(this.transformer);
+
+		this.stage.add(
+			this.bgLayer,
+			this.shapeLayer,
+			this.previewLayer,
+			this.uiLayer,
+		);
 
 		this.toolbar = new Toolbar(toolbarRoot, {
 			onToolChange: (t) => this.setTool(t),
@@ -173,12 +196,54 @@ export class EditorApp {
 
 	private render(): void {
 		// select ツールのときだけドラッグ可能にする。
-		renderShapes(
-			this.shapeLayer,
-			this.history.present,
-			this.currentTool === "select",
-		);
+		const selectable = this.currentTool === "select";
+		renderShapes(this.shapeLayer, this.history.present, selectable);
+		if (selectable) this.bindNodeEvents();
+		this.syncTransformer();
 		this.applyViewTransform(this.readTransform());
+	}
+
+	/**
+	 * 各図形ノードに移動・変形の確定ハンドラを付ける。
+	 * ドラッグ/変形の終了時にノードの状態を Shape へ焼き込んで commit する。
+	 */
+	private bindNodeEvents(): void {
+		for (const child of this.shapeLayer.getChildren()) {
+			const node: Konva.Node = child;
+			node.on("dragend.commit transformend.commit", () => {
+				const id = node.id();
+				const prev = findShape(this.history.present, id);
+				if (!prev) return;
+				const next = shapeFromNode(node, prev);
+				this.commitDoc(replaceShape(this.history.present, id, next));
+			});
+			// クリックで選択（select ツール時）。
+			node.on(
+				"pointerdown.select",
+				(e: Konva.KonvaEventObject<PointerEvent>) => {
+					if (this.currentTool !== "select") return;
+					e.cancelBubble = true; // 背景の選択解除に伝播させない
+					this.select(node.id());
+				},
+			);
+		}
+	}
+
+	/** 選択 id のノードに Transformer をアタッチする。未選択なら外す。 */
+	private syncTransformer(): void {
+		if (this.currentTool !== "select" || !this.selectedId) {
+			this.transformer.nodes([]);
+			this.uiLayer.batchDraw();
+			return;
+		}
+		const node = this.shapeLayer.findOne(`#${this.selectedId}`);
+		if (node) {
+			this.transformer.nodes([node as Konva.Node]);
+			this.transformer.moveToTop();
+		} else {
+			this.transformer.nodes([]);
+		}
+		this.uiLayer.batchDraw();
 	}
 
 	private readTransform(): ViewTransform {
@@ -248,6 +313,7 @@ export class EditorApp {
 	select(id: string | null): void {
 		if (id === this.selectedId) return;
 		this.selectedId = id;
+		this.syncTransformer();
 		this.onSelectionChanged?.(id);
 	}
 
@@ -286,7 +352,19 @@ export class EditorApp {
 			}
 		});
 
-		this.stage.on("pointerdown", () => {
+		this.stage.on("pointerdown", (e) => {
+			if (this.currentTool === "select") {
+				// Transformer のハンドル操作は選択解除しない。
+				if (e.target?.getLayer() === this.uiLayer) return;
+				// 図形ノードのクリックは node.on("pointerdown") が処理する。
+				// ここに来て target が図形でない＝背景クリックなら選択解除する。
+				const targetId = e.target?.id();
+				const hitShape = targetId
+					? findShape(this.history.present, targetId)
+					: undefined;
+				if (!hitShape) this.select(null);
+				return;
+			}
 			const pos = this.docPointer();
 			if (!pos) return;
 			this.tools.get(this.currentTool)?.onPointerDown?.(pos);
@@ -394,10 +472,8 @@ export class EditorApp {
 	private handleDelete(): void {
 		const id = this.selectedId;
 		if (!id) return;
-		const doc = this.history.present;
-		const next = { shapes: doc.shapes.filter((s) => s.id !== id) };
 		this.select(null);
-		this.commitDoc(next);
+		this.commitDoc(removeShape(this.history.present, id));
 	}
 
 	private bindResize(container: HTMLDivElement): void {
