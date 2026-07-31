@@ -37,7 +37,7 @@ function text(id: string): TextShape {
 		y: 0,
 		text: "こんにちは",
 		fontSize: 24,
-		fontFamily: "pop",
+		fontFamily: "mochiy",
 		stroke: "#ef4444",
 		strokeWidth: 4,
 		rotation: 0,
@@ -116,7 +116,7 @@ describe("updateShape", () => {
 		const next = updateShape(doc, "t", { fontSize: 32 });
 		const shape = next.shapes[0] as TextShape;
 		expect(shape.fontSize).toBe(32);
-		expect(shape.fontFamily).toBe("pop");
+		expect(shape.fontFamily).toBe("mochiy");
 	});
 
 	it("fontFamily と fontSize を同時にパッチできる", () => {

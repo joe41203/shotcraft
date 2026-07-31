@@ -97,8 +97,8 @@ export function shapeToNode(shape: Shape, source?: MosaicSource): Konva.Shape {
 				fontSize: shape.fontSize,
 				fill: shape.stroke,
 				// text-overlay（textarea）と同じ見た目にするため fontFamily key を
-				// stack へ解決して使う（未指定・旧データは既定の pop/はちまるポップに
-				// フォールバック。Zen Maru 時代の "rounded" は kiwi へ移行）。canvas 描画
+				// stack へ解決して使う（未指定・旧データは既定の mochiy/モッチーポップに
+				// フォールバック。レガシー "rounded"→kiwi、"pop"→hachi へ移行）。canvas 描画
 				// なので、フォント読み込み完了前に描くとフォールバックされる。エディタ
 				// 初期化時に main.ts で document.fonts.load() を await してから描画に入る。
 				fontFamily: resolveFontStack(shape.fontFamily),
