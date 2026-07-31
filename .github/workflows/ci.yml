@@ -52,3 +52,6 @@ jobs:
           path: .output/*.zip
           retention-days: 14
           if-no-files-found: error
+          # .output はドット始まりの隠しディレクトリのため、これが無いと除外されて
+          # "No files were found" で失敗する（upload-artifact v4 の仕様）
+          include-hidden-files: true
