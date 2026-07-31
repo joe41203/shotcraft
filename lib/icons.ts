@@ -58,4 +58,8 @@ export const icons = {
 	),
 	// 範囲選択キャプチャ（クロップ枠）
 	crop: svg('<path d="M6 2v16h16"/><path d="M18 22V6H2"/>'),
+	// ページ全体キャプチャ（縦長ページ＋下向きスクロール矢印）
+	fullPage: svg(
+		'<rect x="6" y="3" width="12" height="18" rx="1.5"/><line x1="12" y1="7" x2="12" y2="17"/><polyline points="9 14 12 17 15 14"/>',
+	),
 } as const;

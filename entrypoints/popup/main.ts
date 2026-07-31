@@ -28,3 +28,7 @@ document.getElementById("capture-visible")?.addEventListener("click", () => {
 document.getElementById("capture-region")?.addEventListener("click", () => {
 	void send({ type: "START_REGION_SELECT" });
 });
+
+document.getElementById("capture-full-page")?.addEventListener("click", () => {
+	void send({ type: "CAPTURE_FULL_PAGE" });
+});
