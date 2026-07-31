@@ -23,16 +23,30 @@ export function clampScale(scale: number): number {
 
 /**
  * 画像（doc サイズ）をコンテナに収める変換を求める。
- * 縦横比を保ったまま余白を確保して中央寄せする。画像がコンテナより
- * 小さいときは拡大しない（scale の上限を 1 にする）。
+ * 縦横比を保ったまま中央寄せする。画像がコンテナより小さいときは拡大しない
+ * （scale の上限を 1 にする）。
+ *
+ * 余白（FIT_PADDING）は「画像がコンテナに収まらず縮小が必要なとき」だけ確保する。
+ * 原寸（scale 1）でパディング無しでも収まる画像は 100% のまま表示する。
+ * こうしないと、表示範囲キャプチャのようにコンテナ幅とほぼ同じ画像が
+ * 余白のぶんだけ 96% 程度に縮小されてしまう。
  */
 export function fitTransform(container: Size, content: Size): ViewTransform {
 	if (content.width <= 0 || content.height <= 0) {
 		return { scale: 1, x: 0, y: 0 };
 	}
-	const scaleX = (container.width - FIT_PADDING * 2) / content.width;
-	const scaleY = (container.height - FIT_PADDING * 2) / content.height;
-	const scale = clampScale(Math.min(1, scaleX, scaleY));
+	// まず原寸（パディング無し）で収まるか判定する。収まるなら 100%。
+	const fitsAtFullSize =
+		content.width <= container.width && content.height <= container.height;
+	let scale: number;
+	if (fitsAtFullSize) {
+		scale = 1;
+	} else {
+		// 収まらない場合はパディングを確保して縮小率を求める。
+		const scaleX = (container.width - FIT_PADDING * 2) / content.width;
+		const scaleY = (container.height - FIT_PADDING * 2) / content.height;
+		scale = clampScale(Math.min(1, scaleX, scaleY));
+	}
 	return {
 		scale,
 		x: (container.width - content.width * scale) / 2,

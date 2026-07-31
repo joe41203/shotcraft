@@ -27,6 +27,18 @@ describe("fitTransform", () => {
 		expect(t.y).toBe((800 - 300) / 2);
 	});
 
+	it("原寸で収まる画像は余白を理由に縮小せず 100% で表示する", () => {
+		// container 1280x720, content 1280x680（幅はコンテナと同じ・原寸で収まる）
+		// パディングを差し引くと幅が足りないが、原寸で収まるので scale=1 を維持する
+		const t = fitTransform(
+			{ width: 1280, height: 720 },
+			{ width: 1280, height: 680 },
+		);
+		expect(t.scale).toBe(1);
+		expect(t.x).toBe(0);
+		expect(t.y).toBe((720 - 680) / 2);
+	});
+
 	it("大きい画像は縦横比を保って縮小しつつ中央寄せする", () => {
 		// container 500x500(padding込みで452有効), content 904x452 → 幅で決まる
 		const t = fitTransform(
