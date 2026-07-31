@@ -60,6 +60,10 @@ export const icons = {
 	camera: svg(
 		'<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
 	),
+	// 遅延キャプチャ（タイマー／ストップウォッチ）
+	timer: svg(
+		'<circle cx="12" cy="13" r="8"/><path d="M12 13V9"/><path d="M9 2h6"/>',
+	),
 	// 範囲選択キャプチャ（クロップ枠）
 	crop: svg('<path d="M6 2v16h16"/><path d="M18 22V6H2"/>'),
 	// ページ全体キャプチャ（縦長ページ＋下向きスクロール矢印）

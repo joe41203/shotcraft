@@ -1,4 +1,5 @@
 import type { Browser } from "wxt/browser";
+import { clampCaptureDelayMs } from "@/lib/capture-delay";
 import { type CaptureRecord, saveCapture } from "@/lib/capture-store";
 import { cssRectToBitmapRect, planFullPageTiles } from "@/lib/geometry";
 import type { Message, Rect, Size } from "@/lib/messages";
@@ -27,7 +28,7 @@ export default defineBackground(() => {
 	browser.runtime.onMessage.addListener((message: Message, sender) => {
 		switch (message.type) {
 			case "CAPTURE_VISIBLE":
-				void captureVisible();
+				void captureVisible(message.delayMs);
 				break;
 			case "START_REGION_SELECT":
 				void startRegionSelect();
@@ -56,7 +57,19 @@ export default defineBackground(() => {
 		}
 	}
 
-	async function captureVisible(): Promise<void> {
+	/**
+	 * 表示範囲をキャプチャする。delayMs があればその時間だけ待ってから撮る
+	 * （ホバーメニュー等を出した状態で撮る用途）。
+	 *
+	 * 遅延はレート制限枠の予約（waitForCaptureSlot）より前に行う。枠は撮影直前に
+	 * 取るので、待機と枠処理が衝突しない。アクティブタブの取得も遅延後にすることで、
+	 * 待機中にユーザーが撮りたいタブへ切り替えても対象を取り違えない。
+	 */
+	async function captureVisible(delayMs?: number): Promise<void> {
+		const delay = clampCaptureDelayMs(delayMs);
+		if (delay > 0) {
+			await new Promise((resolve) => setTimeout(resolve, delay));
+		}
 		const [tab] = await browser.tabs.query({
 			active: true,
 			currentWindow: true,

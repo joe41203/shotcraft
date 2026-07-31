@@ -10,9 +10,15 @@ export interface Size {
 	height: number;
 }
 
-/** popup → service worker: 表示範囲をそのままキャプチャする */
+/**
+ * popup → service worker: 表示範囲をそのままキャプチャする。
+ * delayMs があれば background 側でその時間だけ待ってから撮る（遅延キャプチャ）。
+ * 省略・0 のときは即時（後方互換）。ホバーメニューやツールチップを出した状態で
+ * 撮る用途に使う。
+ */
 export interface CaptureVisibleMessage {
 	type: "CAPTURE_VISIBLE";
+	delayMs?: number;
 }
 
 /** popup → service worker: 範囲選択オーバーレイの起動を要求する */
