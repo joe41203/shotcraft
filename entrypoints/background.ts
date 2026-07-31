@@ -1,5 +1,7 @@
+import type { Browser } from "wxt/browser";
 import { type CaptureRecord, saveCapture } from "@/lib/capture-store";
-import type { Message } from "@/lib/messages";
+import { cssRectToBitmapRect } from "@/lib/geometry";
+import type { Message, Rect, Size } from "@/lib/messages";
 
 /**
  * captureVisibleTab は 2 回/秒に制限される。超過分を破棄せず、
@@ -7,13 +9,24 @@ import type { Message } from "@/lib/messages";
  */
 const CAPTURE_MIN_INTERVAL_MS = 600;
 
+/** 範囲選択 content script のビルド出力パス（WXT の runtime 登録の出力先）。 */
+const REGION_SELECT_SCRIPT = "/content-scripts/region-select.js";
+
 export default defineBackground(() => {
 	let nextCaptureAt = 0;
 
-	browser.runtime.onMessage.addListener((message: Message) => {
+	browser.runtime.onMessage.addListener((message: Message, sender) => {
 		switch (message.type) {
 			case "CAPTURE_VISIBLE":
 				void captureVisible();
+				break;
+			case "START_REGION_SELECT":
+				void startRegionSelect();
+				break;
+			case "REGION_SELECTED":
+				void captureRegion(sender.tab, message.rect, message.viewport);
+				break;
+			case "REGION_CANCELLED":
 				break;
 		}
 	});
@@ -51,6 +64,97 @@ export default defineBackground(() => {
 		} catch (error) {
 			console.warn("[shotcraft] 表示範囲のキャプチャに失敗しました", error);
 		}
+	}
+
+	async function startRegionSelect(): Promise<void> {
+		const [tab] = await browser.tabs.query({
+			active: true,
+			currentWindow: true,
+		});
+		if (!tab?.id) return;
+		try {
+			await browser.scripting.executeScript({
+				target: { tabId: tab.id },
+				files: [REGION_SELECT_SCRIPT],
+			});
+		} catch (error) {
+			// chrome:// や Chrome Web Store など注入不可のページ。既知の制限として警告に留める
+			console.warn("[shotcraft] このページでは範囲選択を開始できません", error);
+		}
+	}
+
+	async function captureRegion(
+		tab: Browser.tabs.Tab | undefined,
+		rect: Rect,
+		viewport: Size,
+	): Promise<void> {
+		await waitForCaptureSlot();
+		try {
+			const windowId = tab?.windowId ?? browser.windows.WINDOW_ID_CURRENT;
+			const dataUrl = await browser.tabs.captureVisibleTab(windowId, {
+				format: "png",
+			});
+			const cropped = await cropDataUrl(dataUrl, rect, viewport);
+			if (!cropped) return;
+			await openViewer({
+				dataUrl: cropped.dataUrl,
+				width: cropped.width,
+				height: cropped.height,
+				sourceUrl: tab?.url ?? "",
+				sourceTitle: tab?.title ?? "",
+			});
+		} catch (error) {
+			console.warn("[shotcraft] 範囲キャプチャに失敗しました", error);
+		}
+	}
+
+	/**
+	 * 表示領域全体の dataUrl を CSS px の選択矩形でクロップし、PNG の dataUrl を返す。
+	 * service worker では Canvas 要素が使えないため OffscreenCanvas を用いる。
+	 * 座標変換は devicePixelRatio ではなく bitmap と viewport の実測比で行う。
+	 */
+	async function cropDataUrl(
+		dataUrl: string,
+		rect: Rect,
+		viewport: Size,
+	): Promise<{ dataUrl: string; width: number; height: number } | null> {
+		const blob = await (await fetch(dataUrl)).blob();
+		const bitmap = await createImageBitmap(blob);
+		try {
+			const region = cssRectToBitmapRect(rect, viewport, {
+				width: bitmap.width,
+				height: bitmap.height,
+			});
+			if (!region) return null;
+			const canvas = new OffscreenCanvas(region.width, region.height);
+			const ctx = canvas.getContext("2d");
+			if (!ctx) return null;
+			ctx.drawImage(
+				bitmap,
+				region.x,
+				region.y,
+				region.width,
+				region.height,
+				0,
+				0,
+				region.width,
+				region.height,
+			);
+			const outBlob = await canvas.convertToBlob({ type: "image/png" });
+			const outUrl = await blobToDataUrl(outBlob);
+			return { dataUrl: outUrl, width: region.width, height: region.height };
+		} finally {
+			bitmap.close();
+		}
+	}
+
+	async function blobToDataUrl(blob: Blob): Promise<string> {
+		return await new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(reader.result as string);
+			reader.onerror = () => reject(reader.error);
+			reader.readAsDataURL(blob);
+		});
 	}
 
 	/**
