@@ -32,6 +32,10 @@ export const icons = {
 	marker: svg(
 		'<path d="M9 14l-2 5 5-2 8-8-3-3z"/><line x1="14" y1="6" x2="18" y2="10"/><line x1="5" y1="21" x2="12" y2="21"/>',
 	),
+	// 番号付きステップ（丸に数字の 1）
+	step: svg(
+		'<circle cx="12" cy="12" r="9"/><path d="M11 9.5l1.8-1.2V16" stroke-width="2" fill="none"/>',
+	),
 	// モザイク（ピクセルのグリッド）
 	mosaic: svg(
 		'<rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="9.5" x2="20" y2="9.5"/><line x1="4" y1="14.5" x2="20" y2="14.5"/><line x1="9.5" y1="4" x2="9.5" y2="20"/><line x1="14.5" y1="4" x2="14.5" y2="20"/>',

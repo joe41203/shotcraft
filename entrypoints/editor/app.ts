@@ -387,6 +387,8 @@ export class EditorApp {
 	 * Transformer は全図形で共有するため、type ごとに毎回明示的に設定し直す。
 	 * - text: 四隅アンカーのみ・縦横比固定・回転無効。四隅ドラッグの比例スケールを
 	 *   fontSize へ焼き込む運用のため、辺アンカー（片軸だけ伸ばす）を出さない。
+	 * - step: アンカー・回転とも無効（固定サイズの丸バッジ）。選択枠だけ出して
+	 *   ドラッグ移動のみを許す。
 	 * - mosaic: 全アンカーだが回転無効（ピクセル化の再計算を矩形に限定する）。
 	 * - それ以外: 全アンカー・回転あり（既定）。
 	 */
@@ -394,6 +396,12 @@ export class EditorApp {
 		if (type === "text") {
 			this.transformer.enabledAnchors(TEXT_CORNER_ANCHORS);
 			this.transformer.keepRatio(true);
+			this.transformer.rotateEnabled(false);
+			return;
+		}
+		if (type === "step") {
+			this.transformer.enabledAnchors([]);
+			this.transformer.keepRatio(false);
 			this.transformer.rotateEnabled(false);
 			return;
 		}
@@ -684,6 +692,10 @@ export class EditorApp {
 				case "m":
 				case "M":
 					this.setTool("marker");
+					break;
+				case "s":
+				case "S":
+					this.setTool("step");
 					break;
 				case "x":
 				case "X":

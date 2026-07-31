@@ -43,6 +43,7 @@ const TOOLS: ToolDef[] = [
 	{ name: "text", label: "テキスト", shortcut: "T", icon: icons.text },
 	{ name: "pen", label: "ペン", shortcut: "P", icon: icons.pen },
 	{ name: "marker", label: "マーカー", shortcut: "M", icon: icons.marker },
+	{ name: "step", label: "ステップ", shortcut: "S", icon: icons.step },
 	{ name: "mosaic", label: "モザイク", shortcut: "X", icon: icons.mosaic },
 	{ name: "crop", label: "クロップ", shortcut: "C", icon: icons.crop },
 ];

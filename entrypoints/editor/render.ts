@@ -1,6 +1,12 @@
 import Konva from "konva";
-import type { EditorDoc, MosaicShape, Shape } from "@/lib/editor/doc";
+import type {
+	EditorDoc,
+	MosaicShape,
+	Shape,
+	StepShape,
+} from "@/lib/editor/doc";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
+import { STEP_RADIUS, stepFontSize } from "@/lib/editor/step";
 import { clampFontSize } from "@/lib/editor/text";
 import { resolveFontStack } from "@/lib/theme";
 
@@ -37,7 +43,10 @@ function arrowHead(strokeWidth: number): {
  * mosaic だけはベース画像をサンプリング元にするため source を要する。
  * source が無い場合（プレビュー等）はプレースホルダの半透明矩形を返す。
  */
-export function shapeToNode(shape: Shape, source?: MosaicSource): Konva.Shape {
+export function shapeToNode(
+	shape: Shape,
+	source?: MosaicSource,
+): Konva.Shape | Konva.Group {
 	const common = {
 		id: shape.id,
 		name: "shape",
@@ -46,6 +55,8 @@ export function shapeToNode(shape: Shape, source?: MosaicSource): Konva.Shape {
 	};
 
 	switch (shape.type) {
+		case "step":
+			return buildStepNode(shape, common);
 		case "mosaic":
 			return source
 				? buildMosaicNode(shape, source)
@@ -177,6 +188,51 @@ export function buildMosaicNode(
 }
 
 /**
+ * ステップバッジ（塗り円 + 中央の白抜き数字）を Konva.Group として作る。
+ *
+ * Group の x/y はバッジ中心。円とテキストは Group ローカル座標で中心 (0,0) に
+ * 配置し、Group ごと移動・削除する。数字は白・太字で、円は shape.stroke（現在の
+ * 注釈色）で塗る。半径は shape.radius（省略時 STEP_RADIUS）。
+ * テキストは幅・高さを直径に合わせ align/verticalAlign で中央寄せする。
+ */
+function buildStepNode(
+	shape: StepShape,
+	common: { id: string; name: string; rotation: number; opacity: number },
+): Konva.Group {
+	const radius = shape.radius ?? STEP_RADIUS;
+	const group = new Konva.Group({ ...common, x: shape.x, y: shape.y });
+
+	group.add(
+		new Konva.Circle({
+			x: 0,
+			y: 0,
+			radius,
+			fill: shape.stroke,
+			listening: true,
+		}),
+	);
+
+	const fontSize = stepFontSize(radius);
+	group.add(
+		new Konva.Text({
+			x: -radius,
+			y: -radius,
+			width: radius * 2,
+			height: radius * 2,
+			text: String(shape.number),
+			fontSize,
+			fontStyle: "bold",
+			fill: "#ffffff",
+			align: "center",
+			verticalAlign: "middle",
+			listening: false,
+		}),
+	);
+
+	return group;
+}
+
+/**
  * doc の全図形を Konva レイヤーへ同期描画する。
  * 差分更新は凝らず全再構築する（描画の正は常に doc 側）。
  * draggable は select ツール時のみ true にしたいので引数で受ける。
@@ -280,6 +336,15 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 				y: img.y(),
 				width: Math.max(1, img.width() * img.scaleX()),
 				height: Math.max(1, img.height() * img.scaleY()),
+			};
+		}
+		case "step": {
+			// バッジは移動のみ（Group の x/y はバッジ中心）。半径・番号は据え置き、
+			// リサイズ・回転は無効なので scale/rotation は焼き込まない。
+			return {
+				...prev,
+				x: node.x(),
+				y: node.y(),
 			};
 		}
 	}

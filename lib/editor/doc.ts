@@ -85,6 +85,21 @@ export interface MosaicShape extends ShapeBase {
 	height: number;
 }
 
+/**
+ * 番号付きステップバッジ。手順を示す丸バッジ（①②③…）を連番で置く。
+ * x,y はバッジ中心。number は配置時点の連番（nextStepNumber で決める）。
+ * 円は stroke 色で塗り、中央に白抜きの数字を描く。半径は省略時に既定を使う。
+ * 削除しても他バッジの番号は振り直さない（安定性優先）。
+ */
+export interface StepShape extends ShapeBase {
+	type: "step";
+	x: number;
+	y: number;
+	number: number;
+	/** バッジ半径（px）。省略時は既定値。 */
+	radius?: number;
+}
+
 /** 全図形の判別可能ユニオン。type で分岐する。 */
 export type Shape =
 	| ArrowShape
@@ -93,7 +108,8 @@ export type Shape =
 	| TextShape
 	| PenShape
 	| MarkerShape
-	| MosaicShape;
+	| MosaicShape
+	| StepShape;
 
 export type ShapeType = Shape["type"];
 
@@ -132,7 +148,24 @@ export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
 	Partial<Omit<TextShape, "id" | "type">> &
 	Partial<Omit<PenShape, "id" | "type">> &
 	Partial<Omit<MarkerShape, "id" | "type">> &
-	Partial<Omit<MosaicShape, "id" | "type">>;
+	Partial<Omit<MosaicShape, "id" | "type">> &
+	Partial<Omit<StepShape, "id" | "type">>;
+
+/**
+ * 次に配置するステップバッジの番号を返す純粋関数。
+ * 「既存の step シェイプの最大 number + 1」を採る。step が 1 つも無ければ 1。
+ * 削除で番号が飛んでいても最大値基準なので既存バッジと重複しない
+ * （振り直しはしない＝安定性優先）。
+ */
+export function nextStepNumber(shapes: Shape[]): number {
+	let max = 0;
+	for (const shape of shapes) {
+		if (shape.type === "step" && shape.number > max) {
+			max = shape.number;
+		}
+	}
+	return max + 1;
+}
 
 /** 図形を末尾（最前面）に追加した新しい doc を返す。 */
 export function addShape(doc: EditorDoc, shape: Shape): EditorDoc {

@@ -16,7 +16,8 @@ export class EllipseTool extends DragTool {
 	}
 
 	protected createPreview(start: Point, end: Point): Konva.Shape {
-		return shapeToNode(this.makeShape(start, end));
+		// 楕円は必ず Konva.Shape（Group にならない type）を返す。
+		return shapeToNode(this.makeShape(start, end)) as Konva.Shape;
 	}
 
 	protected updatePreview(node: Konva.Shape, start: Point, end: Point): void {

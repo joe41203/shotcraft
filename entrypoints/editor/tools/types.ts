@@ -12,6 +12,8 @@ export type ToolName =
 	| "text"
 	| "pen"
 	| "marker"
+	| "step"
+	| "callout"
 	| "mosaic"
 	| "crop";
 

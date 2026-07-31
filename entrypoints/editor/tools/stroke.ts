@@ -27,7 +27,8 @@ export abstract class StrokeTool implements Tool {
 	onPointerDown(pos: Point): void {
 		this.points = [pos.x, pos.y];
 		this.last = pos;
-		this.preview = shapeToNode(this.makeShape());
+		// pen/marker は必ず Konva.Shape（Group にならない type）を返す。
+		this.preview = shapeToNode(this.makeShape()) as Konva.Shape;
 		this.ctx.previewLayer.add(this.preview);
 		this.ctx.previewLayer.batchDraw();
 	}
