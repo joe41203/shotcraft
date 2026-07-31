@@ -10,7 +10,9 @@ export type ToolName =
 	| "ellipse"
 	| "text"
 	| "pen"
-	| "marker";
+	| "marker"
+	| "mosaic"
+	| "crop";
 
 /**
  * ツールが app に対して要求する操作の窓口。

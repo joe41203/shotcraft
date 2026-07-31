@@ -1,6 +1,7 @@
 import type { EditorApp } from "../app";
 import { ArrowTool } from "./arrow";
 import { EllipseTool } from "./ellipse";
+import { MosaicTool } from "./mosaic";
 import { RectTool } from "./rect";
 import { SelectTool } from "./select";
 import { MarkerTool, PenTool } from "./stroke";
@@ -19,4 +20,5 @@ export function registerTools(app: EditorApp): void {
 	app.registerTool(new PenTool(ctx));
 	app.registerTool(new MarkerTool(ctx));
 	app.registerTool(new TextTool(ctx));
+	app.registerTool(new MosaicTool(ctx));
 }

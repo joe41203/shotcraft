@@ -33,6 +33,7 @@ const TOOLS: ToolDef[] = [
 	{ name: "text", label: "テキスト", shortcut: "T", icon: icons.text },
 	{ name: "pen", label: "ペン", shortcut: "P", icon: icons.pen },
 	{ name: "marker", label: "マーカー", shortcut: "M", icon: icons.marker },
+	{ name: "mosaic", label: "モザイク", shortcut: "X", icon: icons.mosaic },
 ];
 
 export interface ToolbarCallbacks {

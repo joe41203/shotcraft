@@ -1,9 +1,19 @@
 import Konva from "konva";
-import type { EditorDoc, Shape } from "@/lib/editor/doc";
+import type { EditorDoc, MosaicShape, Shape } from "@/lib/editor/doc";
+import { mosaicPixelSize } from "@/lib/editor/mosaic";
 
 /** マーカー（蛍光ペン）の描画パラメータ。入力の太さを基準に太く半透明にする。 */
 const MARKER_WIDTH_SCALE = 3;
 const MARKER_OPACITY = 0.4;
+
+/**
+ * モザイク描画のサンプリング元。ベース画像そのもの（キャプチャ原寸）を
+ * 描画可能なソースとして受け取る。renderShapes / shapeToNode に渡す。
+ */
+export type MosaicSource = CanvasImageSource & {
+	width: number;
+	height: number;
+};
 
 /** 線幅に応じた矢印ヘッドの寸法。太い線ほどヘッドも大きくする。 */
 function arrowHead(strokeWidth: number): {
@@ -21,8 +31,11 @@ function arrowHead(strokeWidth: number): {
  * ノードには figure 用の共通属性（id, name, draggable）を付け、
  * shape.id を Konva ノードの id() に一致させて doc との対応付けに使う。
  * draggable は呼び出し側（select ツール時のみ true）で制御する。
+ *
+ * mosaic だけはベース画像をサンプリング元にするため source を要する。
+ * source が無い場合（プレビュー等）はプレースホルダの半透明矩形を返す。
  */
-export function shapeToNode(shape: Shape): Konva.Shape {
+export function shapeToNode(shape: Shape, source?: MosaicSource): Konva.Shape {
 	const common = {
 		id: shape.id,
 		name: "shape",
@@ -31,6 +44,17 @@ export function shapeToNode(shape: Shape): Konva.Shape {
 	};
 
 	switch (shape.type) {
+		case "mosaic":
+			return source
+				? buildMosaicNode(shape, source)
+				: new Konva.Rect({
+						...common,
+						x: shape.x,
+						y: shape.y,
+						width: shape.width,
+						height: shape.height,
+						fill: "rgba(15, 23, 42, 0.5)",
+					});
 		case "arrow":
 			return new Konva.Arrow({
 				...common,
@@ -101,18 +125,65 @@ export function shapeToNode(shape: Shape): Konva.Shape {
 }
 
 /**
+ * モザイク矩形を、ベース画像の該当領域をピクセル化した Konva.Image として作る。
+ *
+ * オフスクリーン canvas にベース画像の [x,y,width,height] を「一旦 1/pixelSize に
+ * 縮小して描き、それを imageSmoothingEnabled=false のまま原寸へ引き伸ばす」ことで
+ * ブロック状のピクセル化を得る（縮小時の平均化 → 拡大時の最近傍で角ばる）。
+ * サンプリング元はベース画像のみなので、下に重なる注釈にはモザイクが掛からない。
+ */
+export function buildMosaicNode(
+	shape: MosaicShape,
+	source: MosaicSource,
+): Konva.Image {
+	const w = Math.max(1, Math.round(shape.width));
+	const h = Math.max(1, Math.round(shape.height));
+	const pixel = mosaicPixelSize(w, h);
+	// 縮小先の寸法（最低 1px）。ここが粗さを決める。
+	const sw = Math.max(1, Math.round(w / pixel));
+	const sh = Math.max(1, Math.round(h / pixel));
+
+	const canvas = document.createElement("canvas");
+	canvas.width = w;
+	canvas.height = h;
+	const cx = canvas.getContext("2d");
+	if (cx) {
+		// 1) ベース画像の該当領域を小さな canvas 相当に縮小して描く。
+		cx.imageSmoothingEnabled = true;
+		cx.drawImage(source, shape.x, shape.y, w, h, 0, 0, sw, sh);
+		// 2) その縮小結果を最近傍補間のまま原寸へ引き伸ばす（ブロック化）。
+		cx.imageSmoothingEnabled = false;
+		cx.drawImage(canvas, 0, 0, sw, sh, 0, 0, w, h);
+	}
+
+	return new Konva.Image({
+		id: shape.id,
+		name: "shape",
+		image: canvas,
+		x: shape.x,
+		y: shape.y,
+		width: shape.width,
+		height: shape.height,
+		rotation: shape.rotation,
+		opacity: shape.opacity,
+	});
+}
+
+/**
  * doc の全図形を Konva レイヤーへ同期描画する。
  * 差分更新は凝らず全再構築する（描画の正は常に doc 側）。
  * draggable は select ツール時のみ true にしたいので引数で受ける。
+ * source はモザイクのサンプリング元（ベース画像）。
  */
 export function renderShapes(
 	layer: Konva.Layer,
 	doc: EditorDoc,
 	draggable: boolean,
+	source?: MosaicSource,
 ): void {
 	layer.destroyChildren();
 	for (const shape of doc.shapes) {
-		const node = shapeToNode(shape);
+		const node = shapeToNode(shape, source);
 		node.draggable(draggable);
 		layer.add(node);
 	}
@@ -188,6 +259,18 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 				y: text.y(),
 				fontSize: Math.max(6, text.fontSize() * text.scaleX()),
 				rotation: text.rotation(),
+			};
+		}
+		case "mosaic": {
+			// リサイズ後の位置・寸法を焼き込む。次の renderShapes で新寸法から
+			// ピクセル化を再計算する。回転は無効なので rotation は据え置き。
+			const img = node as Konva.Image;
+			return {
+				...prev,
+				x: img.x(),
+				y: img.y(),
+				width: Math.max(1, img.width() * img.scaleX()),
+				height: Math.max(1, img.height() * img.scaleY()),
 			};
 		}
 	}

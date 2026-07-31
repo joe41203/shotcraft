@@ -63,6 +63,20 @@ export interface MarkerShape extends ShapeBase {
 	points: number[];
 }
 
+/**
+ * モザイク（ピクセル化）矩形。x,y は左上、width/height は正の寸法（画像座標系）。
+ * ベース画像の該当領域を縮小→拡大でピクセル化して重ねる。ピクセルの粗さは
+ * 領域サイズから自動決定するので、stroke 等のスタイル属性は持たない。
+ * モザイクはベース画像のみをサンプリング元にする（注釈図形には掛からない）。
+ */
+export interface MosaicShape extends ShapeBase {
+	type: "mosaic";
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
 /** 全図形の判別可能ユニオン。type で分岐する。 */
 export type Shape =
 	| ArrowShape
@@ -70,7 +84,8 @@ export type Shape =
 	| EllipseShape
 	| TextShape
 	| PenShape
-	| MarkerShape;
+	| MarkerShape
+	| MosaicShape;
 
 export type ShapeType = Shape["type"];
 
@@ -94,7 +109,8 @@ export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
 	Partial<Omit<EllipseShape, "id" | "type">> &
 	Partial<Omit<TextShape, "id" | "type">> &
 	Partial<Omit<PenShape, "id" | "type">> &
-	Partial<Omit<MarkerShape, "id" | "type">>;
+	Partial<Omit<MarkerShape, "id" | "type">> &
+	Partial<Omit<MosaicShape, "id" | "type">>;
 
 /** 図形を末尾（最前面）に追加した新しい doc を返す。 */
 export function addShape(doc: EditorDoc, shape: Shape): EditorDoc {

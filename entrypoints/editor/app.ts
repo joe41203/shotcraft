@@ -37,6 +37,8 @@ export class EditorApp {
 	private uiLayer: Konva.Layer;
 	private transformer: Konva.Transformer;
 	private image: Konva.Image;
+	/** モザイクのサンプリング元（キャプチャ原寸のベース画像）。 */
+	private baseImage: HTMLImageElement;
 	private contentSize: { width: number; height: number };
 
 	private history: History<EditorDoc>;
@@ -67,6 +69,7 @@ export class EditorApp {
 		initialDoc?: EditorDoc,
 	) {
 		this.contentSize = { width: record.width, height: record.height };
+		this.baseImage = imageEl;
 		this.history = initHistory(initialDoc ?? emptyDoc());
 
 		this.stage = new Konva.Stage({
@@ -203,7 +206,12 @@ export class EditorApp {
 	private render(): void {
 		// select ツールのときだけドラッグ可能にする。
 		const selectable = this.currentTool === "select";
-		renderShapes(this.shapeLayer, this.history.present, selectable);
+		renderShapes(
+			this.shapeLayer,
+			this.history.present,
+			selectable,
+			this.baseImage,
+		);
 		if (selectable) this.bindNodeEvents();
 		this.syncTransformer();
 		this.applyViewTransform(this.readTransform());
@@ -244,6 +252,9 @@ export class EditorApp {
 		}
 		const node = this.shapeLayer.findOne(`#${this.selectedId}`);
 		if (node) {
+			// モザイクは回転を無効にする（ピクセル化の再計算を矩形に限定するため）。
+			const shape = findShape(this.history.present, this.selectedId);
+			this.transformer.rotateEnabled(shape?.type !== "mosaic");
 			this.transformer.nodes([node as Konva.Node]);
 			this.transformer.moveToTop();
 		} else {
@@ -454,6 +465,10 @@ export class EditorApp {
 				case "m":
 				case "M":
 					this.setTool("marker");
+					break;
+				case "x":
+				case "X":
+					this.setTool("mosaic");
 					break;
 				case "0":
 					this.fitView();
