@@ -5,19 +5,27 @@
 
 body {
   margin: 0;
-  width: 280px;
+  width: 260px;
 }
 
 main {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
 }
 
-h1 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  text-align: center;
+button {
+  padding: 10px 12px;
+  border: 1px solid light-dark(#d4d4d8, #3f3f46);
+  border-radius: 8px;
+  background: light-dark(#ffffff, #27272a);
+  color: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+button:hover {
+  background: light-dark(#f4f4f5, #3f3f46);
 }

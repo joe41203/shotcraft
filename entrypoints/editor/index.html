@@ -7,9 +7,13 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <main>
-      <button id="capture-visible" type="button">表示範囲をキャプチャ</button>
-      <button id="capture-region" type="button">範囲を選択してキャプチャ</button>
+    <header>
+      <span id="meta" class="meta"></span>
+      <span id="title" class="title"></span>
+    </header>
+    <main id="stage">
+      <img id="image" alt="キャプチャ画像" />
+      <p id="empty" class="empty" hidden>キャプチャが見つかりません</p>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>
