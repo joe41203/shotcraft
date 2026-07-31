@@ -30,12 +30,18 @@ export interface EditorContext {
 	newId(): string;
 	/** ズーム/パンを考慮したドキュメント座標のポインタ位置。範囲外なら null。 */
 	docPointer(): Point | null;
+	/** ドキュメント座標をブラウザのクライアント座標（ページ絶対座標）へ変換する。 */
+	docToClient(docPos: Point): Point;
 	/** doc を差し替えて履歴に commit し、再描画・自動保存する（唯一の書き込み経路）。 */
 	commitDoc(next: EditorDoc): void;
 	/** 現在の doc（読み取り用）。 */
 	getDoc(): EditorDoc;
 	/** 図形を選択状態にする（select ツール用）。null で選択解除。 */
 	select(id: string | null): void;
+	/** テキスト編集オーバーレイの表示中はキーボードショートカットを抑止する。 */
+	setTextEditing(editing: boolean): void;
+	/** 指定 id の図形ノードの表示/非表示を切り替える（編集中は元ノードを隠す）。 */
+	setNodeVisible(id: string, visible: boolean): void;
 }
 
 /**

@@ -84,6 +84,18 @@ export function emptyDoc(): EditorDoc {
 	return { shapes: [] };
 }
 
+/**
+ * updateShape で渡せる更新パッチ。全バリアントの更新可能なプロパティを
+ * 任意指定できる（id/type は変更不可なので含めない）。実際に反映されるのは
+ * 対象図形の type が持つプロパティだけで、余分なキーは無害にマージされる。
+ */
+export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
+	Partial<Omit<RectShape, "id" | "type">> &
+	Partial<Omit<EllipseShape, "id" | "type">> &
+	Partial<Omit<TextShape, "id" | "type">> &
+	Partial<Omit<PenShape, "id" | "type">> &
+	Partial<Omit<MarkerShape, "id" | "type">>;
+
 /** 図形を末尾（最前面）に追加した新しい doc を返す。 */
 export function addShape(doc: EditorDoc, shape: Shape): EditorDoc {
 	return { shapes: [...doc.shapes, shape] };
@@ -97,7 +109,7 @@ export function addShape(doc: EditorDoc, shape: Shape): EditorDoc {
 export function updateShape(
 	doc: EditorDoc,
 	id: string,
-	patch: Partial<Omit<Shape, "id" | "type">>,
+	patch: ShapePatch,
 ): EditorDoc {
 	let changed = false;
 	const shapes = doc.shapes.map((shape) => {

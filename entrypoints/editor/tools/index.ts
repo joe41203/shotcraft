@@ -3,6 +3,7 @@ import { ArrowTool } from "./arrow";
 import { EllipseTool } from "./ellipse";
 import { RectTool } from "./rect";
 import { MarkerTool, PenTool } from "./stroke";
+import { TextTool } from "./text";
 
 /**
  * 全ツールを生成して app に登録する。
@@ -15,4 +16,5 @@ export function registerTools(app: EditorApp): void {
 	app.registerTool(new EllipseTool(ctx));
 	app.registerTool(new PenTool(ctx));
 	app.registerTool(new MarkerTool(ctx));
+	app.registerTool(new TextTool(ctx));
 }

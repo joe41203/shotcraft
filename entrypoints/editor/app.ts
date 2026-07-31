@@ -109,10 +109,29 @@ export class EditorApp {
 			scale: () => this.stage.scaleX(),
 			newId: () => this.newId(),
 			docPointer: () => this.docPointer(),
+			docToClient: (docPos) => this.docToClient(docPos),
 			commitDoc: (next) => this.commitDoc(next),
 			getDoc: () => this.history.present,
 			select: (id) => this.select(id),
+			setTextEditing: (editing) => this.setTextEditing(editing),
+			setNodeVisible: (id, visible) => this.setNodeVisible(id, visible),
 		};
+	}
+
+	/** ドキュメント座標を画面（ページ）上のクライアント座標に変換する。 */
+	private docToClient(docPos: Point): Point {
+		const abs = this.shapeLayer.getAbsoluteTransform().point(docPos);
+		const box = this.stage.container().getBoundingClientRect();
+		return { x: box.left + abs.x, y: box.top + abs.y };
+	}
+
+	/** id の図形ノードの表示/非表示を切り替える（テキスト編集中に元ノードを隠す用）。 */
+	private setNodeVisible(id: string, visible: boolean): void {
+		const node = this.shapeLayer.findOne(`#${id}`);
+		if (node) {
+			node.visible(visible);
+			this.shapeLayer.batchDraw();
+		}
 	}
 
 	// --- doc / 履歴 ---
@@ -286,7 +305,12 @@ export class EditorApp {
 			const id = e.target?.id();
 			if (!id) return;
 			const shape = findShape(this.history.present, id);
-			if (shape) this.tools.get(this.currentTool)?.onDblClick?.(shape);
+			if (!shape) return;
+			// テキストの再編集はどのツール中でも効くようにする。
+			if (shape.type === "text") {
+				this.setTool("text");
+			}
+			this.tools.get(this.currentTool)?.onDblClick?.(shape);
 		});
 	}
 
