@@ -14,20 +14,35 @@ describe("resolveFontStack", () => {
 		}
 	});
 
-	it("未知の key は rounded(既定)にフォールバックする", () => {
+	it("新フォント key（pop / yomogi / kiwi）を各スタックへ解決する", () => {
+		expect(resolveFontStack("pop")).toBe(FONT_CHOICES.pop.stack);
+		expect(resolveFontStack("pop")).toContain("Hachi Maru Pop");
+		expect(resolveFontStack("yomogi")).toBe(FONT_CHOICES.yomogi.stack);
+		expect(resolveFontStack("yomogi")).toContain("Yomogi");
+		expect(resolveFontStack("kiwi")).toBe(FONT_CHOICES.kiwi.stack);
+		expect(resolveFontStack("kiwi")).toContain("Kiwi Maru");
+	});
+
+	it("レガシー key 'rounded'（Zen Maru 時代の既存注釈）は kiwi へ移行する", () => {
+		expect(resolveFontStack("rounded")).toBe(FONT_CHOICES.kiwi.stack);
+		expect(resolveFontStack("rounded")).toContain("Kiwi Maru");
+	});
+
+	it("未知の key は既定（pop / はちまるポップ）にフォールバックする", () => {
 		expect(resolveFontStack("unknown")).toBe(
 			FONT_CHOICES[DEFAULT_FONT_FAMILY].stack,
 		);
+		expect(resolveFontStack("unknown")).toContain("Hachi Maru Pop");
 	});
 
-	it("undefined(旧データで fontFamily 未設定)は rounded にフォールバックする", () => {
+	it("undefined(旧データで fontFamily 未設定)は既定(pop)にフォールバックする", () => {
 		expect(resolveFontStack(undefined)).toBe(
 			FONT_CHOICES[DEFAULT_FONT_FAMILY].stack,
 		);
 	});
 
-	it("既定フォントは rounded で、その stack は丸ゴシック(theme.fontSans 相当)", () => {
-		expect(DEFAULT_FONT_FAMILY).toBe("rounded");
-		expect(resolveFontStack("rounded")).toContain("Zen Maru Gothic");
+	it("既定フォントは pop で、その stack は はちまるポップ", () => {
+		expect(DEFAULT_FONT_FAMILY).toBe("pop");
+		expect(resolveFontStack("pop")).toContain("Hachi Maru Pop");
 	});
 });

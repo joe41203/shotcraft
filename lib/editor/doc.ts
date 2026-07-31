@@ -53,7 +53,8 @@ export interface TextShape extends ShapeBase {
 	fontSize: number;
 	/**
 	 * フォントの種類（FONT_CHOICES の key）。描画時に stack へ解決する。
-	 * 省略時は rounded 相当（旧保存データ互換。resolveFontStack がフォールバック）。
+	 * 省略時は既定（pop / はちまるポップ）相当。旧保存データ（未設定や
+	 * Zen Maru 時代の "rounded"）は resolveFontStack がフォールバック・移行する。
 	 */
 	fontFamily?: FontFamilyKey;
 }

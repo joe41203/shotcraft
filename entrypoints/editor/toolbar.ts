@@ -31,7 +31,7 @@ export const FONT_SIZES = [
 	{ value: 32, label: "特大", preview: 20 },
 ] as const;
 
-/** フォント選択肢を FONT_CHOICES から並べる（rounded が先頭＝既定）。 */
+/** フォント選択肢を FONT_CHOICES から並べる（pop が先頭＝既定）。 */
 const FONT_FAMILY_OPTIONS = (
 	Object.entries(FONT_CHOICES) as [
 		FontFamilyKey,

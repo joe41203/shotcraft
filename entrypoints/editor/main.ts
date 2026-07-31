@@ -26,7 +26,7 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
 }
 
 /**
- * 同梱フォント Zen Maru Gothic の読み込み完了を待つ。
+ * 同梱フォント（はちまるポップ / よもぎ / キウイ丸）の読み込み完了を待つ。
  * Konva は canvas にテキストを描くため、読み込み前に描画するとフォールバック
  * フォントで描かれてしまう。エディタ初期化前にここで確実にロードしておく。
  * ネットワークではなく同梱ファイルなので通常は即座に解決するが、失敗しても
@@ -35,8 +35,10 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
 async function ensureFontsLoaded(): Promise<void> {
 	try {
 		await Promise.all([
-			document.fonts.load("400 16px 'Zen Maru Gothic'"),
-			document.fonts.load("500 16px 'Zen Maru Gothic'"),
+			document.fonts.load("400 16px 'Hachi Maru Pop'"),
+			document.fonts.load("400 16px 'Yomogi'"),
+			document.fonts.load("400 16px 'Kiwi Maru'"),
+			document.fonts.load("500 16px 'Kiwi Maru'"),
 		]);
 	} catch {
 		// フォント読み込み失敗時はフォールバックで描画する。

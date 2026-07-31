@@ -438,7 +438,7 @@ export class EditorApp {
 		const shape = findShape(this.history.present, id);
 		if (!shape || shape.type !== "text") return;
 		if (patch.fontFamily !== undefined) {
-			// 旧データは fontFamily 未設定（＝rounded 相当）。未設定へ rounded を
+			// 旧データは fontFamily 未設定（＝既定の pop 相当）。未設定へ pop を
 			// 指定したときも実質同値だが、明示保存は無害なので値の一致だけで判定する。
 			if (shape.fontFamily === patch.fontFamily) return;
 		}

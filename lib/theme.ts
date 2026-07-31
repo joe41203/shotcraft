@@ -16,16 +16,30 @@ export const theme = {
 	danger: "#ef4444", // 破壊的操作
 	ring: "#38bdf8", // フォーカスリング・選択色（範囲選択の枠色と同一系統）
 	fontSans:
-		'"Zen Maru Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif',
+		'"Kiwi Maru", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif',
 } as const;
 
 /**
  * テキスト注釈で選べるフォント。doc には font-family スタック文字列でなく
  * この key を保存する（シリアライズを小さく安定に保つ）。描画時に stack へ解決する。
- * rounded の stack は theme.fontSans と同一（先頭は同梱の Zen Maru Gothic）。
+ *
+ * 先頭の family 名は assets/tokens.css の @font-face と一致させること
+ * （Hachi Maru Pop / Yomogi / Kiwi Maru）。片方を変えたら必ずもう片方も変える。
+ * kiwi の stack は theme.fontSans と同一（＝UI と同じ Kiwi Maru）。
+ *
+ * このオブジェクトの列挙順がツールバーの select の並び順になる。
  */
 export const FONT_CHOICES = {
-	rounded: { label: "丸ゴシック", stack: theme.fontSans },
+	pop: {
+		label: "はちまるポップ",
+		stack:
+			'"Hachi Maru Pop", "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Rounded Mplus 1c", sans-serif',
+	},
+	yomogi: {
+		label: "よもぎ",
+		stack: '"Yomogi", "Klee One", "Yu Gothic", "Comic Sans MS", cursive',
+	},
+	kiwi: { label: "キウイ丸", stack: theme.fontSans },
 	sans: {
 		label: "ゴシック",
 		stack:
@@ -44,16 +58,29 @@ export const FONT_CHOICES = {
 /** フォント選択の key。text シェイプの fontFamily はこの値で保存する。 */
 export type FontFamilyKey = keyof typeof FONT_CHOICES;
 
-/** 新規テキストのデフォルトフォント（丸ゴシック）。 */
-export const DEFAULT_FONT_FAMILY: FontFamilyKey = "rounded";
+/** 新規テキストのデフォルトフォント（はちまるポップ）。 */
+export const DEFAULT_FONT_FAMILY: FontFamilyKey = "pop";
+
+/**
+ * レガシー key の移行表。以前は Zen Maru Gothic を "rounded" として保存していた。
+ * その既存注釈は最も近い丸系フォント（キウイ丸）へ解決する。
+ */
+const LEGACY_FONT_KEYS: Record<string, FontFamilyKey> = {
+	rounded: "kiwi",
+};
 
 /**
  * フォント key を CSS の font-family スタック文字列へ解決する。
- * 未知の key（旧データ・不正値）は rounded にフォールバックする。
+ * レガシー key（例: Zen Maru 時代の "rounded"）は移行先へマッピングし、
+ * それ以外の未知の key（旧データ・不正値）は既定（はちまるポップ）にフォールバックする。
  */
 export function resolveFontStack(key: string | undefined): string {
 	if (key && key in FONT_CHOICES) {
 		return FONT_CHOICES[key as FontFamilyKey].stack;
+	}
+	const migrated = key ? LEGACY_FONT_KEYS[key] : undefined;
+	if (migrated) {
+		return FONT_CHOICES[migrated].stack;
 	}
 	return FONT_CHOICES[DEFAULT_FONT_FAMILY].stack;
 }
