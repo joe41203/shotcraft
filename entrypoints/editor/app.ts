@@ -265,7 +265,9 @@ export class EditorApp {
 	// --- 描画 ---
 
 	private render(): void {
-		// select ツールのときだけドラッグ可能にする。
+		// select ツールでは全図形をドラッグ可能にする。
+		// text ツールでも既存テキストの選択・移動を許すため、テキストノードだけは
+		// 個別に draggable + 確定/選択ハンドラを付ける（下の bindTextNodeEvents）。
 		const selectable = this.currentTool === "select";
 		renderShapes(
 			this.shapeLayer,
@@ -274,6 +276,7 @@ export class EditorApp {
 			this.baseImage,
 		);
 		if (selectable) this.bindNodeEvents();
+		else if (this.currentTool === "text") this.bindTextNodeEvents();
 		this.applyCropView();
 		this.syncTransformer();
 		this.applyViewTransform(this.readTransform());
@@ -306,42 +309,71 @@ export class EditorApp {
 	}
 
 	/**
-	 * 各図形ノードに移動・変形の確定ハンドラを付ける。
+	 * 各図形ノードに移動・変形の確定ハンドラとクリック選択を付ける（select ツール時）。
 	 * ドラッグ/変形の終了時にノードの状態を Shape へ焼き込んで commit する。
 	 */
 	private bindNodeEvents(): void {
 		for (const child of this.shapeLayer.getChildren()) {
-			const node: Konva.Node = child;
-			node.on("dragend.commit transformend.commit", () => {
-				const id = node.id();
-				const prev = findShape(this.history.present, id);
-				if (!prev) return;
-				const next = shapeFromNode(node, prev);
-				this.commitDoc(replaceShape(this.history.present, id, next));
-			});
-			// クリックで選択（select ツール時）。
-			node.on(
-				"pointerdown.select",
-				(e: Konva.KonvaEventObject<PointerEvent>) => {
-					if (this.currentTool !== "select") return;
-					e.cancelBubble = true; // 背景の選択解除に伝播させない
-					this.select(node.id());
-				},
-			);
+			this.attachNodeInteractions(child);
 		}
 	}
 
-	/** 選択 id のノードに Transformer をアタッチする。未選択なら外す。 */
+	/**
+	 * text ツール中でも既存テキストを選択・移動できるよう、テキストノードだけに
+	 * draggable と確定/選択ハンドラを付ける。空き領域の pointerdown は素通りして
+	 * TextTool 側の新規作成に回る（既存テキスト上の pointerdown は選択に吸収する）。
+	 */
+	private bindTextNodeEvents(): void {
+		for (const child of this.shapeLayer.getChildren()) {
+			if (findShape(this.history.present, child.id())?.type !== "text")
+				continue;
+			child.draggable(true);
+			this.attachNodeInteractions(child);
+		}
+	}
+
+	/**
+	 * 1 つの図形ノードに、変形/移動の確定コミットと pointerdown 選択を配線する。
+	 * select ツールと text ツール（テキストノードのみ）の双方から使う。
+	 */
+	private attachNodeInteractions(node: Konva.Node): void {
+		node.on("dragend.commit transformend.commit", () => {
+			const id = node.id();
+			const prev = findShape(this.history.present, id);
+			if (!prev) return;
+			const next = shapeFromNode(node, prev);
+			this.commitDoc(replaceShape(this.history.present, id, next));
+		});
+		node.on("pointerdown.select", (e: Konva.KonvaEventObject<PointerEvent>) => {
+			// select ツール、または text ツールでテキストノードを掴んだときに選択する。
+			// これにより text ツール中でも既存テキスト上の pointerdown は新規作成でなく
+			// 選択（＋そのままドラッグ移動）になる。
+			if (this.currentTool !== "select" && this.currentTool !== "text") return;
+			e.cancelBubble = true; // 背景の選択解除・新規作成に伝播させない
+			this.select(node.id());
+		});
+	}
+
+	/**
+	 * 選択 id のノードに Transformer をアタッチする。未選択なら外す。
+	 * select ツールは全図形、text ツールはテキストシェイプ選択時のみ表示する
+	 * （text ツール中に既存テキストを選んでハンドルでリサイズできるようにするため）。
+	 */
 	private syncTransformer(): void {
-		if (this.currentTool !== "select" || !this.selectedId) {
+		const shape = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const canTransform =
+			this.currentTool === "select" ||
+			(this.currentTool === "text" && shape?.type === "text");
+		if (!shape || !canTransform) {
 			this.transformer.nodes([]);
 			this.uiLayer.batchDraw();
 			return;
 		}
 		const node = this.shapeLayer.findOne(`#${this.selectedId}`);
 		if (node) {
-			const shape = findShape(this.history.present, this.selectedId);
-			this.configureTransformerFor(shape?.type);
+			this.configureTransformerFor(shape.type);
 			this.transformer.nodes([node as Konva.Node]);
 			this.transformer.moveToTop();
 		} else {
@@ -538,6 +570,18 @@ export class EditorApp {
 					: undefined;
 				if (!hitShape) this.select(null);
 				return;
+			}
+			// text ツール中の空き領域 pointerdown（既存テキスト上は node.on が
+			// cancelBubble で吸収するのでここには来ない）。
+			if (this.currentTool === "text") {
+				// Transformer のハンドル操作（uiLayer）は新規作成しない。
+				if (e.target?.getLayer() === this.uiLayer) return;
+				// テキスト選択中に空きをクリックしたら、まず選択解除だけ（誤って
+				// 既存テキストへ新規テキストを重ねる事故を防ぐ。次のクリックで新規作成）。
+				if (this.selectedId) {
+					this.select(null);
+					return;
+				}
 			}
 			const pos = this.docPointer();
 			if (!pos) return;
