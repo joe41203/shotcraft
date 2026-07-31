@@ -42,7 +42,7 @@ function startOverlay(onDispose: () => void): void {
     .backdrop {
       position: fixed; inset: 0;
       cursor: crosshair;
-      background: rgba(0, 0, 0, 0.35);
+      background: rgba(3, 6, 12, 0.5);
       touch-action: none;
     }
     .backdrop.dragging { background: transparent; }
@@ -51,26 +51,31 @@ function startOverlay(onDispose: () => void): void {
       display: none;
       border: 1px solid ${theme.ring};
       background: transparent;
-      /* 選択領域だけ明るく抜き、それ以外を暗幕で覆う */
-      box-shadow: 0 0 0 100000px rgba(0, 0, 0, 0.35);
+      /* 選択領域だけ明るく抜き、それ以外を暗幕で覆う（scrim は 50% 前後） */
+      box-shadow: 0 0 0 100000px rgba(3, 6, 12, 0.5);
       pointer-events: none;
     }
     .badge {
       position: fixed;
       display: none;
-      transform: translateY(6px);
-      background: ${theme.surface}; color: ${theme.text};
+      transform: translateY(8px);
+      background: ${theme.surface2}; color: ${theme.text};
+      border: 1px solid ${theme.border};
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
       font: 12px/1.6 ${theme.fontSans};
-      padding: 0 8px; border-radius: 4px;
+      font-variant-numeric: tabular-nums;
+      padding: 2px 8px; border-radius: 8px;
       pointer-events: none;
       white-space: nowrap;
     }
     .hint {
       position: fixed; top: 12px; left: 50%;
       transform: translateX(-50%);
-      background: ${theme.surface}; color: ${theme.text};
+      background: ${theme.surface2}; color: ${theme.text};
+      border: 1px solid ${theme.border};
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
       font: 12px/2 ${theme.fontSans};
-      padding: 0 12px; border-radius: 6px;
+      padding: 2px 12px; border-radius: 10px;
       pointer-events: none;
     }
   `;
