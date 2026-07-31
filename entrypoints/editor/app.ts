@@ -1,11 +1,14 @@
 import Konva from "konva";
 import type { CaptureRecord } from "@/lib/capture-store";
+import { croppedSize } from "@/lib/editor/crop";
 import {
+	type CropRect,
 	type EditorDoc,
 	emptyDoc,
 	findShape,
 	removeShape,
 	replaceShape,
+	setCrop,
 	type Shape,
 } from "@/lib/editor/doc";
 import {
@@ -17,6 +20,7 @@ import {
 	redo,
 	undo,
 } from "@/lib/editor/history";
+import { CropController } from "./crop-controller";
 import {
 	fitTransform,
 	type Point,
@@ -40,6 +44,8 @@ export class EditorApp {
 	/** モザイクのサンプリング元（キャプチャ原寸のベース画像）。 */
 	private baseImage: HTMLImageElement;
 	private contentSize: { width: number; height: number };
+	/** クロップ操作の UI とライフサイクルを持つコントローラ。 */
+	private crop: CropController;
 
 	private history: History<EditorDoc>;
 	private currentTool: ToolName = "select";
@@ -70,7 +76,11 @@ export class EditorApp {
 	) {
 		this.contentSize = { width: record.width, height: record.height };
 		this.baseImage = imageEl;
-		this.history = initHistory(initialDoc ?? emptyDoc());
+		// crop フィールドが無い旧保存データも読めるよう null で補完する。
+		const startDoc: EditorDoc = initialDoc
+			? { ...initialDoc, crop: initialDoc.crop ?? null }
+			: emptyDoc();
+		this.history = initHistory(startDoc);
 
 		this.stage = new Konva.Stage({
 			container,
@@ -109,6 +119,9 @@ export class EditorApp {
 			this.previewLayer,
 			this.uiLayer,
 		);
+
+		this.crop = new CropController(this);
+		this.crop.attach(this.stage);
 
 		this.toolbar = new Toolbar(toolbarRoot, {
 			onToolChange: (t) => this.setTool(t),
@@ -213,8 +226,35 @@ export class EditorApp {
 			this.baseImage,
 		);
 		if (selectable) this.bindNodeEvents();
+		this.applyCropView();
 		this.syncTransformer();
 		this.applyViewTransform(this.readTransform());
+	}
+
+	/**
+	 * doc.crop に応じて各レイヤーを原点合わせ（-crop.x,-crop.y のオフセット）し、
+	 * 表示を crop 寸法で clip する。クロップ座標は焼き込まず、render のたびに
+	 * ここで張り直す（undo でそのまま戻る）。crop が null なら原点・clip 解除。
+	 */
+	private applyCropView(): void {
+		const crop = this.history.present.crop;
+		const offset = { x: -(crop?.x ?? 0), y: -(crop?.y ?? 0) };
+		const size = this.displaySize();
+		const clip = { x: 0, y: 0, width: size.width, height: size.height };
+
+		this.bgLayer.position(offset);
+		this.shapeLayer.position(offset);
+		this.previewLayer.position(offset);
+		this.uiLayer.position(offset);
+		this.crop.setOffset(offset.x, offset.y);
+
+		this.bgLayer.clip(crop ? clip : null);
+		this.shapeLayer.clip(crop ? clip : null);
+	}
+
+	/** 表示・エクスポートの基準サイズ（crop があれば crop 寸法、無ければ画像原寸）。 */
+	private displaySize(): { width: number; height: number } {
+		return croppedSize(this.history.present.crop, this.contentSize);
 	}
 
 	/**
@@ -276,13 +316,13 @@ export class EditorApp {
 
 	// --- ビュー（ズーム/パン/フィット） ---
 
-	/** 画像全体をコンテナに収めて中央寄せする。 */
+	/** コンテンツ全体（crop 適用後）をコンテナに収めて中央寄せする。 */
 	fitView(): void {
 		// フィット状態にしたので、以降のリサイズには自動フィットで追従する。
 		this.autoFit = true;
 		const t = fitTransform(
 			{ width: this.stage.width(), height: this.stage.height() },
-			this.contentSize,
+			this.displaySize(),
 		);
 		this.applyViewTransform(t);
 	}
@@ -299,17 +339,30 @@ export class EditorApp {
 	setTool(tool: ToolName): void {
 		if (tool === this.currentTool) return;
 		this.tools.get(this.currentTool)?.deactivate?.();
+		// crop はツールマップ外の特殊モード。CropController でライフサイクル管理する。
+		if (this.currentTool === "crop") this.crop.deactivate();
 		this.currentTool = tool;
 		if (tool !== "select") this.select(null);
 		this.tools.get(tool)?.activate?.();
+		if (tool === "crop") this.crop.activate();
 		// draggable の切り替えのため再描画。
 		this.render();
 		this.syncToolbar();
 		this.updateCursor();
 	}
 
+	/** ツール外（CropController 等）から select 等へ戻すための入口。 */
+	setToolExternal(tool: ToolName): void {
+		this.setTool(tool);
+	}
+
 	getTool(): ToolName {
 		return this.currentTool;
+	}
+
+	/** 現在のクロップ矩形（元画像座標系）。無ければ null。 */
+	getCrop(): CropRect | null {
+		return this.history.present.crop;
 	}
 
 	setColor(color: string): void {
@@ -324,8 +377,10 @@ export class EditorApp {
 
 	private updateCursor(): void {
 		const container = this.stage.container();
-		container.style.cursor =
-			this.currentTool === "select" ? "default" : "crosshair";
+		// select と crop はハンドル操作なので通常カーソル、描画系は十字。
+		const pointerTools =
+			this.currentTool === "select" || this.currentTool === "crop";
+		container.style.cursor = pointerTools ? "default" : "crosshair";
 	}
 
 	// --- 選択 ---
@@ -437,6 +492,20 @@ export class EditorApp {
 			}
 			if (mod) return; // 他の修飾キー付きは無視
 
+			// クロップ操作中は Enter で適用 / Esc でキャンセル（他ショートカットより優先）。
+			if (this.currentTool === "crop") {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					this.crop.apply();
+					return;
+				}
+				if (e.key === "Escape") {
+					e.preventDefault();
+					this.crop.cancel();
+					return;
+				}
+			}
+
 			switch (e.key) {
 				case "v":
 				case "V":
@@ -469,6 +538,10 @@ export class EditorApp {
 				case "x":
 				case "X":
 					this.setTool("mosaic");
+					break;
+				case "c":
+				case "C":
+					this.setTool("crop");
 					break;
 				case "0":
 					this.fitView();

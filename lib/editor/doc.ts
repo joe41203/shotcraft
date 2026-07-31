@@ -89,14 +89,28 @@ export type Shape =
 
 export type ShapeType = Shape["type"];
 
-/** エディタの編集対象ドキュメント。図形の並び順は描画順（末尾が最前面）。 */
+/** クロップ矩形。常に元画像座標系で保持する（表示ズームや過去のクロップに依らない）。 */
+export interface CropRect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/**
+ * エディタの編集対象ドキュメント。図形の並び順は描画順（末尾が最前面）。
+ * crop はトップレベルの単一フィールド（シェイプ配列とは別）。null はクロップ無し
+ * （＝画像全体）。値は常に元画像座標系で、再クロップ時も入れ子にせず 1 個の矩形へ
+ * 合成する（cropWithin 参照）。
+ */
 export interface EditorDoc {
 	shapes: Shape[];
+	crop: CropRect | null;
 }
 
 /** 空のドキュメント。 */
 export function emptyDoc(): EditorDoc {
-	return { shapes: [] };
+	return { shapes: [], crop: null };
 }
 
 /**
@@ -114,7 +128,7 @@ export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
 
 /** 図形を末尾（最前面）に追加した新しい doc を返す。 */
 export function addShape(doc: EditorDoc, shape: Shape): EditorDoc {
-	return { shapes: [...doc.shapes, shape] };
+	return { ...doc, shapes: [...doc.shapes, shape] };
 }
 
 /**
@@ -133,7 +147,7 @@ export function updateShape(
 		changed = true;
 		return { ...shape, ...patch } as Shape;
 	});
-	return changed ? { shapes } : doc;
+	return changed ? { ...doc, shapes } : doc;
 }
 
 /**
@@ -152,16 +166,21 @@ export function replaceShape(
 		changed = true;
 		return shape;
 	});
-	return changed ? { shapes } : doc;
+	return changed ? { ...doc, shapes } : doc;
 }
 
 /** id の図形を除いた新しい doc を返す。無ければそのまま返す。 */
 export function removeShape(doc: EditorDoc, id: string): EditorDoc {
 	const shapes = doc.shapes.filter((shape) => shape.id !== id);
-	return shapes.length === doc.shapes.length ? doc : { shapes };
+	return shapes.length === doc.shapes.length ? doc : { ...doc, shapes };
 }
 
 /** id の図形を取得する。無ければ undefined。 */
 export function findShape(doc: EditorDoc, id: string): Shape | undefined {
 	return doc.shapes.find((shape) => shape.id === id);
+}
+
+/** クロップ矩形を差し替えた新しい doc を返す（null でクロップ解除）。 */
+export function setCrop(doc: EditorDoc, crop: CropRect | null): EditorDoc {
+	return { ...doc, crop };
 }

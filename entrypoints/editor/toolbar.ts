@@ -34,6 +34,7 @@ const TOOLS: ToolDef[] = [
 	{ name: "pen", label: "ペン", shortcut: "P", icon: icons.pen },
 	{ name: "marker", label: "マーカー", shortcut: "M", icon: icons.marker },
 	{ name: "mosaic", label: "モザイク", shortcut: "X", icon: icons.mosaic },
+	{ name: "crop", label: "クロップ", shortcut: "C", icon: icons.crop },
 ];
 
 export interface ToolbarCallbacks {
