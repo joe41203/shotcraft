@@ -23,9 +23,10 @@ header {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 12px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
   flex-wrap: wrap;
 }
 
@@ -56,7 +57,7 @@ header {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -69,7 +70,7 @@ header {
 .divider {
   width: 1px;
   align-self: stretch;
-  margin: 2px 4px;
+  margin: 4px 4px;
   background: var(--border);
 }
 
@@ -81,12 +82,13 @@ header {
   height: 36px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text);
   cursor: pointer;
   transition:
     background-color 150ms ease,
+    border-color 150ms ease,
     color 150ms ease;
 }
 
@@ -95,11 +97,13 @@ header {
 }
 
 .icon-btn:active {
-  background: var(--border);
+  background: var(--surface-2);
 }
 
+/* active は「面 + ring 色アイコン + ring の極薄枠」で締める（派手にしない） */
 .icon-btn.active {
-  background: rgba(56, 189, 248, 0.15);
+  background: color-mix(in srgb, var(--ring) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ring) 40%, transparent);
   color: var(--ring);
 }
 
@@ -136,6 +140,8 @@ header {
     0 0 0 2px var(--surface-hover);
 }
 
+/* active/focus のリングは icon-btn 等と同じ ring 色・太さで統一 */
+
 .swatch.active {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
@@ -155,10 +161,12 @@ header {
   height: 36px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   cursor: pointer;
-  transition: background-color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
 }
 
 .width-btn:hover {
@@ -166,11 +174,12 @@ header {
 }
 
 .width-btn:active {
-  background: var(--border);
+  background: var(--surface-2);
 }
 
 .width-btn.active {
-  background: rgba(56, 189, 248, 0.15);
+  background: color-mix(in srgb, var(--ring) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ring) 40%, transparent);
 }
 
 .width-btn:focus-visible {
@@ -191,10 +200,10 @@ header {
 /* フォント選択（ダークテーマの select） */
 .font-select {
   height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
   color: var(--text);
   font-family: inherit;
   font-size: 13px;
@@ -234,9 +243,9 @@ header {
   gap: 6px;
   height: 36px;
   padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
   color: var(--text);
   font-family: inherit;
   font-size: 13px;
@@ -256,7 +265,7 @@ header {
 }
 
 .text-btn:active {
-  background: var(--border);
+  background: var(--bg);
 }
 
 .text-btn:focus-visible {
@@ -264,20 +273,29 @@ header {
   outline-offset: 2px;
 }
 
-/* 主要アクション（PNG保存）は accent 背景 */
+/* 主要アクション（PNG保存）は emerald 背景・暗色文字。hover は明度を一段上げる */
 .text-btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0f172a;
+  color: var(--accent-text);
   font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
 
 .text-btn.primary:hover {
-  filter: brightness(1.08);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .text-btn.primary:active {
-  filter: brightness(0.94);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.text-btn.primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+  box-shadow: none;
 }
 
 /* --- トースト --- */
@@ -298,11 +316,11 @@ header {
 .toast {
   padding: 8px 16px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+  box-shadow: var(--shadow-md);
   animation: toast-in 200ms ease;
 }
 
@@ -371,6 +389,34 @@ main {
   resize: none;
   white-space: pre;
   transform-origin: top left;
+}
+
+/* --- スクロールバー（ダークに馴染ませる。控えめに） --- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-2) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--surface-2);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--surface-hover);
+  background-clip: padding-box;
 }
 
 @media (prefers-reduced-motion: reduce) {
