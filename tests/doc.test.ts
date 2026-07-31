@@ -10,6 +10,7 @@ import {
 	replaceShape,
 	setCrop,
 	type Shape,
+	type TextShape,
 	updateShape,
 } from "../lib/editor/doc";
 
@@ -21,6 +22,22 @@ function rect(id: string, x = 0): RectShape {
 		y: 0,
 		width: 10,
 		height: 10,
+		stroke: "#ef4444",
+		strokeWidth: 4,
+		rotation: 0,
+		opacity: 1,
+	};
+}
+
+function text(id: string): TextShape {
+	return {
+		id,
+		type: "text",
+		x: 0,
+		y: 0,
+		text: "こんにちは",
+		fontSize: 24,
+		fontFamily: "rounded",
 		stroke: "#ef4444",
 		strokeWidth: 4,
 		rotation: 0,
@@ -82,6 +99,32 @@ describe("updateShape", () => {
 		doc = addShape(doc, rect("b"));
 		const next = updateShape(doc, "b", { x: 5 });
 		expect(next.shapes[0]).toBe(doc.shapes[0]);
+	});
+
+	it("テキストの fontFamily パッチが通る", () => {
+		const doc = addShape(emptyDoc(), text("t"));
+		const next = updateShape(doc, "t", { fontFamily: "serif" });
+		const shape = next.shapes[0] as TextShape;
+		expect(shape.fontFamily).toBe("serif");
+		// 触っていないプロパティは維持
+		expect(shape.fontSize).toBe(24);
+		expect(shape.text).toBe("こんにちは");
+	});
+
+	it("テキストの fontSize パッチが通る", () => {
+		const doc = addShape(emptyDoc(), text("t"));
+		const next = updateShape(doc, "t", { fontSize: 32 });
+		const shape = next.shapes[0] as TextShape;
+		expect(shape.fontSize).toBe(32);
+		expect(shape.fontFamily).toBe("rounded");
+	});
+
+	it("fontFamily と fontSize を同時にパッチできる", () => {
+		const doc = addShape(emptyDoc(), text("t"));
+		const next = updateShape(doc, "t", { fontFamily: "mono", fontSize: 14 });
+		const shape = next.shapes[0] as TextShape;
+		expect(shape.fontFamily).toBe("mono");
+		expect(shape.fontSize).toBe(14);
 	});
 });
 
