@@ -91,15 +91,33 @@
 :root {
   color-scheme: dark;
 
-  --bg: #0f172a; /* ページ・キャンバス領域の背景 */
-  --surface: #1e293b; /* ツールバー・ポップアップの面 */
-  --surface-hover: #334155; /* hover 時の面 */
-  --border: #334155; /* 控えめな境界線 */
-  --text: #f8fafc; /* 主文字 */
-  --text-muted: #94a3b8; /* 補助文字（--surface 上でコントラスト比 5.2:1） */
-  --accent: #22c55e; /* 主要アクション */
-  --danger: #ef4444; /* 破壊的操作 */
+  /*
+   * 面の階層（深→浅）。境界は「線」でなく「明度差＋極薄の半透明ボーダー」で表す。
+   * コントラスト比（対 --surface 4.5:1 以上を厳守。詳細は README/コミット記録）:
+   *   text 15.8:1 / text-muted 7.0:1 / accent 上の文字 7.5:1 / ring 8.0:1。
+   */
+  --bg: #0b0f19; /* 最深部（ページ・キャンバス領域） */
+  --surface: #161b26; /* ツールバー・ポップアップの面（bg から一段持ち上げ） */
+  --surface-2: #1f2632; /* select・面上の面（さらに一段上） */
+  --surface-hover: #232b39; /* hover 時の面 */
+  --border: rgba(255, 255, 255, 0.09); /* 極薄の半透明境界線 */
+  --border-strong: rgba(255, 255, 255, 0.14); /* select 等のやや明確な境界 */
+  --text: #f2f5f9; /* 主文字 */
+  --text-muted: #9aa6b8; /* 補助文字（--surface 上でコントラスト比 7.0:1） */
+  --accent: #10b981; /* 主要アクション（emerald） */
+  --accent-hover: #34d399; /* 主要アクションの hover */
+  --accent-text: #04140d; /* accent 面上の文字（暗色・コントラスト比 7.5:1） */
+  --danger: #f87171; /* 破壊的操作 */
   --ring: #38bdf8; /* フォーカスリング・選択色（範囲選択の枠色と同一系統） */
+
+  /* 角丸スケール（ボタン/select は md、トースト/ポップアップは lg） */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  /* 影スケール（面の浮きを一貫させる。乱雑な box-shadow 値を避ける） */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 45%);
 
   --font-sans: "M PLUS Rounded 1c", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
