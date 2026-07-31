@@ -1,18 +1,7 @@
 @import "../../assets/tokens.css";
 
 :root {
-  color-scheme: light dark;
-  font-family: system-ui, sans-serif;
-
-  --bg: light-dark(#f4f4f5, #18181b);
-  --fg: light-dark(#18181b, #fafafa);
-  --panel: light-dark(#ffffff, #27272a);
-  --border: light-dark(#e4e4e7, #3f3f46);
-  --muted: light-dark(#52525b, #a1a1aa);
-  --hover: light-dark(#f4f4f5, #3f3f46);
-  --active: light-dark(#e0e7ff, #1e3a8a);
-  --active-fg: light-dark(#1d4ed8, #bfdbfe);
-  --accent: #3b82f6;
+  font-family: var(--font-sans);
 }
 
 * {
@@ -25,7 +14,7 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--bg);
-  color: var(--fg);
+  color: var(--text);
   overflow: hidden;
 }
 
@@ -36,7 +25,7 @@ header {
   gap: 12px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--panel);
+  background: var(--surface);
   flex-wrap: wrap;
 }
 
@@ -50,7 +39,7 @@ header {
 .meta {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -59,7 +48,7 @@ header {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 /* --- ツールバー --- */
@@ -88,28 +77,39 @@ header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: var(--fg);
+  color: var(--text);
   cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
 .icon-btn:hover {
-  background: var(--hover);
+  background: var(--surface-hover);
+}
+
+.icon-btn:active {
+  background: var(--border);
 }
 
 .icon-btn.active {
-  background: var(--active);
-  color: var(--active-fg);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--ring);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .icon-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: default;
 }
 
@@ -119,19 +119,31 @@ header {
 
 /* 色スウォッチ */
 .swatch {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--swatch);
   cursor: pointer;
-  box-shadow: inset 0 0 0 2px var(--panel);
+  box-shadow: inset 0 0 0 2px var(--surface);
+  transition: box-shadow 150ms ease;
+}
+
+.swatch:hover {
+  box-shadow:
+    inset 0 0 0 2px var(--surface),
+    0 0 0 2px var(--surface-hover);
 }
 
 .swatch.active {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* 線の太さ */
@@ -139,34 +151,47 @@ header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   cursor: pointer;
+  transition: background-color 150ms ease;
 }
 
 .width-btn:hover {
-  background: var(--hover);
+  background: var(--surface-hover);
+}
+
+.width-btn:active {
+  background: var(--border);
 }
 
 .width-btn.active {
-  background: var(--active);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.width-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .width-dot {
   display: block;
   border-radius: 50%;
-  background: var(--fg);
+  background: var(--text);
+}
+
+.width-btn.active .width-dot {
+  background: var(--ring);
 }
 
 .zoom-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  color: var(--text-muted);
   min-width: 40px;
   text-align: right;
 }
@@ -182,7 +207,7 @@ main {
 .stage {
   position: absolute;
   inset: 0;
-  background: light-dark(#e4e4e7, #27272a);
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -194,23 +219,32 @@ main {
   justify-content: center;
   margin: 0;
   font-size: 14px;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
-/* テキスト編集オーバーレイ（tools/text.ts が生成） */
+/* テキスト編集オーバーレイ（tools/text.ts が生成）。
+   キャンバス上での直接編集なので、枠は控えめな点線のみ。文字色は図形色を継承。 */
 .text-overlay {
   position: absolute;
   z-index: 10;
   margin: 0;
   padding: 0;
   border: none;
-  outline: 1px dashed var(--accent);
+  outline: 1px dashed var(--ring);
   background: transparent;
   color: inherit;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.2;
   overflow: hidden;
   resize: none;
   white-space: pre;
   transform-origin: top left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn,
+  .width-btn,
+  .swatch {
+    transition: none;
+  }
 }
