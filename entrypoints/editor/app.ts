@@ -21,6 +21,7 @@ import {
 	redo,
 	undo,
 } from "@/lib/editor/history";
+import { DEFAULT_FONT_SIZE } from "@/lib/editor/text";
 import { DEFAULT_FONT_FAMILY, type FontFamilyKey } from "@/lib/theme";
 import { CropController } from "./crop-controller";
 import {
@@ -39,6 +40,26 @@ import { renderShapes, shapeFromNode } from "./render";
 import { Toast } from "./toast";
 import { Toolbar } from "./toolbar";
 import type { EditorContext, Tool, ToolName } from "./tools/types";
+
+/** Transformer の全 8 アンカー（辺 4 + 四隅 4）。テキスト以外の既定。 */
+const ALL_ANCHORS = [
+	"top-left",
+	"top-center",
+	"top-right",
+	"middle-left",
+	"middle-right",
+	"bottom-left",
+	"bottom-center",
+	"bottom-right",
+];
+
+/** テキスト用の四隅アンカーのみ（縦横比固定の比例スケールでフォントサイズを変える）。 */
+const TEXT_CORNER_ANCHORS = [
+	"top-left",
+	"top-right",
+	"bottom-left",
+	"bottom-right",
+];
 
 /** キャプチャ画像とドキュメントを載せる Konva エディタ本体。 */
 export class EditorApp {
@@ -64,14 +85,14 @@ export class EditorApp {
 	private selectedId: string | null = null;
 	/**
 	 * 新規図形に適用する現在のスタイル。fontFamily/fontSize は新規テキストの
-	 * デフォルト。fontSize=24 はサイズプリセット「大」で、従来の既定値と同じ
-	 * （既存保存データの互換を壊さない）。
+	 * デフォルト。作成後のサイズ変更は選択して四隅ハンドルをドラッグする
+	 * （fontSize=24 は従来と同じ既定値で、既存保存データの互換を壊さない）。
 	 */
 	style = {
 		stroke: "#fb7185",
 		strokeWidth: 4,
 		fontFamily: DEFAULT_FONT_FAMILY,
-		fontSize: 24,
+		fontSize: DEFAULT_FONT_SIZE,
 	};
 
 	private toolbar: Toolbar;
@@ -152,7 +173,6 @@ export class EditorApp {
 			onColorChange: (c) => this.setColor(c),
 			onStrokeWidthChange: (w) => this.setStrokeWidth(w),
 			onFontFamilyChange: (f) => this.setFontFamily(f),
-			onFontSizeChange: (s) => this.setFontSize(s),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
@@ -320,15 +340,34 @@ export class EditorApp {
 		}
 		const node = this.shapeLayer.findOne(`#${this.selectedId}`);
 		if (node) {
-			// モザイクは回転を無効にする（ピクセル化の再計算を矩形に限定するため）。
 			const shape = findShape(this.history.present, this.selectedId);
-			this.transformer.rotateEnabled(shape?.type !== "mosaic");
+			this.configureTransformerFor(shape?.type);
 			this.transformer.nodes([node as Konva.Node]);
 			this.transformer.moveToTop();
 		} else {
 			this.transformer.nodes([]);
 		}
 		this.uiLayer.batchDraw();
+	}
+
+	/**
+	 * 選択図形の type に応じて Transformer のアンカー・回転・比率固定を切り替える。
+	 * Transformer は全図形で共有するため、type ごとに毎回明示的に設定し直す。
+	 * - text: 四隅アンカーのみ・縦横比固定・回転無効。四隅ドラッグの比例スケールを
+	 *   fontSize へ焼き込む運用のため、辺アンカー（片軸だけ伸ばす）を出さない。
+	 * - mosaic: 全アンカーだが回転無効（ピクセル化の再計算を矩形に限定する）。
+	 * - それ以外: 全アンカー・回転あり（既定）。
+	 */
+	private configureTransformerFor(type: Shape["type"] | undefined): void {
+		if (type === "text") {
+			this.transformer.enabledAnchors(TEXT_CORNER_ANCHORS);
+			this.transformer.keepRatio(true);
+			this.transformer.rotateEnabled(false);
+			return;
+		}
+		this.transformer.enabledAnchors(ALL_ANCHORS);
+		this.transformer.keepRatio(false);
+		this.transformer.rotateEnabled(type !== "mosaic");
 	}
 
 	private readTransform(): ViewTransform {
@@ -414,37 +453,21 @@ export class EditorApp {
 	}
 
 	/**
-	 * フォントサイズ（px）を新規テキストの既定にする。テキストシェイプ選択中は
-	 * そのシェイプへ即時適用して履歴に 1 回 commit する（同値なら no-op）。
-	 */
-	setFontSize(size: number): void {
-		this.style.fontSize = size;
-		this.applyTextStyleToSelection({ fontSize: size });
-		this.syncToolbar();
-	}
-
-	/**
-	 * 選択中がテキストシェイプなら patch を適用して commit する。
-	 * 連続クリックで履歴が荒れないよう、対象キーが現在値と同じなら何もしない。
-	 * 変形（scale 焼き込み）とは独立に fontSize/fontFamily を差し替えるだけなので、
-	 * 適用後も Transformer によるリサイズはそのまま機能する。
+	 * 選択中がテキストシェイプなら fontFamily を適用して commit する。
+	 * 連続選択で履歴が荒れないよう、現在値と同じなら何もしない。
+	 * フォントサイズは四隅ハンドルのドラッグ（Transformer の比例スケール）で変えるため、
+	 * ここでは扱わない。fontFamily 差し替えは変形と独立なので、適用後もリサイズは機能する。
 	 */
 	private applyTextStyleToSelection(patch: {
-		fontFamily?: FontFamilyKey;
-		fontSize?: number;
+		fontFamily: FontFamilyKey;
 	}): void {
 		const id = this.selectedId;
 		if (!id) return;
 		const shape = findShape(this.history.present, id);
 		if (!shape || shape.type !== "text") return;
-		if (patch.fontFamily !== undefined) {
-			// 旧データは fontFamily 未設定（＝既定の mochiy 相当）。未設定へ mochiy を
-			// 指定したときも実質同値だが、明示保存は無害なので値の一致だけで判定する。
-			if (shape.fontFamily === patch.fontFamily) return;
-		}
-		if (patch.fontSize !== undefined && shape.fontSize === patch.fontSize) {
-			return;
-		}
+		// 旧データは fontFamily 未設定（＝既定の mochiy 相当）。未設定へ mochiy を
+		// 指定したときも実質同値だが、明示保存は無害なので値の一致だけで判定する。
+		if (shape.fontFamily === patch.fontFamily) return;
 		this.commitDoc(updateShape(this.history.present, id, patch));
 	}
 
@@ -721,9 +744,10 @@ export class EditorApp {
 	}
 
 	/**
-	 * テキスト用コントロール（フォント・サイズ）の表示と現在値を同期する。
-	 * テキストシェイプ選択中はそのシェイプの値を、そうでなくテキストツール
-	 * 選択中は新規デフォルト（style）の値を表示する。どちらでもなければ隠す。
+	 * テキスト用コントロール（フォント）の表示と現在値を同期する。
+	 * テキストシェイプ選択中はそのシェイプの書体を、そうでなくテキストツール
+	 * 選択中は新規デフォルト（style）の書体を表示する。どちらでもなければ隠す。
+	 * サイズは四隅ハンドルのドラッグで変えるためツールバーには持たない。
 	 */
 	private syncTextControls(): void {
 		const selected = this.selectedId
@@ -734,9 +758,7 @@ export class EditorApp {
 		this.toolbar.setTextControlsVisible(visible);
 		if (!visible) return;
 		const family = selectedText?.fontFamily ?? this.style.fontFamily;
-		const size = selectedText?.fontSize ?? this.style.fontSize;
 		this.toolbar.setFontFamily(family ?? DEFAULT_FONT_FAMILY);
-		this.toolbar.setFontSize(size);
 	}
 
 	getContentSize(): { width: number; height: number } {

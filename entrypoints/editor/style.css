@@ -213,49 +213,6 @@ header {
   outline-offset: 2px;
 }
 
-/* フォントサイズ（線の太さと同じボタンパターン。A の大きさ違いで表現） */
-.font-size-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  transition: background-color 150ms ease;
-}
-
-.font-size-btn:hover {
-  background: var(--surface-hover);
-}
-
-.font-size-btn:active {
-  background: var(--border);
-}
-
-.font-size-btn.active {
-  background: rgba(56, 189, 248, 0.15);
-}
-
-.font-size-btn:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.font-size-glyph {
-  display: block;
-  line-height: 1;
-  font-weight: 600;
-}
-
-.font-size-btn.active .font-size-glyph {
-  color: var(--ring);
-}
-
 .zoom-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -421,8 +378,7 @@ main {
   .width-btn,
   .swatch,
   .text-btn,
-  .font-select,
-  .font-size-btn {
+  .font-select {
     transition: none;
   }
 

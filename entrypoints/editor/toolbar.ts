@@ -20,17 +20,6 @@ export const STROKE_WIDTHS = [
 	{ value: 8, label: "太" },
 ] as const;
 
-/**
- * テキストのフォントサイズ・プリセット（小/中/大/特大、px）。
- * 24（大）が新規テキストの既定。preview はボタンに描く「A」の見た目上の大きさ（px）。
- */
-export const FONT_SIZES = [
-	{ value: 14, label: "小", preview: 11 },
-	{ value: 18, label: "中", preview: 14 },
-	{ value: 24, label: "大", preview: 17 },
-	{ value: 32, label: "特大", preview: 20 },
-] as const;
-
 /** フォント選択肢を FONT_CHOICES から並べる（mochiy が先頭＝既定）。 */
 const FONT_FAMILY_OPTIONS = (
 	Object.entries(FONT_CHOICES) as [
@@ -64,8 +53,6 @@ export interface ToolbarCallbacks {
 	onStrokeWidthChange(width: number): void;
 	/** テキストのフォント種別（FONT_CHOICES の key）が選ばれたとき。 */
 	onFontFamilyChange(family: FontFamilyKey): void;
-	/** テキストのフォントサイズ（px）が選ばれたとき。 */
-	onFontSizeChange(size: number): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
@@ -87,7 +74,6 @@ export class Toolbar {
 	private textGroup!: HTMLDivElement;
 	private textDivider!: HTMLSpanElement;
 	private fontSelect!: HTMLSelectElement;
-	private fontSizeButtons = new Map<number, HTMLButtonElement>();
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
@@ -150,8 +136,9 @@ export class Toolbar {
 		}
 		this.root.append(widthGroup, divider());
 
-		// テキスト用グループ（フォント選択 + サイズ）。テキストツール選択中または
+		// テキスト用グループ（フォント選択のみ）。テキストツール選択中または
 		// テキストシェイプ選択中のときだけ表示する（setTextControlsVisible で制御）。
+		// サイズは選択したテキストの四隅ハンドルをドラッグして変える（ボタンは持たない）。
 		this.textGroup = group();
 
 		this.fontSelect = document.createElement("select");
@@ -168,24 +155,6 @@ export class Toolbar {
 			this.callbacks.onFontFamilyChange(this.fontSelect.value as FontFamilyKey),
 		);
 		this.textGroup.append(this.fontSelect);
-
-		for (const s of FONT_SIZES) {
-			const btn = document.createElement("button");
-			btn.type = "button";
-			btn.className = "font-size-btn";
-			btn.title = `文字サイズ: ${s.label} (${s.value}px)`;
-			btn.setAttribute("aria-label", btn.title);
-			const glyph = document.createElement("span");
-			glyph.className = "font-size-glyph";
-			glyph.textContent = "A";
-			glyph.style.fontSize = `${s.preview}px`;
-			btn.append(glyph);
-			btn.addEventListener("click", () =>
-				this.callbacks.onFontSizeChange(s.value),
-			);
-			this.fontSizeButtons.set(s.value, btn);
-			this.textGroup.append(btn);
-		}
 
 		this.textDivider = divider();
 		this.root.append(this.textGroup, this.textDivider);
@@ -249,17 +218,7 @@ export class Toolbar {
 		this.fontSelect.value = family;
 	}
 
-	/**
-	 * フォントサイズの現在値を反映する。プリセット外の値（旧データ・変形後の
-	 * リサイズ結果）ではどのボタンも active にしない。
-	 */
-	setFontSize(size: number): void {
-		for (const [value, btn] of this.fontSizeButtons) {
-			btn.classList.toggle("active", value === size);
-		}
-	}
-
-	/** テキスト用コントロール群（フォント・サイズ）の表示/非表示を切り替える。 */
+	/** テキスト用コントロール群（フォント）の表示/非表示を切り替える。 */
 	setTextControlsVisible(visible: boolean): void {
 		this.textGroup.hidden = !visible;
 		this.textDivider.hidden = !visible;

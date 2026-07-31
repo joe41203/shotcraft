@@ -1,6 +1,7 @@
 import Konva from "konva";
 import type { EditorDoc, MosaicShape, Shape } from "@/lib/editor/doc";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
+import { clampFontSize } from "@/lib/editor/text";
 import { resolveFontStack } from "@/lib/theme";
 
 /** マーカー（蛍光ペン）の描画パラメータ。入力の太さを基準に太く半透明にする。 */
@@ -258,12 +259,14 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 			};
 		}
 		case "text": {
+			// 四隅ハンドルの比例スケール（scaleX===scaleY）を fontSize へ焼き込む。
+			// 下限 8px・上限 200px にクランプして極端なサイズを防ぐ。
 			const text = node as Konva.Text;
 			return {
 				...prev,
 				x: text.x(),
 				y: text.y(),
-				fontSize: Math.max(6, text.fontSize() * text.scaleX()),
+				fontSize: clampFontSize(text.fontSize() * text.scaleX()),
 				rotation: text.rotation(),
 			};
 		}
