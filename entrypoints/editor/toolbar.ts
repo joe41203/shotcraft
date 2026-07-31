@@ -1,4 +1,4 @@
-import { icons } from "./icons";
+import { icons } from "@/lib/icons";
 import type { ToolName } from "./tools/types";
 
 /** 色スウォッチ。デフォルトは赤。 */

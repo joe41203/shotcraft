@@ -1,0 +1,25 @@
+/**
+ * デザイントークン（Dark Mode）。
+ * popup / editor の style.css から @import して参照する。
+ *
+ * この値は lib/theme.ts の TS 定数と相互に同期させること。
+ * content script の Shadow DOM は拡張ページの CSS 変数を参照できないため、
+ * 同じ値を TS 側にも定義している。片方を変えたら必ずもう片方も変える。
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #0f172a; /* ページ・キャンバス領域の背景 */
+  --surface: #1e293b; /* ツールバー・ポップアップの面 */
+  --surface-hover: #334155; /* hover 時の面 */
+  --border: #334155; /* 控えめな境界線 */
+  --text: #f8fafc; /* 主文字 */
+  --text-muted: #94a3b8; /* 補助文字（--surface 上でコントラスト比 5.2:1） */
+  --accent: #22c55e; /* 主要アクション */
+  --danger: #ef4444; /* 破壊的操作 */
+  --ring: #38bdf8; /* フォーカスリング・選択色（範囲選択の枠色と同一系統） */
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
