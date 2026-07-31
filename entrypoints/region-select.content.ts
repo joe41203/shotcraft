@@ -1,5 +1,6 @@
 import { normalizeRect } from "@/lib/geometry";
 import type { Message } from "@/lib/messages";
+import { theme } from "@/lib/theme";
 
 /** これ未満のドラッグはクリック扱いでキャンセルする。 */
 const MIN_DRAG_PX = 4;
@@ -35,6 +36,8 @@ function startOverlay(onDispose: () => void): void {
 	const shadow = host.attachShadow({ mode: "closed" });
 
 	const style = document.createElement("style");
+	// 色は lib/theme.ts のトークンを参照する。Shadow DOM は拡張ページの
+	// CSS 変数を参照できないため、TS 定数から値を埋め込む。
 	style.textContent = `
     .backdrop {
       position: fixed; inset: 0;
@@ -46,7 +49,7 @@ function startOverlay(onDispose: () => void): void {
     .selection {
       position: fixed;
       display: none;
-      border: 1px solid #38bdf8;
+      border: 1px solid ${theme.ring};
       background: transparent;
       /* 選択領域だけ明るく抜き、それ以外を暗幕で覆う */
       box-shadow: 0 0 0 100000px rgba(0, 0, 0, 0.35);
@@ -56,8 +59,8 @@ function startOverlay(onDispose: () => void): void {
       position: fixed;
       display: none;
       transform: translateY(6px);
-      background: #18181b; color: #fafafa;
-      font: 12px/1.6 system-ui, sans-serif;
+      background: ${theme.surface}; color: ${theme.text};
+      font: 12px/1.6 ${theme.fontSans};
       padding: 0 8px; border-radius: 4px;
       pointer-events: none;
       white-space: nowrap;
@@ -65,8 +68,8 @@ function startOverlay(onDispose: () => void): void {
     .hint {
       position: fixed; top: 12px; left: 50%;
       transform: translateX(-50%);
-      background: #18181b; color: #fafafa;
-      font: 12px/2 system-ui, sans-serif;
+      background: ${theme.surface}; color: ${theme.text};
+      font: 12px/2 ${theme.fontSans};
       padding: 0 12px; border-radius: 6px;
       pointer-events: none;
     }
