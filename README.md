@@ -6,6 +6,7 @@
 
 **撮って、その場で注釈・モザイク・クロップ。完全ローカル動作のスクリーンショット編集ツール**
 
+[![CI](https://github.com/joe41203/shotcraft/actions/workflows/ci.yml/badge.svg)](https://github.com/joe41203/shotcraft/actions/workflows/ci.yml)
 [![version](https://img.shields.io/badge/version-0.1.0-22c55e)](./package.json)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![Built with WXT](https://img.shields.io/badge/built%20with-WXT-67d4f8)](https://wxt.dev/)
