@@ -100,6 +100,24 @@ export interface StepShape extends ShapeBase {
 	radius?: number;
 }
 
+/**
+ * コールアウト（フキダシ）注釈。x,y は本体（角丸長方形）の左上、width/height は
+ * 本体の寸法。下辺中央から下向きのしっぽ（三角）を固定形状で出す。
+ * 塗りは color の淡い背景＋枠線＝color、テキストは視認できる濃色で本体内に折り返す。
+ * text はテキスト注釈のオーバーレイ機構で編集する。
+ */
+export interface CalloutShape extends ShapeBase {
+	type: "callout";
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	text: string;
+	fontSize: number;
+	/** フォントの種類（FONT_CHOICES の key）。省略時は既定。 */
+	fontFamily?: FontFamilyKey;
+}
+
 /** 全図形の判別可能ユニオン。type で分岐する。 */
 export type Shape =
 	| ArrowShape
@@ -109,7 +127,8 @@ export type Shape =
 	| PenShape
 	| MarkerShape
 	| MosaicShape
-	| StepShape;
+	| StepShape
+	| CalloutShape;
 
 export type ShapeType = Shape["type"];
 
@@ -149,7 +168,8 @@ export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
 	Partial<Omit<PenShape, "id" | "type">> &
 	Partial<Omit<MarkerShape, "id" | "type">> &
 	Partial<Omit<MosaicShape, "id" | "type">> &
-	Partial<Omit<StepShape, "id" | "type">>;
+	Partial<Omit<StepShape, "id" | "type">> &
+	Partial<Omit<CalloutShape, "id" | "type">>;
 
 /**
  * 次に配置するステップバッジの番号を返す純粋関数。

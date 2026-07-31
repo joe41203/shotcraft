@@ -1,5 +1,15 @@
 import Konva from "konva";
+import {
+	CALLOUT_CORNER_RADIUS,
+	CALLOUT_FILL_ALPHA,
+	CALLOUT_PADDING,
+	calloutBodyHeight,
+	calloutInnerWidth,
+	calloutTailPoints,
+	hexToRgba,
+} from "@/lib/editor/callout";
 import type {
+	CalloutShape,
 	EditorDoc,
 	MosaicShape,
 	Shape,
@@ -57,6 +67,8 @@ export function shapeToNode(
 	switch (shape.type) {
 		case "step":
 			return buildStepNode(shape, common);
+		case "callout":
+			return buildCalloutNode(shape, common);
 		case "mosaic":
 			return source
 				? buildMosaicNode(shape, source)
@@ -233,6 +245,72 @@ function buildStepNode(
 }
 
 /**
+ * コールアウト（フキダシ）を Konva.Group（しっぽ + 本体 + テキスト）として作る。
+ *
+ * Group の x/y は本体左上。内部はローカル座標で組み、Group ごと移動する。
+ * 本体高さは shape.height を下限に、折り返したテキストが収まるよう
+ * calloutBodyHeight で広げる（リサイズ時のテキスト追従）。しっぽは本体下辺
+ * 中央から下向きの三角で固定形状。塗りは color の淡い背景＋枠線＝color、
+ * テキストは視認できる濃色（#0b0f19）にする。
+ */
+function buildCalloutNode(
+	shape: CalloutShape,
+	common: { id: string; name: string; rotation: number; opacity: number },
+): Konva.Group {
+	const group = new Konva.Group({ ...common, x: shape.x, y: shape.y });
+
+	const innerWidth = calloutInnerWidth(shape.width, CALLOUT_PADDING);
+	const fontFamily = resolveFontStack(shape.fontFamily);
+
+	// テキストを先に組んで折返し後の高さを測り、本体高さへ反映する。
+	const text = new Konva.Text({
+		x: CALLOUT_PADDING,
+		y: CALLOUT_PADDING,
+		width: innerWidth,
+		text: shape.text,
+		fontSize: shape.fontSize,
+		fontFamily,
+		fill: "#0b0f19",
+		lineHeight: 1.25,
+		wrap: "word",
+		listening: false,
+	});
+	const bodyHeight = Math.max(
+		shape.height,
+		calloutBodyHeight(text.height(), shape.fontSize, CALLOUT_PADDING),
+	);
+
+	// しっぽ（本体より背面）→本体→テキストの順に重ねる。
+	group.add(
+		new Konva.Line({
+			points: calloutTailPoints(0, 0, shape.width, bodyHeight),
+			closed: true,
+			fill: hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA),
+			stroke: shape.stroke,
+			strokeWidth: shape.strokeWidth,
+			lineJoin: "round",
+			listening: true,
+		}),
+	);
+	group.add(
+		new Konva.Rect({
+			x: 0,
+			y: 0,
+			width: shape.width,
+			height: bodyHeight,
+			cornerRadius: CALLOUT_CORNER_RADIUS,
+			fill: hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA),
+			stroke: shape.stroke,
+			strokeWidth: shape.strokeWidth,
+			listening: true,
+		}),
+	);
+	group.add(text);
+
+	return group;
+}
+
+/**
  * doc の全図形を Konva レイヤーへ同期描画する。
  * 差分更新は凝らず全再構築する（描画の正は常に doc 側）。
  * draggable は select ツール時のみ true にしたいので引数で受ける。
@@ -345,6 +423,19 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 				...prev,
 				x: node.x(),
 				y: node.y(),
+			};
+		}
+		case "callout": {
+			// Group の移動・リサイズを焼き込む。Transformer の scale は width/height へ
+			// 反映し、fontSize は据え置く（次の renderShapes でテキストが新幅へ折り返す）。
+			// scale をリセットしたいので width/height に掛けた値を保存する。
+			return {
+				...prev,
+				x: node.x(),
+				y: node.y(),
+				width: Math.max(1, prev.width * node.scaleX()),
+				height: Math.max(1, prev.height * node.scaleY()),
+				rotation: node.rotation(),
 			};
 		}
 	}

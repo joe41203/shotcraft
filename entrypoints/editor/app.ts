@@ -610,9 +610,11 @@ export class EditorApp {
 			if (!id) return;
 			const shape = findShape(this.history.present, id);
 			if (!shape) return;
-			// テキストの再編集はどのツール中でも効くようにする。
+			// テキスト・フキダシの再編集はどのツール中でも効くようにする。
 			if (shape.type === "text") {
 				this.setTool("text");
+			} else if (shape.type === "callout") {
+				this.setTool("callout");
 			}
 			this.tools.get(this.currentTool)?.onDblClick?.(shape);
 		});
@@ -696,6 +698,10 @@ export class EditorApp {
 				case "s":
 				case "S":
 					this.setTool("step");
+					break;
+				case "b":
+				case "B":
+					this.setTool("callout");
 					break;
 				case "x":
 				case "X":

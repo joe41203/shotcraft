@@ -32,6 +32,10 @@ export const icons = {
 	marker: svg(
 		'<path d="M9 14l-2 5 5-2 8-8-3-3z"/><line x1="14" y1="6" x2="18" y2="10"/><line x1="5" y1="21" x2="12" y2="21"/>',
 	),
+	// コールアウト（フキダシ／下向きのしっぽ付き吹き出し）
+	callout: svg(
+		'<path d="M4 5h16v10H13l-3 4v-4H4z"/><line x1="7.5" y1="10" x2="16.5" y2="10"/>',
+	),
 	// 番号付きステップ（丸に数字の 1）
 	step: svg(
 		'<circle cx="12" cy="12" r="9"/><path d="M11 9.5l1.8-1.2V16" stroke-width="2" fill="none"/>',
