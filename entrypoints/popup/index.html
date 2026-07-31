@@ -8,26 +8,29 @@
   </head>
   <body>
     <main>
-      <button id="capture-visible" type="button">
-        <span class="icon" data-icon="camera"></span>
-        <span class="label">表示範囲をキャプチャ</span>
-      </button>
-      <div
-        class="delay-row"
-        role="group"
-        aria-label="キャプチャまでの待機時間"
-      >
+      <div class="capture-methods" role="group" aria-label="キャプチャ方法">
+        <button id="capture-visible" class="capture-method" type="button">
+          <span class="icon" data-icon="camera"></span>
+          <span class="label">表示範囲をキャプチャ</span>
+        </button>
+        <button id="capture-region" class="capture-method" type="button">
+          <span class="icon" data-icon="crop"></span>
+          <span class="label">範囲を選択してキャプチャ</span>
+        </button>
+        <button id="capture-full-page" class="capture-method" type="button">
+          <span class="icon" data-icon="fullPage"></span>
+          <span class="label">ページ全体をキャプチャ</span>
+        </button>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="delay-row" role="group" aria-label="キャプチャまでの遅延">
         <span class="icon" data-icon="timer"></span>
+        <span class="delay-label">遅延</span>
         <div class="delay-segments" id="capture-delay"></div>
       </div>
-      <button id="capture-region" type="button">
-        <span class="icon" data-icon="crop"></span>
-        <span class="label">範囲を選択してキャプチャ</span>
-      </button>
-      <button id="capture-full-page" type="button">
-        <span class="icon" data-icon="fullPage"></span>
-        <span class="label">ページ全体をキャプチャ</span>
-      </button>
+      <p class="delay-note">表示範囲・ページ全体のキャプチャに適用されます</p>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>

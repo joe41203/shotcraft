@@ -34,7 +34,7 @@ export default defineBackground(() => {
 				void startRegionSelect();
 				break;
 			case "CAPTURE_FULL_PAGE":
-				void captureFullPage();
+				void captureFullPage(message.delayMs);
 				break;
 			case "REGION_SELECTED":
 				void captureRegion(sender.tab, message.rect, message.viewport);
@@ -116,7 +116,13 @@ export default defineBackground(() => {
 	 * waitForCaptureSlot() を通してレート制限を守る。固定ヘッダーは 2 枚目以降を非表示にして
 	 * 各タイルへの写り込みを防ぎ、撮影後に必ず元へ戻す。
 	 */
-	async function captureFullPage(): Promise<void> {
+	async function captureFullPage(delayMs?: number): Promise<void> {
+		// 表示範囲と同じく、撮影に入る前にだけ待つ（レート制限枠の予約より前）。
+		// タブ取得も遅延後にして、待機中にユーザーが対象タブを切り替えても取り違えない。
+		const delay = clampCaptureDelayMs(delayMs);
+		if (delay > 0) {
+			await new Promise((resolve) => setTimeout(resolve, delay));
+		}
 		const [tab] = await browser.tabs.query({
 			active: true,
 			currentWindow: true,

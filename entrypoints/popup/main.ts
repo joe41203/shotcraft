@@ -10,8 +10,10 @@ for (const el of document.querySelectorAll<HTMLElement>("[data-icon]")) {
 }
 
 /**
- * 遅延キャプチャの待機時間（ms）。「表示範囲をキャプチャ」に適用する。
- * 既定は 0（即時）で、後方互換のため未選択時は delayMs を付けない。
+ * 遅延キャプチャの待機時間（ms）。3 ボタン共通の設定として保持し、
+ * 「表示範囲」「ページ全体」に適用する（範囲選択はオーバーレイ表示前に
+ * 待つ意味になり用途が薄いため対象外）。既定は 0（即時）で、後方互換のため
+ * 未選択時は delayMs を付けない。
  */
 let captureDelayMs = 0;
 
@@ -62,9 +64,15 @@ document.getElementById("capture-visible")?.addEventListener("click", () => {
 });
 
 document.getElementById("capture-region")?.addEventListener("click", () => {
+	// 範囲選択は遅延対象外（待ってもオーバーレイ表示前に待つだけで用途が薄い）。
 	void send({ type: "START_REGION_SELECT" });
 });
 
 document.getElementById("capture-full-page")?.addEventListener("click", () => {
-	void send({ type: "CAPTURE_FULL_PAGE" });
+	// 表示範囲と同様に遅延を適用する（0 のときは省略・後方互換）。
+	void send(
+		captureDelayMs > 0
+			? { type: "CAPTURE_FULL_PAGE", delayMs: captureDelayMs }
+			: { type: "CAPTURE_FULL_PAGE" },
+	);
 });

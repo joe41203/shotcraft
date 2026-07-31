@@ -29,9 +29,13 @@ export interface StartRegionSelectMessage {
 /**
  * popup → service worker: ページ全体をスクロールしながら撮影し、
  * 1 枚の縦長画像に繋ぎ合わせる（フルページキャプチャ）。
+ * delayMs があれば background 側で撮影を始める前にその時間だけ待つ
+ * （表示範囲と同じ遅延キャプチャ。ホバーメニュー等を出してから撮る用途）。
+ * 省略・0 のときは即時（後方互換）。
  */
 export interface CaptureFullPageMessage {
 	type: "CAPTURE_FULL_PAGE";
+	delayMs?: number;
 }
 
 /**

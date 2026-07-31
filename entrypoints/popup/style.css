@@ -14,11 +14,18 @@ body {
 main {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   padding: 12px;
 }
 
-button {
+/* キャプチャ方法の 3 ボタン。同一スタイルで縦に整列する。 */
+.capture-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.capture-method {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -37,16 +44,16 @@ button {
     border-color 150ms ease;
 }
 
-button:hover {
+.capture-method:hover {
   background: var(--surface-hover);
   border-color: var(--border-strong);
 }
 
-button:active {
+.capture-method:active {
   background: var(--bg);
 }
 
-button:focus-visible {
+.capture-method:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
@@ -59,7 +66,7 @@ button:focus-visible {
   flex-shrink: 0;
 }
 
-button:hover .icon {
+.capture-method:hover .icon {
   color: var(--text);
 }
 
@@ -67,21 +74,43 @@ button:hover .icon {
   min-width: 0;
 }
 
-/* 遅延キャプチャのタイマー選択（表示範囲キャプチャの直下・控えめに） */
+/* 3 ボタンと遅延行を区切る線。 */
+.divider {
+  height: 1px;
+  margin: 0;
+  border: none;
+  background: var(--border);
+}
+
+/* 遅延キャプチャの共通行（ラベル＋セグメント）。 */
 .delay-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: -2px 2px 2px;
 }
 
 .delay-row .icon {
   color: var(--text-muted);
 }
 
+.delay-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* 遅延がどのキャプチャに効くかの補足（控えめに）。 */
+.delay-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 .delay-segments {
   display: inline-flex;
   gap: 2px;
+  /* ラベルと視覚的に分けるため右端へ寄せる。 */
+  margin-left: auto;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -123,7 +152,7 @@ button:hover .icon {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  button,
+  .capture-method,
   .delay-segment {
     transition: none;
   }
