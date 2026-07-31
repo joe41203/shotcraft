@@ -1,5 +1,6 @@
 import { type CaptureRecord, loadCapture } from "@/lib/capture-store";
 import { EditorApp } from "./app";
+import { registerTools } from "./tools";
 
 const stageContainer = document.getElementById("stage") as HTMLDivElement;
 const toolbarRoot = document.getElementById("toolbar") as HTMLElement;
@@ -40,7 +41,8 @@ async function main(): Promise<void> {
 	document.title = `shotcraft - ${record.sourceTitle || "編集"}`;
 
 	const imageEl = await loadImage(record.dataUrl);
-	new EditorApp(stageContainer, toolbarRoot, record, imageEl);
+	const app = new EditorApp(stageContainer, toolbarRoot, record, imageEl);
+	registerTools(app);
 }
 
 void main();
