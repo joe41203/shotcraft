@@ -1,4 +1,5 @@
 import { icons } from "@/lib/icons";
+import { Tooltip } from "./tooltip";
 import type { ToolName } from "./tools/types";
 
 /** 色スウォッチ（モダンミュート）。デフォルトはコーラル。 */
@@ -76,6 +77,8 @@ export class Toolbar {
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
+	/** ツールバー全体に委譲するカスタムツールチップ。 */
+	private tooltip!: Tooltip;
 
 	constructor(
 		private root: HTMLElement,
@@ -90,7 +93,7 @@ export class Toolbar {
 		// ツールボタン群
 		const toolGroup = group();
 		for (const tool of TOOLS) {
-			const btn = iconButton(tool.icon, `${tool.label} (${tool.shortcut})`);
+			const btn = iconButton(tool.icon, tool.label, tool.shortcut);
 			btn.addEventListener("click", () =>
 				this.callbacks.onToolChange(tool.name),
 			);
@@ -105,7 +108,8 @@ export class Toolbar {
 			const btn = document.createElement("button");
 			btn.type = "button";
 			btn.className = "swatch";
-			btn.title = color.label;
+			btn.dataset.tooltip = color.label;
+			btn.setAttribute("aria-label", `色: ${color.label}`);
 			btn.style.setProperty("--swatch", color.value);
 			btn.addEventListener("click", () =>
 				this.callbacks.onColorChange(color.value),
@@ -121,7 +125,8 @@ export class Toolbar {
 			const btn = document.createElement("button");
 			btn.type = "button";
 			btn.className = "width-btn";
-			btn.title = `太さ: ${w.label} (${w.value}px)`;
+			btn.dataset.tooltip = `線の太さ: ${w.label}`;
+			btn.setAttribute("aria-label", `線の太さ: ${w.label} (${w.value}px)`);
 			const dot = document.createElement("span");
 			dot.className = "width-dot";
 			dot.style.width = `${w.value + 2}px`;
@@ -142,7 +147,7 @@ export class Toolbar {
 			const btn = document.createElement("button");
 			btn.type = "button";
 			btn.className = "dash-btn";
-			btn.title = `線種: ${opt.label}`;
+			btn.dataset.tooltip = opt.label;
 			btn.setAttribute("aria-label", `線種: ${opt.label}`);
 			const line = document.createElement("span");
 			line.className = opt.value ? "dash-line dashed" : "dash-line";
@@ -159,9 +164,9 @@ export class Toolbar {
 
 		// undo/redo
 		const historyGroup = group();
-		this.undoButton = iconButton(icons.undo, "元に戻す (Ctrl/Cmd+Z)");
+		this.undoButton = iconButton(icons.undo, "元に戻す", "Ctrl/Cmd+Z");
 		this.undoButton.addEventListener("click", () => this.callbacks.onUndo());
-		this.redoButton = iconButton(icons.redo, "やり直し (Ctrl/Cmd+Shift+Z)");
+		this.redoButton = iconButton(icons.redo, "やり直し", "Ctrl/Cmd+Shift+Z");
 		this.redoButton.addEventListener("click", () => this.callbacks.onRedo());
 		historyGroup.append(this.undoButton, this.redoButton);
 		this.root.append(historyGroup, divider());
@@ -169,7 +174,8 @@ export class Toolbar {
 		// ズーム率表示
 		this.zoomLabel = document.createElement("span");
 		this.zoomLabel.className = "zoom-label";
-		this.zoomLabel.title = "0 キーで全体フィット";
+		this.zoomLabel.dataset.tooltip = "全体フィット";
+		this.zoomLabel.dataset.shortcut = "0";
 		this.root.append(this.zoomLabel);
 
 		// 出力ボタンを右端へ押しやるスペーサー。
@@ -182,7 +188,8 @@ export class Toolbar {
 		const copyBtn = textButton(
 			icons.copy,
 			"コピー",
-			"クリップボードへコピー (Ctrl/Cmd+C)",
+			"クリップボードへコピー",
+			"Ctrl/Cmd+C",
 		);
 		copyBtn.addEventListener("click", () => this.callbacks.onCopy());
 		const saveBtn = textButton(icons.download, "PNG保存", "PNG をダウンロード");
@@ -190,6 +197,9 @@ export class Toolbar {
 		saveBtn.addEventListener("click", () => this.callbacks.onSavePng());
 		exportGroup.append(copyBtn, saveBtn);
 		this.root.append(exportGroup);
+
+		// data-tooltip を持つ全ボタンにホバー/フォーカスでツールチップを出す。
+		this.tooltip = new Tooltip(this.root);
 	}
 
 	setTool(tool: ToolName): void {
@@ -245,12 +255,23 @@ function divider(): HTMLSpanElement {
 	return el;
 }
 
-function iconButton(iconSvg: string, title: string): HTMLButtonElement {
+/**
+ * アイコンのみのボタン。ツールチップ本文（tooltip）と任意のショートカット
+ * （shortcut）を data 属性に載せ、ブラウザ標準の title は使わない
+ * （カスタムツールチップと二重に出るのを避ける）。aria-label は本文と
+ * ショートカットを合わせた説明にする（アイコンのみなので必須）。
+ */
+function iconButton(
+	iconSvg: string,
+	tooltip: string,
+	shortcut?: string,
+): HTMLButtonElement {
 	const btn = document.createElement("button");
 	btn.type = "button";
 	btn.className = "icon-btn";
-	btn.title = title;
-	btn.setAttribute("aria-label", title);
+	btn.dataset.tooltip = tooltip;
+	if (shortcut) btn.dataset.shortcut = shortcut;
+	btn.setAttribute("aria-label", ariaLabel(tooltip, shortcut));
 	btn.innerHTML = iconSvg;
 	return btn;
 }
@@ -259,12 +280,15 @@ function iconButton(iconSvg: string, title: string): HTMLButtonElement {
 function textButton(
 	iconSvg: string,
 	label: string,
-	title: string,
+	tooltip: string,
+	shortcut?: string,
 ): HTMLButtonElement {
 	const btn = document.createElement("button");
 	btn.type = "button";
+	btn.dataset.tooltip = tooltip;
+	if (shortcut) btn.dataset.shortcut = shortcut;
+	btn.setAttribute("aria-label", ariaLabel(tooltip, shortcut));
 	btn.className = "text-btn";
-	btn.title = title;
 	const icon = document.createElement("span");
 	icon.className = "text-btn-icon";
 	icon.innerHTML = iconSvg;
@@ -272,4 +296,9 @@ function textButton(
 	text.textContent = label;
 	btn.append(icon, text);
 	return btn;
+}
+
+/** ツールチップ本文とショートカットを 1 本の aria-label 文にまとめる。 */
+function ariaLabel(tooltip: string, shortcut?: string): string {
+	return shortcut ? `${tooltip} (${shortcut})` : tooltip;
 }

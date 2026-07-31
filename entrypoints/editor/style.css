@@ -324,6 +324,75 @@ header {
   box-shadow: none;
 }
 
+/* --- カスタムツールチップ --- */
+
+/*
+ * 単一要素を使い回す（entrypoints/editor/tooltip.ts が body 直下に 1 つ生成）。
+ * 位置は JS が left/top を絶対座標で与える。表示は data-visible 属性で切替え、
+ * ~400ms のホバーディレイの後にフェードイン（ディレイ自体は JS のタイマー）。
+ * トースト（z:20）より手前に出す。
+ */
+.tooltip {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.tooltip[data-visible] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tooltip-body {
+  color: var(--text);
+}
+
+/* ショートカットは kbd 風の小チップ（薄い面＋等幅寄り＋補助文字色） */
+.tooltip-key {
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tooltip-key[hidden] {
+  display: none;
+}
+
+/* ボタンを指す上向きの小さな三角形。left は JS がボタン中央に合わせて与える */
+.tooltip-caret {
+  position: absolute;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  background: var(--surface-2);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: translateX(-50%) rotate(45deg);
+}
+
 /* --- トースト --- */
 
 .toast-region {
@@ -450,7 +519,8 @@ main {
   .width-btn,
   .dash-btn,
   .swatch,
-  .text-btn {
+  .text-btn,
+  .tooltip {
     transition: none;
   }
 
