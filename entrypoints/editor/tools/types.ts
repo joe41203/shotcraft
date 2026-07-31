@@ -1,5 +1,6 @@
 import type Konva from "konva";
 import type { EditorDoc, Shape } from "@/lib/editor/doc";
+import type { FontFamilyKey } from "@/lib/theme";
 import type { Point } from "../geometry-view";
 
 /** ツール識別子。ツールバーのボタン・ショートカットと対応する。 */
@@ -22,8 +23,16 @@ export type ToolName =
 export interface EditorContext {
 	/** ドラッグ中のプレビュー図形を載せる一時レイヤー（doc には入らない）。 */
 	readonly previewLayer: Konva.Layer;
-	/** 新規図形に適用する現在のスタイル。 */
-	readonly style: { stroke: string; strokeWidth: number };
+	/**
+	 * 新規図形に適用する現在のスタイル。fontFamily/fontSize は新規テキストの
+	 * デフォルトに使う（色・線幅と同じ扱いで、直近の選択を記憶する）。
+	 */
+	readonly style: {
+		stroke: string;
+		strokeWidth: number;
+		fontFamily: FontFamilyKey;
+		fontSize: number;
+	};
 	/** ステージ（座標変換・コンテナ取得に使う）。 */
 	readonly stage: Konva.Stage;
 	/** 現在の描画スケール（ズーム率）。テキスト編集オーバーレイのフォント換算に使う。 */

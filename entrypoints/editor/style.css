@@ -188,6 +188,74 @@ header {
   background: var(--ring);
 }
 
+/* フォント選択（ダークテーマの select） */
+.font-select {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.font-select:hover {
+  background: var(--surface-hover);
+}
+
+.font-select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* フォントサイズ（線の太さと同じボタンパターン。A の大きさ違いで表現） */
+.font-size-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.font-size-btn:hover {
+  background: var(--surface-hover);
+}
+
+.font-size-btn:active {
+  background: var(--border);
+}
+
+.font-size-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.font-size-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.font-size-glyph {
+  display: block;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.font-size-btn.active .font-size-glyph {
+  color: var(--ring);
+}
+
 .zoom-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -352,7 +420,9 @@ main {
   .icon-btn,
   .width-btn,
   .swatch,
-  .text-btn {
+  .text-btn,
+  .font-select,
+  .font-size-btn {
     transition: none;
   }
 

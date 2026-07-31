@@ -18,3 +18,42 @@ export const theme = {
 	fontSans:
 		'"Zen Maru Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif',
 } as const;
+
+/**
+ * テキスト注釈で選べるフォント。doc には font-family スタック文字列でなく
+ * この key を保存する（シリアライズを小さく安定に保つ）。描画時に stack へ解決する。
+ * rounded の stack は theme.fontSans と同一（先頭は同梱の Zen Maru Gothic）。
+ */
+export const FONT_CHOICES = {
+	rounded: { label: "丸ゴシック", stack: theme.fontSans },
+	sans: {
+		label: "ゴシック",
+		stack:
+			'-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif',
+	},
+	serif: {
+		label: "明朝",
+		stack: '"Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif',
+	},
+	mono: {
+		label: "等幅",
+		stack: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+	},
+} as const;
+
+/** フォント選択の key。text シェイプの fontFamily はこの値で保存する。 */
+export type FontFamilyKey = keyof typeof FONT_CHOICES;
+
+/** 新規テキストのデフォルトフォント（丸ゴシック）。 */
+export const DEFAULT_FONT_FAMILY: FontFamilyKey = "rounded";
+
+/**
+ * フォント key を CSS の font-family スタック文字列へ解決する。
+ * 未知の key（旧データ・不正値）は rounded にフォールバックする。
+ */
+export function resolveFontStack(key: string | undefined): string {
+	if (key && key in FONT_CHOICES) {
+		return FONT_CHOICES[key as FontFamilyKey].stack;
+	}
+	return FONT_CHOICES[DEFAULT_FONT_FAMILY].stack;
+}

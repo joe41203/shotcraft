@@ -1,4 +1,5 @@
 import { icons } from "@/lib/icons";
+import { FONT_CHOICES, type FontFamilyKey } from "@/lib/theme";
 import type { ToolName } from "./tools/types";
 
 /** 色スウォッチ（モダンミュート）。デフォルトはコーラル。 */
@@ -18,6 +19,25 @@ export const STROKE_WIDTHS = [
 	{ value: 4, label: "中" },
 	{ value: 8, label: "太" },
 ] as const;
+
+/**
+ * テキストのフォントサイズ・プリセット（小/中/大/特大、px）。
+ * 24（大）が新規テキストの既定。preview はボタンに描く「A」の見た目上の大きさ（px）。
+ */
+export const FONT_SIZES = [
+	{ value: 14, label: "小", preview: 11 },
+	{ value: 18, label: "中", preview: 14 },
+	{ value: 24, label: "大", preview: 17 },
+	{ value: 32, label: "特大", preview: 20 },
+] as const;
+
+/** フォント選択肢を FONT_CHOICES から並べる（rounded が先頭＝既定）。 */
+const FONT_FAMILY_OPTIONS = (
+	Object.entries(FONT_CHOICES) as [
+		FontFamilyKey,
+		(typeof FONT_CHOICES)[FontFamilyKey],
+	][]
+).map(([key, def]) => ({ value: key, label: def.label }));
 
 interface ToolDef {
 	name: ToolName;
@@ -42,6 +62,10 @@ export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
 	onStrokeWidthChange(width: number): void;
+	/** テキストのフォント種別（FONT_CHOICES の key）が選ばれたとき。 */
+	onFontFamilyChange(family: FontFamilyKey): void;
+	/** テキストのフォントサイズ（px）が選ばれたとき。 */
+	onFontSizeChange(size: number): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
@@ -59,6 +83,11 @@ export class Toolbar {
 	private toolButtons = new Map<ToolName, HTMLButtonElement>();
 	private colorButtons = new Map<string, HTMLButtonElement>();
 	private widthButtons = new Map<number, HTMLButtonElement>();
+	/** テキスト向けの文脈グループ（テキストツール/テキスト選択中のみ表示）。 */
+	private textGroup!: HTMLDivElement;
+	private textDivider!: HTMLSpanElement;
+	private fontSelect!: HTMLSelectElement;
+	private fontSizeButtons = new Map<number, HTMLButtonElement>();
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
@@ -121,6 +150,47 @@ export class Toolbar {
 		}
 		this.root.append(widthGroup, divider());
 
+		// テキスト用グループ（フォント選択 + サイズ）。テキストツール選択中または
+		// テキストシェイプ選択中のときだけ表示する（setTextControlsVisible で制御）。
+		this.textGroup = group();
+
+		this.fontSelect = document.createElement("select");
+		this.fontSelect.className = "font-select";
+		this.fontSelect.title = "フォント";
+		this.fontSelect.setAttribute("aria-label", "フォント");
+		for (const opt of FONT_FAMILY_OPTIONS) {
+			const o = document.createElement("option");
+			o.value = opt.value;
+			o.textContent = opt.label;
+			this.fontSelect.append(o);
+		}
+		this.fontSelect.addEventListener("change", () =>
+			this.callbacks.onFontFamilyChange(this.fontSelect.value as FontFamilyKey),
+		);
+		this.textGroup.append(this.fontSelect);
+
+		for (const s of FONT_SIZES) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "font-size-btn";
+			btn.title = `文字サイズ: ${s.label} (${s.value}px)`;
+			btn.setAttribute("aria-label", btn.title);
+			const glyph = document.createElement("span");
+			glyph.className = "font-size-glyph";
+			glyph.textContent = "A";
+			glyph.style.fontSize = `${s.preview}px`;
+			btn.append(glyph);
+			btn.addEventListener("click", () =>
+				this.callbacks.onFontSizeChange(s.value),
+			);
+			this.fontSizeButtons.set(s.value, btn);
+			this.textGroup.append(btn);
+		}
+
+		this.textDivider = divider();
+		this.root.append(this.textGroup, this.textDivider);
+		this.setTextControlsVisible(false);
+
 		// undo/redo
 		const historyGroup = group();
 		this.undoButton = iconButton(icons.undo, "元に戻す (Ctrl/Cmd+Z)");
@@ -172,6 +242,27 @@ export class Toolbar {
 		for (const [value, btn] of this.widthButtons) {
 			btn.classList.toggle("active", value === width);
 		}
+	}
+
+	/** フォント選択の現在値を反映する。 */
+	setFontFamily(family: FontFamilyKey): void {
+		this.fontSelect.value = family;
+	}
+
+	/**
+	 * フォントサイズの現在値を反映する。プリセット外の値（旧データ・変形後の
+	 * リサイズ結果）ではどのボタンも active にしない。
+	 */
+	setFontSize(size: number): void {
+		for (const [value, btn] of this.fontSizeButtons) {
+			btn.classList.toggle("active", value === size);
+		}
+	}
+
+	/** テキスト用コントロール群（フォント・サイズ）の表示/非表示を切り替える。 */
+	setTextControlsVisible(visible: boolean): void {
+		this.textGroup.hidden = !visible;
+		this.textDivider.hidden = !visible;
 	}
 
 	setUndoRedo(canUndo: boolean, canRedo: boolean): void {

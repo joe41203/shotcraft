@@ -6,6 +6,8 @@
  * undo/redo はこの EditorDoc のスナップショット履歴で実現する（history.ts）。
  */
 
+import type { FontFamilyKey } from "@/lib/theme";
+
 /** 図形の色・太さ・回転など、種類によらず共通のスタイル。 */
 export interface ShapeBase {
 	id: string;
@@ -49,6 +51,11 @@ export interface TextShape extends ShapeBase {
 	y: number;
 	text: string;
 	fontSize: number;
+	/**
+	 * フォントの種類（FONT_CHOICES の key）。描画時に stack へ解決する。
+	 * 省略時は rounded 相当（旧保存データ互換。resolveFontStack がフォールバック）。
+	 */
+	fontFamily?: FontFamilyKey;
 }
 
 /** フリーハンドのペン。points は [x0, y0, x1, y1, ...] の連続点。 */

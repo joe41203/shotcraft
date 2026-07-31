@@ -8,8 +8,9 @@ import {
 	findShape,
 	removeShape,
 	replaceShape,
-	setCrop,
 	type Shape,
+	setCrop,
+	updateShape,
 } from "@/lib/editor/doc";
 import {
 	canRedo,
@@ -20,6 +21,7 @@ import {
 	redo,
 	undo,
 } from "@/lib/editor/history";
+import { DEFAULT_FONT_FAMILY, type FontFamilyKey } from "@/lib/theme";
 import { CropController } from "./crop-controller";
 import {
 	canvasToPngBlob,
@@ -60,7 +62,17 @@ export class EditorApp {
 	private currentTool: ToolName = "select";
 	private tools = new Map<ToolName, Tool>();
 	private selectedId: string | null = null;
-	style = { stroke: "#fb7185", strokeWidth: 4 };
+	/**
+	 * 新規図形に適用する現在のスタイル。fontFamily/fontSize は新規テキストの
+	 * デフォルト。fontSize=24 はサイズプリセット「大」で、従来の既定値と同じ
+	 * （既存保存データの互換を壊さない）。
+	 */
+	style = {
+		stroke: "#fb7185",
+		strokeWidth: 4,
+		fontFamily: DEFAULT_FONT_FAMILY,
+		fontSize: 24,
+	};
 
 	private toolbar: Toolbar;
 	private idCounter = 0;
@@ -139,6 +151,8 @@ export class EditorApp {
 			onToolChange: (t) => this.setTool(t),
 			onColorChange: (c) => this.setColor(c),
 			onStrokeWidthChange: (w) => this.setStrokeWidth(w),
+			onFontFamilyChange: (f) => this.setFontFamily(f),
+			onFontSizeChange: (s) => this.setFontSize(s),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
@@ -389,6 +403,51 @@ export class EditorApp {
 		this.toolbar.setStrokeWidth(width);
 	}
 
+	/**
+	 * フォント種別を新規テキストの既定にする。テキストシェイプ選択中は
+	 * そのシェイプへ即時適用して履歴に 1 回 commit する（同値なら no-op）。
+	 */
+	setFontFamily(family: FontFamilyKey): void {
+		this.style.fontFamily = family;
+		this.applyTextStyleToSelection({ fontFamily: family });
+		this.syncToolbar();
+	}
+
+	/**
+	 * フォントサイズ（px）を新規テキストの既定にする。テキストシェイプ選択中は
+	 * そのシェイプへ即時適用して履歴に 1 回 commit する（同値なら no-op）。
+	 */
+	setFontSize(size: number): void {
+		this.style.fontSize = size;
+		this.applyTextStyleToSelection({ fontSize: size });
+		this.syncToolbar();
+	}
+
+	/**
+	 * 選択中がテキストシェイプなら patch を適用して commit する。
+	 * 連続クリックで履歴が荒れないよう、対象キーが現在値と同じなら何もしない。
+	 * 変形（scale 焼き込み）とは独立に fontSize/fontFamily を差し替えるだけなので、
+	 * 適用後も Transformer によるリサイズはそのまま機能する。
+	 */
+	private applyTextStyleToSelection(patch: {
+		fontFamily?: FontFamilyKey;
+		fontSize?: number;
+	}): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || shape.type !== "text") return;
+		if (patch.fontFamily !== undefined) {
+			// 旧データは fontFamily 未設定（＝rounded 相当）。未設定へ rounded を
+			// 指定したときも実質同値だが、明示保存は無害なので値の一致だけで判定する。
+			if (shape.fontFamily === patch.fontFamily) return;
+		}
+		if (patch.fontSize !== undefined && shape.fontSize === patch.fontSize) {
+			return;
+		}
+		this.commitDoc(updateShape(this.history.present, id, patch));
+	}
+
 	private updateCursor(): void {
 		const container = this.stage.container();
 		// select と crop はハンドル操作なので通常カーソル、描画系は十字。
@@ -403,6 +462,8 @@ export class EditorApp {
 		if (id === this.selectedId) return;
 		this.selectedId = id;
 		this.syncTransformer();
+		// テキスト選択の有無でフォント・サイズコントロールの表示と値が変わる。
+		this.syncTextControls();
 		this.onSelectionChanged?.(id);
 	}
 
@@ -654,8 +715,28 @@ export class EditorApp {
 		this.toolbar.setTool(this.currentTool);
 		this.toolbar.setColor(this.style.stroke);
 		this.toolbar.setStrokeWidth(this.style.strokeWidth);
+		this.syncTextControls();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
+	}
+
+	/**
+	 * テキスト用コントロール（フォント・サイズ）の表示と現在値を同期する。
+	 * テキストシェイプ選択中はそのシェイプの値を、そうでなくテキストツール
+	 * 選択中は新規デフォルト（style）の値を表示する。どちらでもなければ隠す。
+	 */
+	private syncTextControls(): void {
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const selectedText = selected?.type === "text" ? selected : undefined;
+		const visible = selectedText != null || this.currentTool === "text";
+		this.toolbar.setTextControlsVisible(visible);
+		if (!visible) return;
+		const family = selectedText?.fontFamily ?? this.style.fontFamily;
+		const size = selectedText?.fontSize ?? this.style.fontSize;
+		this.toolbar.setFontFamily(family ?? DEFAULT_FONT_FAMILY);
+		this.toolbar.setFontSize(size);
 	}
 
 	getContentSize(): { width: number; height: number } {

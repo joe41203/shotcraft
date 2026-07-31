@@ -6,11 +6,9 @@ import {
 	type TextShape,
 	updateShape,
 } from "@/lib/editor/doc";
+import { resolveFontStack } from "@/lib/theme";
 import type { Point } from "../geometry-view";
 import type { EditorContext, Tool, ToolName } from "./types";
-
-/** 新規テキストの初期フォントサイズ（ドキュメント座標系の px）。 */
-const DEFAULT_FONT_SIZE = 24;
 
 /**
  * テキストツール。
@@ -36,7 +34,8 @@ export class TextTool implements Tool {
 			x: pos.x,
 			y: pos.y,
 			text: "",
-			fontSize: DEFAULT_FONT_SIZE,
+			fontSize: this.ctx.style.fontSize,
+			fontFamily: this.ctx.style.fontFamily,
 			stroke: this.ctx.style.stroke,
 			strokeWidth: this.ctx.style.strokeWidth,
 			rotation: 0,
@@ -80,6 +79,8 @@ export class TextTool implements Tool {
 		ta.style.left = `${client.x}px`;
 		ta.style.top = `${client.y}px`;
 		ta.style.fontSize = `${shape.fontSize * scale}px`;
+		// render.ts の Konva.Text と同じ stack を使い、編集中と確定後の見た目を一致させる。
+		ta.style.fontFamily = resolveFontStack(shape.fontFamily);
 		ta.style.color = shape.stroke;
 		document.body.append(ta);
 		this.overlay = ta;
