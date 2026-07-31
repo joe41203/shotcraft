@@ -152,52 +152,7 @@ header {
   outline-offset: 2px;
 }
 
-/* 線の太さ */
-.width-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: transparent;
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease;
-}
-
-.width-btn:hover {
-  background: var(--surface-hover);
-}
-
-.width-btn:active {
-  background: var(--surface-2);
-}
-
-.width-btn.active {
-  background: color-mix(in srgb, var(--ring) 14%, transparent);
-  border-color: color-mix(in srgb, var(--ring) 40%, transparent);
-}
-
-.width-btn:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.width-dot {
-  display: block;
-  border-radius: 50%;
-  background: var(--text);
-}
-
-.width-btn.active .width-dot {
-  background: var(--ring);
-}
-
-/* 線種（実線/破線）ボタン。線幅ボタンと同系の見た目で、中に線サンプルを描く */
+/* 線種（実線/破線）ボタン。中に線サンプルを描く */
 .dash-btn {
   display: inline-flex;
   align-items: center;
@@ -516,7 +471,6 @@ main {
 
 @media (prefers-reduced-motion: reduce) {
   .icon-btn,
-  .width-btn,
   .dash-btn,
   .swatch,
   .text-btn,

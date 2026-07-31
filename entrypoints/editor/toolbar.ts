@@ -13,13 +13,6 @@ export const COLORS = [
 	{ value: "#fafafa", label: "白" },
 ] as const;
 
-/** 線の太さ（細/中/太）。 */
-export const STROKE_WIDTHS = [
-	{ value: 2, label: "細" },
-	{ value: 4, label: "中" },
-	{ value: 8, label: "太" },
-] as const;
-
 interface ToolDef {
 	name: ToolName;
 	label: string;
@@ -50,7 +43,6 @@ export const DASH_OPTIONS = [
 export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
-	onStrokeWidthChange(width: number): void;
 	/** 線種（実線/破線）が選ばれたとき。 */
 	onDashChange(dash: boolean): void;
 	onUndo(): void;
@@ -63,13 +55,12 @@ export interface ToolbarCallbacks {
 }
 
 /**
- * 上部固定ツールバー。ツール 7 ボタン・色スウォッチ・線の太さ・undo/redo を持つ。
- * 状態（選択中ツール・色・太さ・undo/redo の可否・ズーム率）は set* で反映する。
+ * 上部固定ツールバー。ツール 7 ボタン・色スウォッチ・線種・undo/redo を持つ。
+ * 状態（選択中ツール・色・undo/redo の可否・ズーム率）は set* で反映する。
  */
 export class Toolbar {
 	private toolButtons = new Map<ToolName, HTMLButtonElement>();
 	private colorButtons = new Map<string, HTMLButtonElement>();
-	private widthButtons = new Map<number, HTMLButtonElement>();
 	/** 線種（実線/破線）の文脈グループと各ボタン。 */
 	private dashGroup!: HTMLDivElement;
 	private dashDivider!: HTMLSpanElement;
@@ -118,27 +109,6 @@ export class Toolbar {
 			colorGroup.append(btn);
 		}
 		this.root.append(colorGroup, divider());
-
-		// 線の太さ群
-		const widthGroup = group();
-		for (const w of STROKE_WIDTHS) {
-			const btn = document.createElement("button");
-			btn.type = "button";
-			btn.className = "width-btn";
-			btn.dataset.tooltip = `線の太さ: ${w.label}`;
-			btn.setAttribute("aria-label", `線の太さ: ${w.label} (${w.value}px)`);
-			const dot = document.createElement("span");
-			dot.className = "width-dot";
-			dot.style.width = `${w.value + 2}px`;
-			dot.style.height = `${w.value + 2}px`;
-			btn.append(dot);
-			btn.addEventListener("click", () =>
-				this.callbacks.onStrokeWidthChange(w.value),
-			);
-			this.widthButtons.set(w.value, btn);
-			widthGroup.append(btn);
-		}
-		this.root.append(widthGroup, divider());
 
 		// 線種（実線/破線）群。線・輪郭を持つツール/図形（矢印・矩形・楕円・ペン）の
 		// ときだけ表示する（setDashControlsVisible で制御）。
@@ -211,12 +181,6 @@ export class Toolbar {
 	setColor(color: string): void {
 		for (const [value, btn] of this.colorButtons) {
 			btn.classList.toggle("active", value === color);
-		}
-	}
-
-	setStrokeWidth(width: number): void {
-		for (const [value, btn] of this.widthButtons) {
-			btn.classList.toggle("active", value === width);
 		}
 	}
 

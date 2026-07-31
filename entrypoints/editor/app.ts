@@ -87,7 +87,9 @@ export class EditorApp {
 	 * 新規図形に適用する現在のスタイル。fontSize は新規テキストのデフォルト。
 	 * 作成後のサイズ変更は選択して四隅ハンドルをドラッグする（fontSize=24 は
 	 * 従来と同じ既定値で、既存保存データの互換を壊さない）。フォントは
-	 * Mochiy Pop One 固定なのでスタイルには持たない。
+	 * Mochiy Pop One 固定なのでスタイルには持たない。線の太さは 4px 固定で、
+	 * 選択 UI は持たない（既存保存データが 2/8 を持っていてもその図形は
+	 * 保存値のまま描画され、新規図形だけが 4px になる）。
 	 */
 	style = {
 		stroke: "#fb7185",
@@ -173,7 +175,6 @@ export class EditorApp {
 		this.toolbar = new Toolbar(toolbarRoot, {
 			onToolChange: (t) => this.setTool(t),
 			onColorChange: (c) => this.setColor(c),
-			onStrokeWidthChange: (w) => this.setStrokeWidth(w),
 			onDashChange: (d) => this.setDash(d),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
@@ -477,11 +478,6 @@ export class EditorApp {
 	setColor(color: string): void {
 		this.style.stroke = color;
 		this.toolbar.setColor(color);
-	}
-
-	setStrokeWidth(width: number): void {
-		this.style.strokeWidth = width;
-		this.toolbar.setStrokeWidth(width);
 	}
 
 	/**
@@ -798,7 +794,6 @@ export class EditorApp {
 	private syncToolbar(): void {
 		this.toolbar.setTool(this.currentTool);
 		this.toolbar.setColor(this.style.stroke);
-		this.toolbar.setStrokeWidth(this.style.strokeWidth);
 		this.syncDashControls();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
