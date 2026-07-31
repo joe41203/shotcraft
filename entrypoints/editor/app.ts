@@ -47,6 +47,12 @@ export class EditorApp {
 
 	private toolbar: Toolbar;
 	private idCounter = 0;
+	/**
+	 * ユーザーがまだ手動でズーム/パンしていない間 true。
+	 * この間は window/コンテナのリサイズに追従して自動で全体フィットする
+	 * （初期レイアウト確定前に fit すると 0 サイズ基準で極小になるため）。
+	 */
+	private autoFit = true;
 
 	/** doc がコミットされるたびに呼ばれる（自動保存のフック）。 */
 	onDocCommitted?: (doc: EditorDoc) => void;
@@ -261,6 +267,8 @@ export class EditorApp {
 
 	/** 画像全体をコンテナに収めて中央寄せする。 */
 	fitView(): void {
+		// フィット状態にしたので、以降のリサイズには自動フィットで追従する。
+		this.autoFit = true;
 		const t = fitTransform(
 			{ width: this.stage.width(), height: this.stage.height() },
 			this.contentSize,
@@ -269,6 +277,7 @@ export class EditorApp {
 	}
 
 	private zoomAt(pivot: Point, nextScale: number): void {
+		this.autoFit = false; // 手動ズーム後はリサイズで勝手にフィットしない
 		this.applyViewTransform(
 			zoomAtTransform(this.readTransform(), pivot, nextScale),
 		);
@@ -344,6 +353,7 @@ export class EditorApp {
 				const factor = Math.exp(-e.evt.deltaY * 0.002);
 				this.zoomAt(pointer, this.stage.scaleX() * factor);
 			} else {
+				this.autoFit = false; // 手動パン後はリサイズで勝手にフィットしない
 				this.stage.position({
 					x: this.stage.x() - e.evt.deltaX,
 					y: this.stage.y() - e.evt.deltaY,
@@ -480,7 +490,14 @@ export class EditorApp {
 		const ro = new ResizeObserver(() => {
 			this.stage.width(container.clientWidth);
 			this.stage.height(container.clientHeight);
-			this.stage.batchDraw();
+			// まだユーザーがズーム/パンしていなければ全体フィットに追従する。
+			// 初期化直後はレイアウト未確定で clientWidth が 0 のことがあり、
+			// ここで確定後のサイズを使って正しくフィットさせる。
+			if (this.autoFit) {
+				this.fitView();
+			} else {
+				this.stage.batchDraw();
+			}
 		});
 		ro.observe(container);
 	}
