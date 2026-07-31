@@ -1,6 +1,7 @@
 import Konva from "konva";
 import type { EditorDoc, MosaicShape, Shape } from "@/lib/editor/doc";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
+import { theme } from "@/lib/theme";
 
 /** マーカー（蛍光ペン）の描画パラメータ。入力の太さを基準に太く半透明にする。 */
 const MARKER_WIDTH_SCALE = 3;
@@ -95,7 +96,11 @@ export function shapeToNode(shape: Shape, source?: MosaicSource): Konva.Shape {
 				text: shape.text,
 				fontSize: shape.fontSize,
 				fill: shape.stroke,
-				fontFamily: "system-ui, sans-serif",
+				// text-overlay（textarea）と同じ見た目にするため theme.fontSans を使う。
+				// 先頭は同梱の Zen Maru Gothic。canvas 描画なので、フォント読み込み完了
+				// 前に描くとフォールバックされる。エディタ初期化時に main.ts で
+				// document.fonts.load() を await してから描画に入る。
+				fontFamily: theme.fontSans,
 				lineHeight: 1.2,
 			});
 		case "pen":

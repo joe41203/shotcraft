@@ -16,5 +16,5 @@ export const theme = {
 	danger: "#ef4444", // 破壊的操作
 	ring: "#38bdf8", // フォーカスリング・選択色（範囲選択の枠色と同一系統）
 	fontSans:
-		'-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif',
+		'"Zen Maru Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif',
 } as const;
