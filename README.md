@@ -12,6 +12,7 @@
 [![Konva](https://img.shields.io/badge/canvas-Konva-0d83cd)](https://konvajs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
 [![font: SIL OFL 1.1](https://img.shields.io/badge/font-SIL%20OFL%201.1-informational)](public/fonts/OFL.txt)
+[![license: MIT](https://img.shields.io/badge/license-MIT-yellow)](./LICENSE)
 
 <!--
   Chrome ウェブストアの審査を通過してストア公開されたら、ストアリンクのバッジをここに足す:
@@ -240,4 +241,4 @@ pnpm test
 
 ## ライセンス
 
-このプロジェクトのソースコードのライセンスは未定です（`LICENSE` ファイルは今後追加予定）。同梱フォント Zen Maru Gothic は SIL Open Font License 1.1（[`public/fonts/OFL.txt`](public/fonts/OFL.txt)）のもとで配布されており、ソースコードのライセンスとは独立にこの条件が適用されます。
+このプロジェクトのソースコードは [MIT License](./LICENSE) のもとで公開しています。同梱フォント Zen Maru Gothic は SIL Open Font License 1.1（[`public/fonts/OFL.txt`](public/fonts/OFL.txt)）のもとで配布されており、ソースコードのライセンスとは独立にこの条件が適用されます。
