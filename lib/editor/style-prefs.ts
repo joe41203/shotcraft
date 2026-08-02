@@ -10,6 +10,7 @@
  * （壊れた保存値や旧バージョンの値でもエディタが必ず既定で立ち上がる）。
  */
 
+import { type ArrowStyle, normalizeArrowStyle } from "./arrow";
 import { clampFontSize, DEFAULT_FONT_SIZE } from "./text";
 
 /** 新規図形に適用する記憶対象のスタイル。app.ts の EditorContext.style の永続化部分。 */
@@ -20,6 +21,8 @@ export interface StylePrefs {
 	dash: boolean;
 	/** 新規テキストの既定フォントサイズ（px）。 */
 	fontSize: number;
+	/** 新規矢印のスタイル（片側 / 両側 / 曲線）。既定は "single"。 */
+	arrowStyle: ArrowStyle;
 }
 
 /** 保存値が無い・壊れているときに使う既定スタイル（app.ts の初期値と一致させる）。 */
@@ -27,6 +30,7 @@ export const DEFAULT_STYLE_PREFS: StylePrefs = {
 	stroke: "#fb7185",
 	dash: false,
 	fontSize: DEFAULT_FONT_SIZE,
+	arrowStyle: "single",
 };
 
 /** storage.local のキー。capture/doc（storage.session）とは名前空間を分ける。 */
@@ -59,13 +63,18 @@ export function normalizeStylePrefs(raw: unknown): StylePrefs {
 			typeof fontSize === "number" && Number.isFinite(fontSize)
 				? clampFontSize(fontSize)
 				: DEFAULT_STYLE_PREFS.fontSize,
+		// 不正値・未設定は "single" へ（normalizeArrowStyle が担保）。
+		arrowStyle: normalizeArrowStyle(source.arrowStyle),
 	};
 }
 
 /** 2 つのスタイル設定が同値か（過剰な書き込みを避ける同値判定用）。 */
 export function stylePrefsEqual(a: StylePrefs, b: StylePrefs): boolean {
 	return (
-		a.stroke === b.stroke && a.dash === b.dash && a.fontSize === b.fontSize
+		a.stroke === b.stroke &&
+		a.dash === b.dash &&
+		a.fontSize === b.fontSize &&
+		a.arrowStyle === b.arrowStyle
 	);
 }
 

@@ -1,4 +1,5 @@
 import type Konva from "konva";
+import type { ArrowStyle } from "@/lib/editor/arrow";
 import type { EditorDoc, Shape } from "@/lib/editor/doc";
 import type { Point } from "../geometry-view";
 
@@ -38,6 +39,8 @@ export interface EditorContext {
 		fontSize: number;
 		/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。 */
 		dash: boolean;
+		/** 新規矢印のスタイル（片側 / 両側 / 曲線）。 */
+		arrowStyle: ArrowStyle;
 	};
 	/** ステージ（座標変換・コンテナ取得に使う）。 */
 	readonly stage: Konva.Stage;

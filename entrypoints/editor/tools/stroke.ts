@@ -1,11 +1,16 @@
 import type Konva from "konva";
 import { addShape, type MarkerShape, type PenShape } from "@/lib/editor/doc";
+import { STROKE_MIN_POINT_DISTANCE, thinPoints } from "@/lib/editor/stroke";
 import type { Point } from "../geometry-view";
 import { shapeToNode } from "../render";
 import type { EditorContext, Tool, ToolName } from "./types";
 
-/** 前回点からこの距離未満なら点を追加しない（点列の間引き）。 */
-const MIN_POINT_DISTANCE = 2;
+/**
+ * 前回採用点からこの距離未満の入力点はスキップする（手ブレ補正の間引き）。
+ * 描画ロジックの正である lib/editor/stroke.ts の定数を共有し、ドラッグ中プレビューと
+ * 確定図形で同じしきい値を通す。
+ */
+const MIN_POINT_DISTANCE = STROKE_MIN_POINT_DISTANCE;
 /** これ未満の総点数（＝ほぼ動いていない）は図形を作らず破棄する。 */
 const MIN_POINTS = 2;
 
@@ -75,7 +80,10 @@ export abstract class StrokeTool implements Tool {
 		return {
 			id: this.ctx.newId(),
 			type: this.shapeType,
-			points: [...this.points],
+			// 手ブレ補正の間引き。onPointerMove で距離未満の点は既にスキップ済みだが、
+			// 正である thinPoints を最終確定でも通し、末尾点の保持まで一貫させる
+			// （プレビューも同じ makeShape 経由なので確定後と見た目が一致する）。
+			points: thinPoints(this.points, MIN_POINT_DISTANCE),
 			stroke: this.ctx.style.stroke,
 			strokeWidth: this.ctx.style.strokeWidth,
 			// 破線はペンのみ。マーカー（太い半透明のハイライト）は常に実線にする。

@@ -16,6 +16,18 @@ export const icons = {
 	arrow: svg(
 		'<line x1="5" y1="19" x2="19" y2="5"/><polyline points="10 5 19 5 19 14"/>',
 	),
+	// 矢印スタイル: 片側（終端のみ矢頭）。水平線 + 右端の矢頭。
+	arrowSingle: svg(
+		'<line x1="4" y1="12" x2="19" y2="12"/><polyline points="14 7 19 12 14 17"/>',
+	),
+	// 矢印スタイル: 両側（両端に矢頭）。
+	arrowDouble: svg(
+		'<line x1="6" y1="12" x2="18" y2="12"/><polyline points="10 7 5 12 10 17"/><polyline points="14 7 19 12 14 17"/>',
+	),
+	// 矢印スタイル: 曲線（弧を描いて右端に矢頭）。
+	arrowCurved: svg(
+		'<path d="M4 16c5-8 11-8 15-4"/><polyline points="14 5 19 12 12 13"/>',
+	),
 	// 直線（矢頭なし）
 	line: svg('<line x1="5" y1="19" x2="19" y2="5"/>'),
 	// 矩形

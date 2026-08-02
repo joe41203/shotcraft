@@ -28,6 +28,14 @@ export interface ShapeBase {
 export interface ArrowShape extends ShapeBase {
 	type: "arrow";
 	points: number[];
+	/**
+	 * 矢印のスタイル。省略時は "single"（終端のみ矢頭）＝後方互換の既定。
+	 * - "single": 終端のみ矢頭。
+	 * - "double": 始端・終端の両方に矢頭（pointerAtBeginning）。
+	 * - "curved": 始点終点を 2 次ベジェで結んだ曲線。矢頭は終端のみ。
+	 * 曲線の制御点は始点終点から一意に決まる（curvedArrowControl。制御点 UI は無い）。
+	 */
+	arrowStyle?: "single" | "double" | "curved";
 }
 
 /** 直線（矢頭なし）。points は始点・終点の [x1, y1, x2, y2]。 */

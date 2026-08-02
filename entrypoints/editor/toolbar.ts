@@ -1,3 +1,4 @@
+import type { ArrowStyle } from "@/lib/editor/arrow";
 import { icons } from "@/lib/icons";
 import type { ToolName } from "./tools/types";
 import { Tooltip } from "./tooltip";
@@ -50,11 +51,24 @@ export const DASH_OPTIONS = [
 	{ value: true, label: "破線" },
 ] as const;
 
+/** 矢印スタイル（片側 / 両側 / 曲線）の選択肢。矢印ツール選択中のみ表示する。 */
+export const ARROW_STYLE_OPTIONS: {
+	value: ArrowStyle;
+	label: string;
+	icon: string;
+}[] = [
+	{ value: "single", label: "片側矢印", icon: icons.arrowSingle },
+	{ value: "double", label: "両側矢印", icon: icons.arrowDouble },
+	{ value: "curved", label: "曲線矢印", icon: icons.arrowCurved },
+];
+
 export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
 	/** 線種（実線/破線）が選ばれたとき。 */
 	onDashChange(dash: boolean): void;
+	/** 矢印スタイル（片側 / 両側 / 曲線）が選ばれたとき。 */
+	onArrowStyleChange(style: ArrowStyle): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
@@ -75,6 +89,10 @@ export class Toolbar {
 	private dashGroup!: HTMLDivElement;
 	private dashDivider!: HTMLSpanElement;
 	private dashButtons = new Map<boolean, HTMLButtonElement>();
+	/** 矢印スタイル（片側 / 両側 / 曲線）の文脈グループと各ボタン。 */
+	private arrowStyleGroup!: HTMLDivElement;
+	private arrowStyleDivider!: HTMLSpanElement;
+	private arrowStyleButtons = new Map<ArrowStyle, HTMLButtonElement>();
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
@@ -148,6 +166,29 @@ export class Toolbar {
 		this.setDash(false);
 		this.setDashControlsVisible(false);
 
+		// 矢印スタイル（片側 / 両側 / 曲線）群。矢印ツール/矢印図形のときだけ表示する
+		// （setArrowStyleControlsVisible で制御）。線種トグルと同じ実装パターン・トーン・
+		// aria-pressed。中身はアイコン（矢頭の向き・曲線）で見分ける 3 択トグル。
+		this.arrowStyleGroup = group();
+		for (const opt of ARROW_STYLE_OPTIONS) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "arrow-style-btn";
+			btn.dataset.tooltip = opt.label;
+			btn.setAttribute("aria-label", `矢印スタイル: ${opt.label}`);
+			btn.setAttribute("aria-pressed", "false");
+			btn.innerHTML = opt.icon;
+			btn.addEventListener("click", () =>
+				this.callbacks.onArrowStyleChange(opt.value),
+			);
+			this.arrowStyleButtons.set(opt.value, btn);
+			this.arrowStyleGroup.append(btn);
+		}
+		this.arrowStyleDivider = divider();
+		this.root.append(this.arrowStyleGroup, this.arrowStyleDivider);
+		this.setArrowStyle("single");
+		this.setArrowStyleControlsVisible(false);
+
 		// undo/redo
 		const historyGroup = group();
 		this.undoButton = iconButton(icons.undo, "元に戻す", "Ctrl/Cmd+Z");
@@ -217,6 +258,21 @@ export class Toolbar {
 	setDashControlsVisible(visible: boolean): void {
 		this.dashGroup.hidden = !visible;
 		this.dashDivider.hidden = !visible;
+	}
+
+	/** 矢印スタイルの現在値を反映する（active クラスと aria-pressed の両方）。 */
+	setArrowStyle(style: ArrowStyle): void {
+		for (const [value, btn] of this.arrowStyleButtons) {
+			const on = value === style;
+			btn.classList.toggle("active", on);
+			btn.setAttribute("aria-pressed", String(on));
+		}
+	}
+
+	/** 矢印スタイルコントロール群の表示/非表示を切り替える。 */
+	setArrowStyleControlsVisible(visible: boolean): void {
+		this.arrowStyleGroup.hidden = !visible;
+		this.arrowStyleDivider.hidden = !visible;
 	}
 
 	setUndoRedo(canUndo: boolean, canRedo: boolean): void {

@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { curvedArrowControl, normalizeArrowStyle } from "@/lib/editor/arrow";
 import { blurCornerRadius, blurRadius } from "@/lib/editor/blur";
 import {
 	CALLOUT_CORNER_RADIUS,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/editor/callout";
 import { resolveDash } from "@/lib/editor/dash";
 import type {
+	ArrowShape,
 	BlurShape,
 	CalloutShape,
 	EditorDoc,
@@ -19,6 +21,7 @@ import type {
 	SpotlightShape,
 	StepShape,
 } from "@/lib/editor/doc";
+import { haloColor, haloStrokeWidth } from "@/lib/editor/halo";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
 import {
 	clampSpotlightHole,
@@ -34,6 +37,14 @@ import { theme } from "@/lib/theme";
 /** マーカー（蛍光ペン）の描画パラメータ。入力の太さを基準に太く半透明にする。 */
 const MARKER_WIDTH_SCALE = 3;
 const MARKER_OPACITY = 0.4;
+
+/**
+ * ペン・マーカーの手ブレ補正に使う Konva の tension（スプライン補間の張り）。
+ * 0 は直線折れ、値を上げるほど各点を通る曲線が滑らかになる。0.4 前後で「震えを
+ * ならしつつ描いた軌跡は保つ」バランスになる。間引き（thinPoints）と併用する。
+ * 既存の保存図形も同じ tension で描くので、過去の線もそのまま滑らかになる（意図的な改善）。
+ */
+const STROKE_TENSION = 0.4;
 
 /**
  * モザイク描画のサンプリング元。ベース画像そのもの（キャプチャ原寸）を
@@ -53,6 +64,73 @@ function arrowHead(strokeWidth: number): {
 		pointerLength: 6 + strokeWidth * 3,
 		pointerWidth: 6 + strokeWidth * 2.5,
 	};
+}
+
+/**
+ * テキストのハロー（縁取り）を Konva.Text へ渡す属性を返す。
+ * stroke（縁色）は文字色の輝度から自動判定、strokeWidth（縁幅）はフォントサイズ連動。
+ * fillAfterStrokeEnabled=true で fill（文字色）を stroke（縁）の後に描き、文字の外側に
+ * 縁が出るようにする。テキスト注釈・フキダシ内テキストで共有する。
+ */
+function textHalo(
+	color: string,
+	fontSize: number,
+): {
+	stroke: string;
+	strokeWidth: number;
+	fillAfterStrokeEnabled: boolean;
+} {
+	return {
+		stroke: haloColor(color),
+		strokeWidth: haloStrokeWidth(fontSize),
+		fillAfterStrokeEnabled: true,
+	};
+}
+
+/**
+ * 矢印を、スタイル（single/double/curved）に応じた Konva.Arrow として作る。
+ *
+ * - single（既定・省略時）: 終端のみ矢頭。
+ * - double: pointerAtBeginning で始端にも矢頭を付ける。
+ * - curved: 始点・制御点・終点の 3 点＋ tension で 2 次ベジェ曲線を描く。制御点は
+ *   curvedArrowControl（始点終点から一意）。Konva.Arrow は points の最後の 2 点が作る
+ *   接線方向へ矢頭を向けるので、制御点→終点の向き＝終端の接線に矢頭が沿う。
+ * dash は 3 スタイルすべてで機能する（曲線は点間が短いので Konva が破線を沿わせる）。
+ */
+function buildArrowNode(
+	shape: ArrowShape,
+	common: { id: string; name: string; rotation: number; opacity: number },
+): Konva.Arrow {
+	const style = normalizeArrowStyle(shape.arrowStyle);
+	const dash = resolveDash(shape.dash, shape.strokeWidth);
+	const base = {
+		...common,
+		stroke: shape.stroke,
+		fill: shape.stroke,
+		strokeWidth: shape.strokeWidth,
+		dash,
+		lineCap: "round" as const,
+		lineJoin: "round" as const,
+		hitStrokeWidth: Math.max(shape.strokeWidth, 12),
+		...arrowHead(shape.strokeWidth),
+	};
+
+	if (style === "curved") {
+		const c = curvedArrowControl(shape.points);
+		const [x1, y1, x2, y2] = shape.points;
+		return new Konva.Arrow({
+			...base,
+			// 始点・制御点・終点。tension で 2 次ベジェ相当の滑らかな曲線にする。
+			points: [x1 ?? 0, y1 ?? 0, c.x, c.y, x2 ?? 0, y2 ?? 0],
+			tension: 0.5,
+		});
+	}
+
+	return new Konva.Arrow({
+		...base,
+		points: shape.points,
+		pointerAtBeginning: style === "double",
+	});
 }
 
 /**
@@ -118,18 +196,7 @@ export function shapeToNode(
 				dash: [4, 4],
 			});
 		case "arrow":
-			return new Konva.Arrow({
-				...common,
-				points: shape.points,
-				stroke: shape.stroke,
-				fill: shape.stroke,
-				strokeWidth: shape.strokeWidth,
-				dash: resolveDash(shape.dash, shape.strokeWidth),
-				lineCap: "round",
-				lineJoin: "round",
-				hitStrokeWidth: Math.max(shape.strokeWidth, 12),
-				...arrowHead(shape.strokeWidth),
-			});
+			return buildArrowNode(shape, common);
 		case "line":
 			return new Konva.Line({
 				...common,
@@ -178,6 +245,11 @@ export function shapeToNode(
 				// 初期化時に main.ts で document.fonts.load() を await してから描画に入る。
 				fontFamily: theme.fontAnnotation,
 				lineHeight: 1.2,
+				// 縁取り（ハロー）: どんな背景でも読めるよう文字の外側に細い縁を付ける。
+				// 縁色は文字色の輝度から自動判定、縁幅はフォントサイズ連動。
+				// fillAfterStrokeEnabled=true で「文字色（fill）の外側に縁（stroke）」に
+				// なる（stroke を先に描くと文字が細って見えるため fill を後に重ねる）。
+				...textHalo(shape.stroke, shape.fontSize),
 			});
 		case "pen":
 			return new Konva.Line({
@@ -188,7 +260,8 @@ export function shapeToNode(
 				dash: resolveDash(shape.dash, shape.strokeWidth),
 				lineCap: "round",
 				lineJoin: "round",
-				tension: 0,
+				// 手ブレ補正: スプライン補間で点間を滑らかに繋ぐ（間引きと併用）。
+				tension: STROKE_TENSION,
 				hitStrokeWidth: Math.max(shape.strokeWidth, 12),
 			});
 		case "marker":
@@ -200,7 +273,8 @@ export function shapeToNode(
 				opacity: shape.opacity * MARKER_OPACITY,
 				lineCap: "round",
 				lineJoin: "round",
-				tension: 0,
+				// ペンと同じく手ブレ補正の tension を掛ける。
+				tension: STROKE_TENSION,
 				hitStrokeWidth: Math.max(shape.strokeWidth * MARKER_WIDTH_SCALE, 12),
 			});
 	}
@@ -487,6 +561,8 @@ function buildCalloutNode(
 	const fontFamily = theme.fontAnnotation;
 
 	// テキストを先に組んで折返し後の高さを測り、本体高さへ反映する。
+	// フキダシ内テキストにもハロー（縁取り）を付け、淡い背景でも文字が読めるようにする
+	// （テキスト注釈と同じ扱い）。
 	const text = new Konva.Text({
 		x: CALLOUT_PADDING,
 		y: CALLOUT_PADDING,
@@ -498,6 +574,7 @@ function buildCalloutNode(
 		lineHeight: 1.25,
 		wrap: "word",
 		listening: false,
+		...textHalo(shape.stroke, shape.fontSize),
 	});
 	const bodyHeight = Math.max(
 		shape.height,
@@ -610,15 +687,23 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 	switch (prev.type) {
 		case "arrow": {
 			const line = node as Konva.Arrow;
+			const scaled = scalePoints(
+				line.points(),
+				line.x(),
+				line.y(),
+				line.scaleX(),
+				line.scaleY(),
+			);
+			// curved 矢印のノードは [始点, 制御点, 終点] の 3 点を持つが、doc の
+			// ArrowShape.points は常に [x1,y1,x2,y2]（始点・終点）だけ。制御点は
+			// 始点終点から再計算するので、変形後は端の 2 点だけを焼き込む。
+			const points =
+				scaled.length >= 6
+					? [scaled[0] ?? 0, scaled[1] ?? 0, scaled[4] ?? 0, scaled[5] ?? 0]
+					: scaled;
 			return {
 				...prev,
-				points: scalePoints(
-					line.points(),
-					line.x(),
-					line.y(),
-					line.scaleX(),
-					line.scaleY(),
-				),
+				points,
 				rotation: line.rotation(),
 			};
 		}

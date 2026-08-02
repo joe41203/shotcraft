@@ -1,5 +1,6 @@
 import Konva from "konva";
 import type { CaptureRecord } from "@/lib/capture-store";
+import { type ArrowStyle, normalizeArrowStyle } from "@/lib/editor/arrow";
 import { croppedSize } from "@/lib/editor/crop";
 import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
@@ -29,6 +30,7 @@ import {
 	redo,
 	undo,
 } from "@/lib/editor/history";
+import { shapesInBand } from "@/lib/editor/selection";
 import {
 	createStylePrefsSaver,
 	DEFAULT_STYLE_PREFS,
@@ -109,7 +111,12 @@ export class EditorApp {
 	private history: History<EditorDoc>;
 	private currentTool: ToolName = "select";
 	private tools = new Map<ToolName, Tool>();
-	private selectedId: string | null = null;
+	/**
+	 * 選択中の図形 id 群（描画順。複数選択対応の正）。単一選択は要素数 1、未選択は空配列
+	 * として扱う。既存の select(id) API・selectedId ゲッタは、この配列の先頭を単一選択
+	 * として見せることで後方互換を保つ。
+	 */
+	private selectedIds: string[] = [];
 	/**
 	 * 矢印キーによる連続 nudge をまとめて 1 commit にするためのデバウンス状態。
 	 * nudgeTimer は満了で flushNudge を呼ぶタイマー、nudgeBaseDoc はバースト開始前の
@@ -119,6 +126,16 @@ export class EditorApp {
 	private nudgeBaseDoc: EditorDoc | null = null;
 	/** Alt(Option)+ドラッグ中フラグ。true の間の dragend は元を残して複製を追加する。 */
 	private altDragging = false;
+	/**
+	 * ラバーバンド（範囲選択矩形）の状態。select ツールで空き領域から始めたドラッグの間、
+	 * start に開始点（doc 座標）・rect に描画中の矩形ノードを持つ。additive は Shift 併用
+	 * （既存選択へ追加/除外する）か。ドラッグ外は start/rect とも null。
+	 */
+	private band: {
+		start: Point;
+		rect: Konva.Rect;
+		additive: boolean;
+	} | null = null;
 	/**
 	 * 新規図形に適用する現在のスタイル。fontSize は新規テキストのデフォルト。
 	 * 作成後のサイズ変更は選択して四隅ハンドルをドラッグする（fontSize=24 は
@@ -133,6 +150,8 @@ export class EditorApp {
 		fontSize: DEFAULT_STYLE_PREFS.fontSize,
 		/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。既定は実線。 */
 		dash: DEFAULT_STYLE_PREFS.dash,
+		/** 新規矢印のスタイル（片側 / 両側 / 曲線）。既定は片側。 */
+		arrowStyle: DEFAULT_STYLE_PREFS.arrowStyle,
 	};
 
 	/**
@@ -172,6 +191,7 @@ export class EditorApp {
 		this.style.stroke = prefs.stroke;
 		this.style.dash = prefs.dash;
 		this.style.fontSize = prefs.fontSize;
+		this.style.arrowStyle = prefs.arrowStyle;
 		// 復元値を初期値としてセーバに渡し、起動直後の同値保存を抑止する。
 		this.stylePrefsSaver = createStylePrefsSaver(prefs);
 		// crop フィールドが無い旧保存データも読めるよう null で補完する。
@@ -228,6 +248,7 @@ export class EditorApp {
 			onToolChange: (t) => this.setTool(t),
 			onColorChange: (c) => this.setColor(c),
 			onDashChange: (d) => this.setDash(d),
+			onArrowStyleChange: (s) => this.setArrowStyle(s),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
@@ -303,7 +324,7 @@ export class EditorApp {
 		this.flushNudge();
 		if (!canUndo(this.history)) return;
 		this.history = undo(this.history);
-		this.selectedId = null;
+		this.selectedIds = [];
 		this.render();
 		this.syncToolbar();
 		this.onSelectionChanged?.(null);
@@ -314,7 +335,7 @@ export class EditorApp {
 		this.flushNudge();
 		if (!canRedo(this.history)) return;
 		this.history = redo(this.history);
-		this.selectedId = null;
+		this.selectedIds = [];
 		this.render();
 		this.syncToolbar();
 		this.onSelectionChanged?.(null);
@@ -392,6 +413,17 @@ export class EditorApp {
 	}
 
 	/**
+	 * 複数選択でグループドラッグ中に、掴んだノード以外の選択ノードへ同じ移動量を伝える
+	 * ための一時状態。掴んだノードのドラッグ開始位置と、他ノードの開始位置を覚えておき、
+	 * dragmove で「掴んだノードの移動量」を全員へ適用する。ドラッグ外は null。
+	 */
+	private groupDrag: {
+		anchorId: string;
+		anchorStart: Point;
+		others: { node: Konva.Node; start: Point }[];
+	} | null = null;
+
+	/**
 	 * 1 つの図形ノードに、変形/移動の確定コミットと pointerdown 選択を配線する。
 	 * select ツールと text ツール（テキストノードのみ）の双方から使う。
 	 */
@@ -400,8 +432,22 @@ export class EditorApp {
 		// 見た目の見せ方は問わず、確定時（dragend）に元を残して複製を追加する。
 		node.on("dragstart.altdup", (e: Konva.KonvaEventObject<DragEvent>) => {
 			this.altDragging = e.evt.altKey;
+			// 複数選択中に選択ノードを掴んだら、他の選択ノードも一緒に動かす準備をする
+			// （Alt 複製ドラッグは単一選択のときだけ扱い、複数選択では素の一括移動にする）。
+			if (this.selectedIds.length > 1 && this.selectedIds.includes(node.id())) {
+				this.altDragging = false;
+				this.beginGroupDrag(node);
+			}
+		});
+		node.on("dragmove.group", () => {
+			this.updateGroupDrag(node);
 		});
 		node.on("dragend.commit transformend.commit", () => {
+			// グループドラッグ確定: 選択中の全ノードの新位置をまとめて 1 回 commit する。
+			if (this.groupDrag) {
+				this.finishGroupDrag();
+				return;
+			}
 			const id = node.id();
 			const prev = findShape(this.history.present, id);
 			if (!prev) return;
@@ -430,35 +476,102 @@ export class EditorApp {
 			// 選択（＋そのままドラッグ移動）になる。
 			if (this.currentTool !== "select" && this.currentTool !== "text") return;
 			e.cancelBubble = true; // 背景の選択解除・新規作成に伝播させない
+			// Shift+クリックは選択へ追加/除外（select ツールのみ。複数選択の構築）。
+			if (this.currentTool === "select" && e.evt.shiftKey) {
+				this.toggleInSelection(node.id());
+				return;
+			}
+			// 既に複数選択に含まれるノードを掴んだ場合は選択を維持（そのままグループ
+			// ドラッグへ）。含まれないノードなら単一選択に切り替える。
+			if (this.selectedIds.length > 1 && this.selectedIds.includes(node.id())) {
+				return;
+			}
 			this.select(node.id());
 		});
 	}
 
+	/** グループドラッグ開始: 掴んだノードと他の選択ノードの開始位置を記録する。 */
+	private beginGroupDrag(anchor: Konva.Node): void {
+		const others: { node: Konva.Node; start: Point }[] = [];
+		for (const id of this.selectedIds) {
+			if (id === anchor.id()) continue;
+			const n = this.shapeLayer.findOne(`#${id}`);
+			if (n) others.push({ node: n, start: { x: n.x(), y: n.y() } });
+		}
+		this.groupDrag = {
+			anchorId: anchor.id(),
+			anchorStart: { x: anchor.x(), y: anchor.y() },
+			others,
+		};
+	}
+
+	/** グループドラッグ中: 掴んだノードの移動量を他の選択ノードへ反映する。 */
+	private updateGroupDrag(anchor: Konva.Node): void {
+		const g = this.groupDrag;
+		if (!g || g.anchorId !== anchor.id()) return;
+		const dx = anchor.x() - g.anchorStart.x;
+		const dy = anchor.y() - g.anchorStart.y;
+		for (const o of g.others) {
+			o.node.position({ x: o.start.x + dx, y: o.start.y + dy });
+		}
+		this.shapeLayer.batchDraw();
+	}
+
+	/** グループドラッグ確定: 選択中の全ノードの新位置を 1 回で焼き込み commit する。 */
+	private finishGroupDrag(): void {
+		const g = this.groupDrag;
+		this.groupDrag = null;
+		if (!g) return;
+		let next = this.history.present;
+		for (const id of this.selectedIds) {
+			const node = this.shapeLayer.findOne(`#${id}`);
+			const prev = findShape(next, id);
+			if (!node || !prev) continue;
+			next = replaceShape(next, id, shapeFromNode(node, prev));
+		}
+		this.commitDoc(next);
+	}
+
 	/**
-	 * 選択 id のノードに Transformer をアタッチする。未選択なら外す。
-	 * select ツールは全図形、text ツールはテキストシェイプ選択時のみ表示する
-	 * （text ツール中に既存テキストを選んでハンドルでリサイズできるようにするため）。
+	 * 選択 id 群のノードに Transformer をアタッチする。未選択なら外す。
+	 * - 単一選択: type に応じてアンカー・回転・比率を設定（従来どおり）。
+	 * - 複数選択: リサイズ・回転を無効化（枠だけ出して一括移動のみ許す）。加工系の
+	 *   リサイズ再計算やテキストの比例スケール等と干渉させず単純に保つ。
+	 * select ツールは全図形、text ツールはテキストシェイプ単一選択時のみ表示する。
 	 */
 	private syncTransformer(): void {
-		const shape = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const ids = this.selectedIds;
+		const shapes = ids
+			.map((id) => findShape(this.history.present, id))
+			.filter((s): s is Shape => s != null);
+		const single = shapes.length === 1 ? shapes[0] : undefined;
+		// text ツールでは単一のテキスト選択のときだけ変形を許す（従来の挙動）。
 		const canTransform =
 			this.currentTool === "select" ||
-			(this.currentTool === "text" && shape?.type === "text");
-		if (!shape || !canTransform) {
+			(this.currentTool === "text" && single?.type === "text");
+		if (shapes.length === 0 || !canTransform) {
 			this.transformer.nodes([]);
 			this.uiLayer.batchDraw();
 			return;
 		}
-		const node = this.shapeLayer.findOne(`#${this.selectedId}`);
-		if (node) {
-			this.configureTransformerFor(shape.type);
-			this.transformer.nodes([node as Konva.Node]);
-			this.transformer.moveToTop();
-		} else {
+		const nodes = ids
+			.map((id) => this.shapeLayer.findOne(`#${id}`))
+			.filter((n): n is Konva.Node => n != null);
+		if (nodes.length === 0) {
 			this.transformer.nodes([]);
+			this.uiLayer.batchDraw();
+			return;
 		}
+		if (single) {
+			this.configureTransformerFor(single.type);
+		} else {
+			// 複数選択はリサイズ・回転とも無効（一括移動のみ）。
+			this.transformer.enabledAnchors([]);
+			this.transformer.keepRatio(false);
+			this.transformer.rotateEnabled(false);
+		}
+		this.transformer.nodes(nodes);
+		this.transformer.moveToTop();
 		this.uiLayer.batchDraw();
 	}
 
@@ -594,6 +707,32 @@ export class EditorApp {
 	}
 
 	/**
+	 * 矢印スタイル（片側 / 両側 / 曲線）を新規矢印の既定にする。矢印を選択中は
+	 * そのシェイプへ即時適用して履歴に 1 回 commit する（線種と同じパターン・同値なら no-op）。
+	 */
+	setArrowStyle(style: ArrowStyle): void {
+		this.style.arrowStyle = style;
+		this.applyArrowStyleToSelection(style);
+		this.toolbar.setArrowStyle(style);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 選択中が矢印なら arrowStyle を差し替えて commit する。現在値（未設定は "single"）と
+	 * 同じなら何もしない。矢印以外は対象外。
+	 */
+	private applyArrowStyleToSelection(style: ArrowStyle): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || shape.type !== "arrow") return;
+		if (normalizeArrowStyle(shape.arrowStyle) === style) return;
+		this.commitDoc(
+			updateShape(this.history.present, id, { arrowStyle: style }),
+		);
+	}
+
+	/**
 	 * 現在の新規図形用スタイル（色・線種・フォントサイズ）を storage.local に保存する。
 	 * セーバ側で直前の保存値と同値なら書き込みをスキップするので、色や線種を
 	 * 切り替えたときだけ実際の書き込みが走る。線の太さは固定なので保存しない。
@@ -603,6 +742,7 @@ export class EditorApp {
 			stroke: this.style.stroke,
 			dash: this.style.dash,
 			fontSize: this.style.fontSize,
+			arrowStyle: this.style.arrowStyle,
 		});
 	}
 
@@ -632,17 +772,152 @@ export class EditorApp {
 
 	// --- 選択 ---
 
+	/**
+	 * 単一選択の id（後方互換の見せ方）。選択が「ちょうど 1 個」のときだけその id を、
+	 * それ以外（未選択・複数選択）は null を返す。色・線種・矢印スタイルの「選択中図形へ
+	 * 即適用」やコントロール表示は単一選択のときだけ働かせたいので、この getter を使う。
+	 */
+	private get selectedId(): string | null {
+		return this.selectedIds.length === 1 ? (this.selectedIds[0] ?? null) : null;
+	}
+
+	/**
+	 * 図形を選択状態にする（単一選択）。null で選択解除。既存 API を壊さないよう、
+	 * 内部の複数選択配列を「要素数 1（または 0）」として設定する薄いラッパ。
+	 */
 	select(id: string | null): void {
-		if (id === this.selectedId) return;
-		this.selectedId = id;
+		this.setSelection(id ? [id] : []);
+	}
+
+	/**
+	 * 選択集合をまとめて差し替える（複数選択の実処理）。ids は doc に存在する図形へ
+	 * 正規化（存在しない id・重複を除去し、描画順に整える）してから反映する。
+	 * 変化が無ければ何もしない。
+	 */
+	private setSelection(ids: string[]): void {
+		const next = this.normalizeSelection(ids);
+		if (this.sameSelection(next, this.selectedIds)) return;
+		this.selectedIds = next;
 		this.syncTransformer();
-		// 線系図形の選択有無で線種コントロールの表示と値が変わる。
+		// 線系図形・矢印の選択有無でコントロールの表示と値が変わる。
 		this.syncDashControls();
-		this.onSelectionChanged?.(id);
+		this.syncArrowStyleControls();
+		this.onSelectionChanged?.(this.selectedId);
+	}
+
+	/** ids から存在しない id・重複を除き、doc の描画順に並べ直す。 */
+	private normalizeSelection(ids: string[]): string[] {
+		const set = new Set(ids);
+		return this.history.present.shapes
+			.map((s) => s.id)
+			.filter((id) => set.has(id));
+	}
+
+	/** 2 つの選択集合が（順序も含め）同値か。 */
+	private sameSelection(a: string[], b: string[]): boolean {
+		return a.length === b.length && a.every((id, i) => id === b[i]);
+	}
+
+	/**
+	 * Shift+クリックで 1 つの図形を選択に追加/除外する（トグル）。既に選択中なら外し、
+	 * そうでなければ加える。既存選択は保つ。
+	 */
+	private toggleInSelection(id: string): void {
+		const has = this.selectedIds.includes(id);
+		const next = has
+			? this.selectedIds.filter((x) => x !== id)
+			: [...this.selectedIds, id];
+		this.setSelection(next);
 	}
 
 	getSelectedId(): string | null {
 		return this.selectedId;
+	}
+
+	/** 選択中の全 id（複数選択対応）。順序は描画順。 */
+	getSelectedIds(): string[] {
+		return [...this.selectedIds];
+	}
+
+	// --- ラバーバンド（範囲選択） ---
+
+	/**
+	 * 空き領域からのドラッグでラバーバンド（範囲選択矩形）を始める。
+	 * additive（Shift 併用）でないときは、まず選択を解除する。矩形は doc 座標系で
+	 * previewLayer に描く（shapeLayer と同じオフセット・スケールが掛かる）。
+	 */
+	private beginBand(start: Point, additive: boolean): void {
+		if (!additive) this.select(null);
+		const rect = new Konva.Rect({
+			x: start.x,
+			y: start.y,
+			width: 0,
+			height: 0,
+			// 選択枠と同系色の半透明矩形。ヒット判定は不要。
+			fill: "rgba(59, 130, 246, 0.12)",
+			stroke: "#3b82f6",
+			strokeWidth: 1,
+			dash: [4, 4],
+			listening: false,
+		});
+		this.previewLayer.add(rect);
+		this.previewLayer.batchDraw();
+		this.band = { start, rect, additive };
+	}
+
+	/** ラバーバンドの矩形を現在のポインタ位置まで広げる（負方向ドラッグ対応）。 */
+	private updateBand(pos: Point): void {
+		const band = this.band;
+		if (!band) return;
+		const x = Math.min(band.start.x, pos.x);
+		const y = Math.min(band.start.y, pos.y);
+		band.rect.setAttrs({
+			x,
+			y,
+			width: Math.abs(pos.x - band.start.x),
+			height: Math.abs(pos.y - band.start.y),
+		});
+		this.previewLayer.batchDraw();
+	}
+
+	/**
+	 * ラバーバンドを確定する。矩形に交差する図形を選択に反映する（純粋関数 shapesInBand）。
+	 * - additive（Shift 併用）: 既存選択と交差図形を XOR（重なりはトグル）する。
+	 * - 非 additive: 交差図形だけを新しい選択にする。
+	 * ドラッグ距離が極小（ほぼクリック）なら選択操作はしない（非 additive のときは
+	 * beginBand で既に選択解除済み）。
+	 */
+	private finishBand(pos: Point | null): void {
+		const band = this.band;
+		this.band = null;
+		if (!band) return;
+		const end = pos ?? band.start;
+		band.rect.destroy();
+		this.previewLayer.batchDraw();
+
+		const boxWidth = Math.abs(end.x - band.start.x);
+		const boxHeight = Math.abs(end.y - band.start.y);
+		// ほぼ動いていない（クリック相当）なら範囲選択はしない。
+		if (boxWidth < 3 && boxHeight < 3) return;
+
+		const rect = {
+			x: Math.min(band.start.x, end.x),
+			y: Math.min(band.start.y, end.y),
+			width: boxWidth,
+			height: boxHeight,
+		};
+		const hit = shapesInBand(this.history.present.shapes, rect);
+		if (band.additive) {
+			// Shift 併用: 既存選択に対し、交差図形をトグル（重なりは外し、他は足す）。
+			const set = new Set(this.selectedIds);
+			for (const id of hit) {
+				if (set.has(id)) set.delete(id);
+				else set.add(id);
+			}
+			this.setSelection([...set]);
+		} else {
+			this.setSelection(hit);
+		}
 	}
 
 	// --- 座標 ---
@@ -682,12 +957,17 @@ export class EditorApp {
 				// Transformer のハンドル操作は選択解除しない。
 				if (e.target?.getLayer() === this.uiLayer) return;
 				// 図形ノードのクリックは node.on("pointerdown") が処理する。
-				// ここに来て target が図形でない＝背景クリックなら選択解除する。
+				// ここに来て target が図形でない＝背景クリックなら、空き領域からの
+				// ラバーバンド（範囲選択）を始める。Shift 併用は既存選択への追加/除外。
 				const targetId = e.target?.id();
 				const hitShape = targetId
 					? findShape(this.history.present, targetId)
 					: undefined;
-				if (!hitShape) this.select(null);
+				if (!hitShape) {
+					const pos = this.docPointer();
+					if (pos) this.beginBand(pos, e.evt.shiftKey);
+					else this.select(null);
+				}
 				return;
 			}
 			// text ツール中の空き領域 pointerdown（既存テキスト上は node.on が
@@ -709,10 +989,20 @@ export class EditorApp {
 		this.stage.on("pointermove", (e) => {
 			const pos = this.docPointer();
 			if (!pos) return;
+			// ラバーバンド描画中は矩形を更新する（ツールへは渡さない）。
+			if (this.band) {
+				this.updateBand(pos);
+				return;
+			}
 			this.tools.get(this.currentTool)?.onPointerMove?.(pos, modifiers(e));
 		});
 		this.stage.on("pointerup", (e) => {
 			const pos = this.docPointer();
+			// ラバーバンド確定。pos が null（範囲外）でも band は畳む。
+			if (this.band) {
+				this.finishBand(pos);
+				return;
+			}
 			if (!pos) return;
 			this.tools.get(this.currentTool)?.onPointerUp?.(pos, modifiers(e));
 		});
@@ -891,49 +1181,60 @@ export class EditorApp {
 
 	/** Esc: 選択解除 → ツールを選択に戻す。 */
 	private handleEscape(): void {
-		if (this.selectedId) {
+		if (this.selectedIds.length > 0) {
 			this.select(null);
 		} else if (this.currentTool !== "select") {
 			this.setTool("select");
 		}
 	}
 
-	/** Delete/Backspace: 選択図形を削除する。 */
+	/** Delete/Backspace: 選択図形を（複数選択なら一括で）削除する。 */
 	private handleDelete(): void {
-		const id = this.selectedId;
-		if (!id) return;
+		const ids = this.selectedIds;
+		if (ids.length === 0) return;
 		this.select(null);
-		this.commitDoc(removeShape(this.history.present, id));
+		let next = this.history.present;
+		for (const id of ids) next = removeShape(next, id);
+		this.commitDoc(next);
 	}
 
 	/**
 	 * Cmd/Ctrl+D: 選択図形を +16/+16 のオフセットで複製し、複製側を選択状態にする。
+	 * 複数選択時は全図形を一括複製して複製群を選択に切り替える（1 回だけ commit）。
 	 * step バッジは次の連番を自動採番、テキスト・フキダシは文言ごと複製する
-	 * （duplicateShape に集約）。1 回だけ commit する。
+	 * （duplicateShape に集約。baseShapes を伸ばしながら渡し番号の重複を避ける）。
 	 */
 	private duplicateSelection(): void {
 		this.flushNudge(); // 進行中の nudge があれば先に確定してから複製する
-		const id = this.selectedId;
-		if (!id) return;
-		const shape = findShape(this.history.present, id);
-		if (!shape) return;
-		const copy = duplicateShape(
-			shape,
-			this.newId(),
-			this.history.present.shapes,
-		);
-		this.commitDoc(addShape(this.history.present, copy));
-		this.select(copy.id);
+		const ids = this.selectedIds;
+		if (ids.length === 0) return;
+		let next = this.history.present;
+		const copyIds: string[] = [];
+		for (const id of ids) {
+			const shape = findShape(next, id);
+			if (!shape) continue;
+			const copy = duplicateShape(shape, this.newId(), next.shapes);
+			next = addShape(next, copy);
+			copyIds.push(copy.id);
+		}
+		if (copyIds.length === 0) return;
+		this.commitDoc(next);
+		this.setSelection(copyIds);
 	}
 
-	/** z 順変更（前面/背面/最前面/最背面）を選択図形へ適用する。 */
+	/**
+	 * z 順変更（前面/背面/最前面/最背面）を選択図形へ適用する。
+	 * 複数選択時も各図形へ順に適用する（同一操作を全 id に流す）。
+	 */
 	private reorderSelection(
 		op: (doc: EditorDoc, id: string) => EditorDoc,
 	): void {
 		this.flushNudge();
-		const id = this.selectedId;
-		if (!id) return;
-		this.commitDoc(op(this.history.present, id));
+		const ids = this.selectedIds;
+		if (ids.length === 0) return;
+		let next = this.history.present;
+		for (const id of ids) next = op(next, id);
+		this.commitDoc(next);
 	}
 
 	/**
@@ -961,18 +1262,19 @@ export class EditorApp {
 	 * テキスト編集中（textEditing）は bindKeyboard 冒頭で弾かれるためここには来ない。
 	 */
 	private nudgeSelection(dx: number, dy: number): void {
-		const id = this.selectedId;
-		if (!id) return;
-		const shape = findShape(this.history.present, id);
-		if (!shape) return;
+		const ids = this.selectedIds;
+		if (ids.length === 0) return;
 		// バースト開始時に「確定前の状態」を退避しておく。
 		if (!this.nudgeBaseDoc) this.nudgeBaseDoc = this.history.present;
 		// present を直接差し替えて即時に再描画・自動保存する（履歴は積まない）。
-		const next = replaceShape(
-			this.history.present,
-			id,
-			translateShape(shape, dx, dy),
-		);
+		// 複数選択時は全図形を同じ量だけ動かす。
+		let next = this.history.present;
+		for (const id of ids) {
+			const shape = findShape(next, id);
+			if (!shape) continue;
+			next = replaceShape(next, id, translateShape(shape, dx, dy));
+		}
+		if (next === this.history.present) return;
 		this.history.present = next;
 		this.render();
 		this.onDocCommitted?.(next);
@@ -1042,8 +1344,29 @@ export class EditorApp {
 		this.toolbar.setTool(this.currentTool);
 		this.toolbar.setColor(this.style.stroke);
 		this.syncDashControls();
+		this.syncArrowStyleControls();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
+	}
+
+	/**
+	 * 矢印スタイル（片側 / 両側 / 曲線）コントロールの表示と現在値を同期する。
+	 * 矢印を選択中はそのシェイプのスタイルを、そうでなく矢印ツール選択中は新規デフォルト
+	 * （style）のスタイルを表示する。どちらでもなければ隠す（矢印以外では出さない）。
+	 * 線種トグルと同じ実装パターン。
+	 */
+	private syncArrowStyleControls(): void {
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const selectedArrow = selected?.type === "arrow" ? selected : undefined;
+		const visible = selectedArrow != null || this.currentTool === "arrow";
+		this.toolbar.setArrowStyleControlsVisible(visible);
+		if (!visible) return;
+		const style = selectedArrow
+			? normalizeArrowStyle(selectedArrow.arrowStyle)
+			: this.style.arrowStyle;
+		this.toolbar.setArrowStyle(style);
 	}
 
 	/**

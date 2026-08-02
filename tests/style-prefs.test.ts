@@ -10,7 +10,12 @@ import { MAX_FONT_SIZE, MIN_FONT_SIZE } from "../lib/editor/text";
 
 describe("normalizeStylePrefs", () => {
 	it("有効な値はそのまま通す", () => {
-		const raw: StylePrefs = { stroke: "#34d399", dash: true, fontSize: 40 };
+		const raw: StylePrefs = {
+			stroke: "#34d399",
+			dash: true,
+			fontSize: 40,
+			arrowStyle: "double",
+		};
 		expect(normalizeStylePrefs(raw)).toEqual(raw);
 	});
 
@@ -68,15 +73,26 @@ describe("normalizeStylePrefs", () => {
 
 describe("stylePrefsEqual", () => {
 	it("全フィールド一致で true", () => {
-		const a: StylePrefs = { stroke: "#fff", dash: true, fontSize: 20 };
+		const a: StylePrefs = {
+			stroke: "#fff",
+			dash: true,
+			fontSize: 20,
+			arrowStyle: "single",
+		};
 		expect(stylePrefsEqual(a, { ...a })).toBe(true);
 	});
 
 	it("いずれかが違えば false", () => {
-		const a: StylePrefs = { stroke: "#fff", dash: true, fontSize: 20 };
+		const a: StylePrefs = {
+			stroke: "#fff",
+			dash: true,
+			fontSize: 20,
+			arrowStyle: "single",
+		};
 		expect(stylePrefsEqual(a, { ...a, stroke: "#000" })).toBe(false);
 		expect(stylePrefsEqual(a, { ...a, dash: false })).toBe(false);
 		expect(stylePrefsEqual(a, { ...a, fontSize: 21 })).toBe(false);
+		expect(stylePrefsEqual(a, { ...a, arrowStyle: "curved" })).toBe(false);
 	});
 });
 
@@ -97,6 +113,7 @@ describe("createStylePrefsSaver", () => {
 			stroke: "#fb7185",
 			dash: false,
 			fontSize: 24,
+			arrowStyle: "single",
 		};
 		const saver = createStylePrefsSaver(initial);
 		saver.save({ ...initial });
@@ -106,7 +123,12 @@ describe("createStylePrefsSaver", () => {
 	it("値が変わったら 1 回だけ書き込み、以降の同値はスキップする", () => {
 		const { set } = stubBrowser();
 		const saver = createStylePrefsSaver(DEFAULT_STYLE_PREFS);
-		const changed: StylePrefs = { stroke: "#000000", dash: true, fontSize: 24 };
+		const changed: StylePrefs = {
+			stroke: "#000000",
+			dash: true,
+			fontSize: 24,
+			arrowStyle: "double",
+		};
 		saver.save(changed);
 		saver.save({ ...changed });
 		expect(set).toHaveBeenCalledTimes(1);
@@ -116,12 +138,18 @@ describe("createStylePrefsSaver", () => {
 	it("保存前に正規化する（不正 fontSize は clamp して書き込む）", () => {
 		const { set } = stubBrowser();
 		const saver = createStylePrefsSaver(DEFAULT_STYLE_PREFS);
-		saver.save({ stroke: "#000000", dash: false, fontSize: 9999 });
+		saver.save({
+			stroke: "#000000",
+			dash: false,
+			fontSize: 9999,
+			arrowStyle: "single",
+		});
 		expect(set).toHaveBeenCalledWith({
 			"style-prefs": {
 				stroke: "#000000",
 				dash: false,
 				fontSize: MAX_FONT_SIZE,
+				arrowStyle: "single",
 			},
 		});
 	});

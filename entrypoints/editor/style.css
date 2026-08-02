@@ -237,6 +237,45 @@ header {
   border-bottom-color: var(--ring);
 }
 
+/* 矢印スタイル（片側 / 両側 / 曲線）ボタン。線種トグルと同じトーンで揃える。
+   中身はアイコン（矢頭の向き・曲線）で見分ける。 */
+.arrow-style-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.arrow-style-btn:hover {
+  background: var(--surface-hover);
+}
+
+.arrow-style-btn:active {
+  background: var(--surface-2);
+}
+
+.arrow-style-btn.active {
+  background: color-mix(in srgb, var(--ring) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ring) 40%, transparent);
+  color: var(--ring);
+}
+
+.arrow-style-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .zoom-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -532,6 +571,7 @@ main {
 @media (prefers-reduced-motion: reduce) {
   .icon-btn,
   .dash-btn,
+  .arrow-style-btn,
   .swatch,
   .text-btn,
   .tooltip {
