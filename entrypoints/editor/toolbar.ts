@@ -23,6 +23,7 @@ interface ToolDef {
 const TOOLS: ToolDef[] = [
 	{ name: "select", label: "選択", shortcut: "V", icon: icons.select },
 	{ name: "arrow", label: "矢印", shortcut: "A", icon: icons.arrow },
+	{ name: "line", label: "直線", shortcut: "L", icon: icons.line },
 	{ name: "rect", label: "矩形", shortcut: "R", icon: icons.rect },
 	{ name: "ellipse", label: "楕円", shortcut: "E", icon: icons.ellipse },
 	// スポットライト（暗幕）は強調系。矩形・楕円の近くに置く。

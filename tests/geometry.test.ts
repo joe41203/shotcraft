@@ -3,6 +3,8 @@ import {
 	cssRectToBitmapRect,
 	normalizeRect,
 	planFullPageTiles,
+	snapAngle,
+	snapSquare,
 } from "../lib/geometry";
 
 describe("normalizeRect", () => {
@@ -21,6 +23,66 @@ describe("normalizeRect", () => {
 			y: 20,
 			width: 100,
 			height: 200,
+		});
+	});
+});
+
+describe("snapAngle", () => {
+	const start = { x: 100, y: 100 };
+
+	it("水平に近い終点は真横（0°）へスナップし長さを保つ", () => {
+		// 始点から右へ 100・下へ 10（約 5.7°）→ 0° へ丸め、長さ hypot(100,10)≈100.5 を保つ
+		const snapped = snapAngle(start, { x: 200, y: 110 });
+		expect(snapped.x).toBeCloseTo(100 + Math.hypot(100, 10), 5);
+		expect(snapped.y).toBeCloseTo(100, 5);
+	});
+
+	it("45° 付近の終点は 45° へスナップする", () => {
+		// 右下方向（約 40°）→ 45° へ丸める。x==y の変位になる。
+		const snapped = snapAngle(start, { x: 200, y: 184 });
+		expect(snapped.x - start.x).toBeCloseTo(snapped.y - start.y, 5);
+		expect(snapped.x).toBeGreaterThan(start.x);
+	});
+
+	it("垂直に近い終点は真下（90°）へスナップする", () => {
+		const snapped = snapAngle(start, { x: 108, y: 200 });
+		expect(snapped.x).toBeCloseTo(100, 5);
+		expect(snapped.y).toBeCloseTo(100 + Math.hypot(8, 100), 5);
+	});
+
+	it("始点＝終点（長さ 0）は終点をそのまま返す", () => {
+		expect(snapAngle(start, { x: 100, y: 100 })).toEqual({ x: 100, y: 100 });
+	});
+
+	it("step を変えると刻みが変わる（90° 刻み）", () => {
+		// 約 40° を 90° 刻みでスナップ → 0°（最も近い 90 の倍数）。真横になる。
+		const snapped = snapAngle(start, { x: 200, y: 184 }, 90);
+		expect(snapped.y).toBeCloseTo(100, 5);
+		expect(snapped.x).toBeGreaterThan(start.x);
+	});
+});
+
+describe("snapSquare", () => {
+	it("横長ドラッグは長い辺（幅）に高さをそろえる", () => {
+		// 幅 120・高さ 40 → 一辺 120 の正方形（右下方向）
+		expect(snapSquare({ x: 10, y: 10 }, { x: 130, y: 50 })).toEqual({
+			x: 130,
+			y: 130,
+		});
+	});
+
+	it("縦長ドラッグは長い辺（高さ）に幅をそろえる", () => {
+		expect(snapSquare({ x: 10, y: 10 }, { x: 50, y: 150 })).toEqual({
+			x: 150,
+			y: 150,
+		});
+	});
+
+	it("左上方向のドラッグでも符号を保って正方形にする", () => {
+		// 始点より左上へ（幅 -80・高さ -30）→ 一辺 80 で左上方向
+		expect(snapSquare({ x: 100, y: 100 }, { x: 20, y: 70 })).toEqual({
+			x: 20,
+			y: 20,
 		});
 	});
 });

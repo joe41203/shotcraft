@@ -1,16 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
 	addShape,
+	type ArrowShape,
 	type CropRect,
+	duplicateShape,
 	type EditorDoc,
 	emptyDoc,
 	findShape,
+	moveShapeBackward,
+	moveShapeForward,
+	moveShapeToBack,
+	moveShapeToFront,
 	type RectShape,
 	removeShape,
 	replaceShape,
 	setCrop,
 	type Shape,
+	shapeSupportsColor,
+	type ShapeType,
+	type StepShape,
 	type TextShape,
+	translateShape,
 	updateShape,
 } from "../lib/editor/doc";
 
@@ -45,6 +55,39 @@ function text(id: string): TextShape {
 		rotation: 0,
 		opacity: 1,
 	};
+}
+
+function arrow(id: string, x = 0): ArrowShape {
+	return {
+		id,
+		type: "arrow",
+		points: [x, x, x + 10, x + 10],
+		stroke: "#ef4444",
+		strokeWidth: 4,
+		rotation: 0,
+		opacity: 1,
+	};
+}
+
+function step(id: string, number: number): StepShape {
+	return {
+		id,
+		type: "step",
+		x: 0,
+		y: 0,
+		number,
+		stroke: "#ef4444",
+		strokeWidth: 4,
+		rotation: 0,
+		opacity: 1,
+	};
+}
+
+/** 指定 id 順で rect を並べた doc を作るヘルパ（z 順テスト用）。 */
+function docOf(...ids: string[]): EditorDoc {
+	let doc = emptyDoc();
+	for (const id of ids) doc = addShape(doc, rect(id));
+	return doc;
 }
 
 describe("addShape", () => {
@@ -229,5 +272,148 @@ describe("crop の保持", () => {
 	it("removeShape は crop を保持する", () => {
 		const next = removeShape(withCrop(), "a");
 		expect(next.crop).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+	});
+});
+
+describe("shapeSupportsColor", () => {
+	it("色を持つ図形（矢印・直線・矩形・楕円・ペン・マーカー・テキスト・ステップ・フキダシ）は true", () => {
+		for (const type of [
+			"arrow",
+			"line",
+			"rect",
+			"ellipse",
+			"pen",
+			"marker",
+			"text",
+			"step",
+			"callout",
+		] as ShapeType[]) {
+			expect(shapeSupportsColor(type)).toBe(true);
+		}
+	});
+
+	it("色を持たない図形（モザイク・ぼかし・スポットライト）は false", () => {
+		for (const type of ["mosaic", "blur", "spotlight"] as ShapeType[]) {
+			expect(shapeSupportsColor(type)).toBe(false);
+		}
+	});
+});
+
+describe("z 順変更（moveShape*）", () => {
+	// 配列は「末尾が最前面」。a=最背面, c=最前面。
+	it("moveShapeForward は 1 つ前面（末尾方向）へ動かす", () => {
+		const next = moveShapeForward(docOf("a", "b", "c"), "a");
+		expect(next.shapes.map((s) => s.id)).toEqual(["b", "a", "c"]);
+	});
+
+	it("moveShapeForward: 既に最前面なら同一参照を返す", () => {
+		const doc = docOf("a", "b", "c");
+		expect(moveShapeForward(doc, "c")).toBe(doc);
+	});
+
+	it("moveShapeBackward は 1 つ背面（先頭方向）へ動かす", () => {
+		const next = moveShapeBackward(docOf("a", "b", "c"), "c");
+		expect(next.shapes.map((s) => s.id)).toEqual(["a", "c", "b"]);
+	});
+
+	it("moveShapeBackward: 既に最背面なら同一参照を返す", () => {
+		const doc = docOf("a", "b", "c");
+		expect(moveShapeBackward(doc, "a")).toBe(doc);
+	});
+
+	it("moveShapeToFront は末尾へ動かす", () => {
+		const next = moveShapeToFront(docOf("a", "b", "c"), "a");
+		expect(next.shapes.map((s) => s.id)).toEqual(["b", "c", "a"]);
+	});
+
+	it("moveShapeToFront: 既に最前面なら同一参照を返す", () => {
+		const doc = docOf("a", "b", "c");
+		expect(moveShapeToFront(doc, "c")).toBe(doc);
+	});
+
+	it("moveShapeToBack は先頭へ動かす", () => {
+		const next = moveShapeToBack(docOf("a", "b", "c"), "c");
+		expect(next.shapes.map((s) => s.id)).toEqual(["c", "a", "b"]);
+	});
+
+	it("moveShapeToBack: 既に最背面なら同一参照を返す", () => {
+		const doc = docOf("a", "b", "c");
+		expect(moveShapeToBack(doc, "a")).toBe(doc);
+	});
+
+	it("対象 id が無ければ同一参照の doc を返す", () => {
+		const doc = docOf("a", "b", "c");
+		expect(moveShapeForward(doc, "x")).toBe(doc);
+		expect(moveShapeBackward(doc, "x")).toBe(doc);
+		expect(moveShapeToFront(doc, "x")).toBe(doc);
+		expect(moveShapeToBack(doc, "x")).toBe(doc);
+	});
+
+	it("元の doc を変更しない（immutable）", () => {
+		const doc = docOf("a", "b", "c");
+		moveShapeForward(doc, "a");
+		expect(doc.shapes.map((s) => s.id)).toEqual(["a", "b", "c"]);
+	});
+
+	it("crop を保持する", () => {
+		const doc = setCrop(docOf("a", "b"), { x: 1, y: 2, width: 3, height: 4 });
+		expect(moveShapeForward(doc, "a").crop).toEqual({
+			x: 1,
+			y: 2,
+			width: 3,
+			height: 4,
+		});
+	});
+});
+
+describe("translateShape", () => {
+	it("x/y を持つ図形は x/y をずらす", () => {
+		const moved = translateShape(rect("a", 10), 5, 7) as RectShape;
+		expect(moved.x).toBe(15);
+		expect(moved.y).toBe(7);
+	});
+
+	it("points 列を持つ図形（矢印）は全点をずらす", () => {
+		const moved = translateShape(arrow("a", 0), 5, 7) as ArrowShape;
+		// [0,0,10,10] → x に +5, y に +7
+		expect(moved.points).toEqual([5, 7, 15, 17]);
+	});
+
+	it("元の図形を変更しない（immutable）", () => {
+		const original = rect("a", 10);
+		translateShape(original, 5, 7);
+		expect(original.x).toBe(10);
+	});
+});
+
+describe("duplicateShape", () => {
+	it("新 id・既定オフセット（+16/+16）で複製する", () => {
+		const dup = duplicateShape(rect("a", 10), "a2", [
+			rect("a", 10),
+		]) as RectShape;
+		expect(dup.id).toBe("a2");
+		expect(dup.x).toBe(26);
+		expect(dup.y).toBe(16);
+	});
+
+	it("step バッジは次の連番を採る（同番号の重複を作らない）", () => {
+		const base = [step("s1", 1), step("s2", 2)];
+		const dup = duplicateShape(base[1] as StepShape, "s3", base) as StepShape;
+		// 既存最大 2 の次 = 3
+		expect(dup.number).toBe(3);
+		expect(dup.id).toBe("s3");
+	});
+
+	it("テキストは文言ごと複製する", () => {
+		const dup = duplicateShape(text("t"), "t2", [text("t")]) as TextShape;
+		expect(dup.text).toBe("こんにちは");
+		expect(dup.id).toBe("t2");
+	});
+
+	it("矢印は points をオフセットして複製する", () => {
+		const dup = duplicateShape(arrow("a", 0), "a2", [
+			arrow("a", 0),
+		]) as ArrowShape;
+		expect(dup.points).toEqual([16, 16, 26, 26]);
 	});
 });

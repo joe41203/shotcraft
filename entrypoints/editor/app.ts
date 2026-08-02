@@ -3,13 +3,21 @@ import type { CaptureRecord } from "@/lib/capture-store";
 import { croppedSize } from "@/lib/editor/crop";
 import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
+	addShape,
 	type CropRect,
+	duplicateShape,
 	type EditorDoc,
 	emptyDoc,
 	findShape,
+	moveShapeBackward,
+	moveShapeForward,
+	moveShapeToBack,
+	moveShapeToFront,
 	removeShape,
 	replaceShape,
 	type Shape,
+	shapeSupportsColor,
+	translateShape,
 	updateShape,
 } from "@/lib/editor/doc";
 import {
@@ -42,7 +50,23 @@ import {
 import { renderShapes, shapeFromNode } from "./render";
 import { Toast } from "./toast";
 import { Toolbar } from "./toolbar";
-import type { EditorContext, Tool, ToolName } from "./tools/types";
+import type {
+	EditorContext,
+	PointerModifiers,
+	Tool,
+	ToolName,
+} from "./tools/types";
+
+/** Konva のポインタイベントから修飾キー（Shift/Alt）の状態を取り出す。 */
+function modifiers(e: Konva.KonvaEventObject<PointerEvent>): PointerModifiers {
+	return { shift: e.evt.shiftKey, alt: e.evt.altKey };
+}
+
+/**
+ * 矢印キーの連続 nudge を 1 つの履歴にまとめるデバウンス時間（ms）。
+ * この時間だけ追加の nudge が無ければ、それまでの移動をまとめて 1 回 commit する。
+ */
+const NUDGE_COMMIT_MS = 500;
 
 /** Transformer の全 8 アンカー（辺 4 + 四隅 4）。テキスト以外の既定。 */
 const ALL_ANCHORS = [
@@ -86,6 +110,15 @@ export class EditorApp {
 	private currentTool: ToolName = "select";
 	private tools = new Map<ToolName, Tool>();
 	private selectedId: string | null = null;
+	/**
+	 * 矢印キーによる連続 nudge をまとめて 1 commit にするためのデバウンス状態。
+	 * nudgeTimer は満了で flushNudge を呼ぶタイマー、nudgeBaseDoc はバースト開始前の
+	 * doc（確定時にここへ戻してから移動後を 1 回 commit する）。バースト外は両方 null。
+	 */
+	private nudgeTimer: number | null = null;
+	private nudgeBaseDoc: EditorDoc | null = null;
+	/** Alt(Option)+ドラッグ中フラグ。true の間の dragend は元を残して複製を追加する。 */
+	private altDragging = false;
 	/**
 	 * 新規図形に適用する現在のスタイル。fontSize は新規テキストのデフォルト。
 	 * 作成後のサイズ変更は選択して四隅ハンドルをドラッグする（fontSize=24 は
@@ -266,6 +299,8 @@ export class EditorApp {
 	}
 
 	undo(): void {
+		// 進行中の nudge を先に確定し、その 1 手をまるごと戻せるようにする。
+		this.flushNudge();
 		if (!canUndo(this.history)) return;
 		this.history = undo(this.history);
 		this.selectedId = null;
@@ -276,6 +311,7 @@ export class EditorApp {
 	}
 
 	redo(): void {
+		this.flushNudge();
 		if (!canRedo(this.history)) return;
 		this.history = redo(this.history);
 		this.selectedId = null;
@@ -360,11 +396,32 @@ export class EditorApp {
 	 * select ツールと text ツール（テキストノードのみ）の双方から使う。
 	 */
 	private attachNodeInteractions(node: Konva.Node): void {
+		// Alt(Option)+ドラッグ開始なら「複製をドラッグ」モードに入る。ドラッグ中の
+		// 見た目の見せ方は問わず、確定時（dragend）に元を残して複製を追加する。
+		node.on("dragstart.altdup", (e: Konva.KonvaEventObject<DragEvent>) => {
+			this.altDragging = e.evt.altKey;
+		});
 		node.on("dragend.commit transformend.commit", () => {
 			const id = node.id();
 			const prev = findShape(this.history.present, id);
 			if (!prev) return;
 			const next = shapeFromNode(node, prev);
+			if (this.altDragging) {
+				// Alt ドラッグ確定: 元図形は据え置き、ドロップ位置に新 id の複製を追加して
+				// そちらを選択する。ドロップ位置は next が持つので複製オフセットは 0。
+				// step は次の連番、text/callout は文言ごと複製される（duplicateShape）。
+				this.altDragging = false;
+				const copy = duplicateShape(
+					next,
+					this.newId(),
+					this.history.present.shapes,
+					0,
+					0,
+				);
+				this.commitDoc(addShape(this.history.present, copy));
+				this.select(copy.id);
+				return;
+			}
 			this.commitDoc(replaceShape(this.history.present, id, next));
 		});
 		node.on("pointerdown.select", (e: Konva.KonvaEventObject<PointerEvent>) => {
@@ -499,10 +556,30 @@ export class EditorApp {
 		return this.history.present.crop;
 	}
 
+	/**
+	 * 新規図形の色（stroke）を設定する。色を持つ図形を選択中なら、その図形へ即時
+	 * 適用して履歴に 1 回 commit する（線種トグルの「選択中へ即適用」と同じパターン）。
+	 */
 	setColor(color: string): void {
 		this.style.stroke = color;
+		this.applyColorToSelection(color);
 		this.toolbar.setColor(color);
 		this.persistStylePrefs();
+	}
+
+	/**
+	 * 選択中が色を持つ図形なら stroke を差し替えて commit する。
+	 * 全図形の色の正は stroke（step バッジ・フキダシ・テキスト・矢印・矩形なども
+	 * stroke が色）。モザイク・ぼかし・スポットライトは色を持たない（stroke は
+	 * ShapeBase 上にあるが描画に使わない）ので対象外。同値なら何もしない。
+	 */
+	private applyColorToSelection(color: string): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || !shapeSupportsColor(shape.type)) return;
+		if (shape.stroke === color) return;
+		this.commitDoc(updateShape(this.history.present, id, { stroke: color }));
 	}
 
 	/**
@@ -627,17 +704,17 @@ export class EditorApp {
 			}
 			const pos = this.docPointer();
 			if (!pos) return;
-			this.tools.get(this.currentTool)?.onPointerDown?.(pos);
+			this.tools.get(this.currentTool)?.onPointerDown?.(pos, modifiers(e));
 		});
-		this.stage.on("pointermove", () => {
+		this.stage.on("pointermove", (e) => {
 			const pos = this.docPointer();
 			if (!pos) return;
-			this.tools.get(this.currentTool)?.onPointerMove?.(pos);
+			this.tools.get(this.currentTool)?.onPointerMove?.(pos, modifiers(e));
 		});
-		this.stage.on("pointerup", () => {
+		this.stage.on("pointerup", (e) => {
 			const pos = this.docPointer();
 			if (!pos) return;
-			this.tools.get(this.currentTool)?.onPointerUp?.(pos);
+			this.tools.get(this.currentTool)?.onPointerUp?.(pos, modifiers(e));
 		});
 		this.stage.on("dblclick dbltap", (e) => {
 			const id = e.target?.id();
@@ -684,6 +761,13 @@ export class EditorApp {
 				void this.copyToClipboard();
 				return;
 			}
+			// Cmd/Ctrl+D で選択図形を複製する（クロップ操作中は無効）。
+			if (mod && (e.key === "d" || e.key === "D")) {
+				if (this.currentTool === "crop") return;
+				e.preventDefault();
+				this.duplicateSelection();
+				return;
+			}
 			if (mod) return; // 他の修飾キー付きは無視
 
 			// クロップ操作中は Enter で適用 / Esc でキャンセル（他ショートカットより優先）。
@@ -708,6 +792,10 @@ export class EditorApp {
 				case "a":
 				case "A":
 					this.setTool("arrow");
+					break;
+				case "l":
+				case "L":
+					this.setTool("line");
 					break;
 				case "r":
 				case "R":
@@ -756,6 +844,40 @@ export class EditorApp {
 				case "0":
 					this.fitView();
 					break;
+				// z 順変更。US 配列では Shift+] が "}"、Shift+[ が "{" になるため両方受ける。
+				case "]":
+					e.preventDefault();
+					this.reorderSelection(moveShapeForward);
+					break;
+				case "}":
+					e.preventDefault();
+					this.reorderSelection(moveShapeToFront);
+					break;
+				case "[":
+					e.preventDefault();
+					this.reorderSelection(moveShapeBackward);
+					break;
+				case "{":
+					e.preventDefault();
+					this.reorderSelection(moveShapeToBack);
+					break;
+				// 矢印キーで微移動（1px、Shift 併用で 10px）。
+				case "ArrowUp":
+					e.preventDefault();
+					this.nudgeSelection(0, e.shiftKey ? -10 : -1);
+					break;
+				case "ArrowDown":
+					e.preventDefault();
+					this.nudgeSelection(0, e.shiftKey ? 10 : 1);
+					break;
+				case "ArrowLeft":
+					e.preventDefault();
+					this.nudgeSelection(e.shiftKey ? -10 : -1, 0);
+					break;
+				case "ArrowRight":
+					e.preventDefault();
+					this.nudgeSelection(e.shiftKey ? 10 : 1, 0);
+					break;
 				case "Escape":
 					this.handleEscape();
 					break;
@@ -782,6 +904,84 @@ export class EditorApp {
 		if (!id) return;
 		this.select(null);
 		this.commitDoc(removeShape(this.history.present, id));
+	}
+
+	/**
+	 * Cmd/Ctrl+D: 選択図形を +16/+16 のオフセットで複製し、複製側を選択状態にする。
+	 * step バッジは次の連番を自動採番、テキスト・フキダシは文言ごと複製する
+	 * （duplicateShape に集約）。1 回だけ commit する。
+	 */
+	private duplicateSelection(): void {
+		this.flushNudge(); // 進行中の nudge があれば先に確定してから複製する
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape) return;
+		const copy = duplicateShape(
+			shape,
+			this.newId(),
+			this.history.present.shapes,
+		);
+		this.commitDoc(addShape(this.history.present, copy));
+		this.select(copy.id);
+	}
+
+	/** z 順変更（前面/背面/最前面/最背面）を選択図形へ適用する。 */
+	private reorderSelection(
+		op: (doc: EditorDoc, id: string) => EditorDoc,
+	): void {
+		this.flushNudge();
+		const id = this.selectedId;
+		if (!id) return;
+		this.commitDoc(op(this.history.present, id));
+	}
+
+	/**
+	 * 進行中の nudge バーストがあれば履歴へ 1 回だけ確定する。
+	 * 別操作（複製・z 順・undo 等）へ移る前や、デバウンス満了時に呼ぶ。
+	 */
+	private flushNudge(): void {
+		if (this.nudgeTimer !== null) {
+			clearTimeout(this.nudgeTimer);
+			this.nudgeTimer = null;
+		}
+		if (!this.nudgeBaseDoc) return;
+		const base = this.nudgeBaseDoc;
+		const moved = this.history.present;
+		this.nudgeBaseDoc = null;
+		// present は既に移動後を映しているので、いったんバースト開始前へ戻してから
+		// 移動後を commit することで、履歴には「まとめて 1 回の移動」だけが積まれる。
+		this.history.present = base;
+		this.commitDoc(moved);
+	}
+
+	/**
+	 * 矢印キーによる微移動。見た目は即時に動かし、履歴の確定だけ約 500ms
+	 * デバウンスして連続 nudge を 1 commit にまとめる（連打で履歴を埋めない）。
+	 * テキスト編集中（textEditing）は bindKeyboard 冒頭で弾かれるためここには来ない。
+	 */
+	private nudgeSelection(dx: number, dy: number): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape) return;
+		// バースト開始時に「確定前の状態」を退避しておく。
+		if (!this.nudgeBaseDoc) this.nudgeBaseDoc = this.history.present;
+		// present を直接差し替えて即時に再描画・自動保存する（履歴は積まない）。
+		const next = replaceShape(
+			this.history.present,
+			id,
+			translateShape(shape, dx, dy),
+		);
+		this.history.present = next;
+		this.render();
+		this.onDocCommitted?.(next);
+		// デバウンス: 一定時間追加の nudge が無ければ 1 回だけ履歴へ commit する。
+		if (this.nudgeTimer !== null) clearTimeout(this.nudgeTimer);
+		this.nudgeTimer = window.setTimeout(
+			() => this.flushNudge(),
+			NUDGE_COMMIT_MS,
+		);
 	}
 
 	// --- 出力 ---
@@ -860,6 +1060,7 @@ export class EditorApp {
 			selected && shapeSupportsDash(selected.type) ? selected : undefined;
 		const toolIsLine =
 			this.currentTool === "arrow" ||
+			this.currentTool === "line" ||
 			this.currentTool === "rect" ||
 			this.currentTool === "ellipse" ||
 			this.currentTool === "pen";

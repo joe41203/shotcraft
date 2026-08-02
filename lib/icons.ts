@@ -16,6 +16,8 @@ export const icons = {
 	arrow: svg(
 		'<line x1="5" y1="19" x2="19" y2="5"/><polyline points="10 5 19 5 19 14"/>',
 	),
+	// 直線（矢頭なし）
+	line: svg('<line x1="5" y1="19" x2="19" y2="5"/>'),
 	// 矩形
 	rect: svg('<rect x="4" y="6" width="16" height="12" rx="1"/>'),
 	// 楕円

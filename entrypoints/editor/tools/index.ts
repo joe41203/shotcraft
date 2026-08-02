@@ -3,6 +3,7 @@ import { ArrowTool } from "./arrow";
 import { BlurTool } from "./blur";
 import { CalloutTool } from "./callout";
 import { EllipseTool } from "./ellipse";
+import { LineTool } from "./line";
 import { MosaicTool } from "./mosaic";
 import { RectTool } from "./rect";
 import { SelectTool } from "./select";
@@ -19,6 +20,7 @@ export function registerTools(app: EditorApp): void {
 	const ctx = app.context();
 	app.registerTool(new SelectTool());
 	app.registerTool(new ArrowTool(ctx));
+	app.registerTool(new LineTool(ctx));
 	app.registerTool(new RectTool(ctx));
 	app.registerTool(new EllipseTool(ctx));
 	app.registerTool(new PenTool(ctx));

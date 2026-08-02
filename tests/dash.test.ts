@@ -35,8 +35,14 @@ describe("resolveDash", () => {
 });
 
 describe("shapeSupportsDash", () => {
-	it("矢印・矩形・楕円・ペンは対応する", () => {
-		for (const type of ["arrow", "rect", "ellipse", "pen"] as ShapeType[]) {
+	it("矢印・直線・矩形・楕円・ペンは対応する", () => {
+		for (const type of [
+			"arrow",
+			"line",
+			"rect",
+			"ellipse",
+			"pen",
+		] as ShapeType[]) {
 			expect(shapeSupportsDash(type)).toBe(true);
 		}
 	});

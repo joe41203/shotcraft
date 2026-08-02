@@ -1,6 +1,6 @@
 import type Konva from "konva";
 import type { RectShape, Shape } from "@/lib/editor/doc";
-import { normalizeRect } from "@/lib/geometry";
+import { normalizeRect, snapSquare } from "@/lib/geometry";
 import type { Point } from "../geometry-view";
 import { shapeToNode } from "../render";
 import { DragTool } from "./drag-tool";
@@ -9,6 +9,11 @@ import type { ToolName } from "./types";
 /** ドラッグの外接矩形を描くツール。 */
 export class RectTool extends DragTool {
 	readonly name: ToolName = "rect";
+
+	/** Shift 押下中は正方形に制約する。 */
+	protected override constrain(start: Point, end: Point): Point {
+		return snapSquare(start, end);
+	}
 
 	private makeShape(start: Point, end: Point): RectShape {
 		const r = normalizeRect(start.x, start.y, end.x, end.y);

@@ -72,6 +72,50 @@ export function planFullPageTiles(params: {
 	return tiles;
 }
 
+/** 2 点。CSS px でも doc 座標でも共通に使う軽量な座標型。 */
+export interface Point {
+	x: number;
+	y: number;
+}
+
+/**
+ * 始点から見た終点の角度を step 度刻みへスナップした終点を返す純粋関数。
+ *
+ * 矢印・直線の描画中に Shift を押したときの角度制約に使う。始点→終点のベクトルの
+ * 角度を最も近い step の倍数へ丸め、元のベクトル長を保ったまま新しい終点を求める。
+ * step は既定 45（0/45/90/135/180…）。長さ 0（始点＝終点）のときは終点をそのまま返す。
+ */
+export function snapAngle(start: Point, end: Point, step = 45): Point {
+	const dx = end.x - start.x;
+	const dy = end.y - start.y;
+	const length = Math.hypot(dx, dy);
+	if (length === 0) return { ...end };
+	const stepRad = (step * Math.PI) / 180;
+	const angle = Math.atan2(dy, dx);
+	const snapped = Math.round(angle / stepRad) * stepRad;
+	return {
+		x: start.x + Math.cos(snapped) * length,
+		y: start.y + Math.sin(snapped) * length,
+	};
+}
+
+/**
+ * ドラッグ矩形を「始点を角の 1 つとする正方形」へ制約した終点を返す純粋関数。
+ *
+ * 矩形→正方形・楕円→正円のスナップに使う（Shift 押下時）。始点を固定し、幅・高さの
+ * 大きい方の絶対値を一辺の長さにそろえ、ドラッグ方向（符号）は保つ。これにより
+ * どの向きへドラッグしても始点を角に持つ正方形になる。
+ */
+export function snapSquare(start: Point, end: Point): Point {
+	const dx = end.x - start.x;
+	const dy = end.y - start.y;
+	const side = Math.max(Math.abs(dx), Math.abs(dy));
+	return {
+		x: start.x + Math.sign(dx || 1) * side,
+		y: start.y + Math.sign(dy || 1) * side,
+	};
+}
+
 /** ドラッグ始点・終点から正規化された矩形を得る（負方向ドラッグ対応）。 */
 export function normalizeRect(
 	x1: number,

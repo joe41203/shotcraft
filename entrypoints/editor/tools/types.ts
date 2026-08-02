@@ -6,6 +6,7 @@ import type { Point } from "../geometry-view";
 export type ToolName =
 	| "select"
 	| "arrow"
+	| "line"
 	| "rect"
 	| "ellipse"
 	| "text"
@@ -63,8 +64,21 @@ export interface EditorContext {
 }
 
 /**
+ * ポインタ操作に付随する修飾キーの状態。app が Konva のイベントから読み取って
+ * 各ツールへ渡す。矢印・直線の角度スナップ、矩形→正方形・楕円→正円の制約に使う
+ * （Shift）。修飾キーを見ないツールは無視してよい。
+ */
+export interface PointerModifiers {
+	/** Shift 押下中か（描画時の制約に使う）。 */
+	shift: boolean;
+	/** Alt(Option) 押下中か（選択ツールの複製ドラッグに使う）。 */
+	alt: boolean;
+}
+
+/**
  * ツールのライフサイクル。app がポインタイベントをこの形に正規化して渡す。
- * pointer 座標はすべてドキュメント座標系。
+ * pointer 座標はすべてドキュメント座標系。第 2 引数の修飾キー（Shift/Alt）は
+ * 制約付き描画・複製ドラッグに使うツールだけが参照する（省略時は無し扱い）。
  */
 export interface Tool {
 	readonly name: ToolName;
@@ -72,9 +86,9 @@ export interface Tool {
 	activate?(): void;
 	/** 別ツールへ切り替わる直前。プレビューの後始末等。 */
 	deactivate?(): void;
-	onPointerDown?(pos: Point): void;
-	onPointerMove?(pos: Point): void;
-	onPointerUp?(pos: Point): void;
+	onPointerDown?(pos: Point, mods: PointerModifiers): void;
+	onPointerMove?(pos: Point, mods: PointerModifiers): void;
+	onPointerUp?(pos: Point, mods: PointerModifiers): void;
 	/** 図形ノードのダブルクリック（テキスト再編集など）。 */
 	onDblClick?(shape: Shape): void;
 }

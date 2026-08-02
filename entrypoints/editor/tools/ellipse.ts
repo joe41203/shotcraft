@@ -1,6 +1,6 @@
 import type Konva from "konva";
 import type { EllipseShape, Shape } from "@/lib/editor/doc";
-import { normalizeRect } from "@/lib/geometry";
+import { normalizeRect, snapSquare } from "@/lib/geometry";
 import type { Point } from "../geometry-view";
 import { shapeToNode } from "../render";
 import { DragTool } from "./drag-tool";
@@ -9,6 +9,11 @@ import type { ToolName } from "./types";
 /** ドラッグの外接矩形に内接する楕円を描くツール。 */
 export class EllipseTool extends DragTool {
 	readonly name: ToolName = "ellipse";
+
+	/** Shift 押下中は正円（外接正方形）に制約する。 */
+	protected override constrain(start: Point, end: Point): Point {
+		return snapSquare(start, end);
+	}
 
 	private makeShape(start: Point, end: Point): EllipseShape {
 		const r = normalizeRect(start.x, start.y, end.x, end.y);

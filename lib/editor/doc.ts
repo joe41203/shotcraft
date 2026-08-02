@@ -30,6 +30,12 @@ export interface ArrowShape extends ShapeBase {
 	points: number[];
 }
 
+/** 直線（矢頭なし）。points は始点・終点の [x1, y1, x2, y2]。 */
+export interface LineShape extends ShapeBase {
+	type: "line";
+	points: number[];
+}
+
 /** 矩形。x,y は左上、width/height は正の寸法。 */
 export interface RectShape extends ShapeBase {
 	type: "rect";
@@ -161,6 +167,7 @@ export interface CalloutShape extends ShapeBase {
 /** 全図形の判別可能ユニオン。type で分岐する。 */
 export type Shape =
 	| ArrowShape
+	| LineShape
 	| RectShape
 	| EllipseShape
 	| TextShape
@@ -204,6 +211,7 @@ export function emptyDoc(): EditorDoc {
  * 対象図形の type が持つプロパティだけで、余分なキーは無害にマージされる。
  */
 export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
+	Partial<Omit<LineShape, "id" | "type">> &
 	Partial<Omit<RectShape, "id" | "type">> &
 	Partial<Omit<EllipseShape, "id" | "type">> &
 	Partial<Omit<TextShape, "id" | "type">> &
@@ -229,6 +237,16 @@ export function nextStepNumber(shapes: Shape[]): number {
 		}
 	}
 	return max + 1;
+}
+
+/**
+ * 図形 type が「色（stroke）を持つ」か。色スウォッチの選択を選択中の図形へ即適用
+ * できるかの判定に使う。矢印・直線・矩形・楕円・ペン・マーカー・テキスト・ステップ・
+ * フキダシは stroke が色の正。モザイク・ぼかし・スポットライトは色を持たない
+ * （stroke フィールドは ShapeBase 上にあるが描画に使わない）ので false。
+ */
+export function shapeSupportsColor(type: ShapeType): boolean {
+	return type !== "mosaic" && type !== "blur" && type !== "spotlight";
 }
 
 /** 図形を末尾（最前面）に追加した新しい doc を返す。 */
@@ -288,4 +306,108 @@ export function findShape(doc: EditorDoc, id: string): Shape | undefined {
 /** クロップ矩形を差し替えた新しい doc を返す（null でクロップ解除）。 */
 export function setCrop(doc: EditorDoc, crop: CropRect | null): EditorDoc {
 	return { ...doc, crop };
+}
+
+/**
+ * shapes 配列の from 番目を to 番目へ移し替えた新しい配列を返す純粋関数。
+ * z 順変更（moveShapeForward/Backward/ToFront/ToBack）の共通土台。
+ */
+function moveInArray<T>(items: T[], from: number, to: number): T[] {
+	const next = [...items];
+	const [moved] = next.splice(from, 1);
+	if (moved === undefined) return items;
+	next.splice(to, 0, moved);
+	return next;
+}
+
+/**
+ * id の図形を 1 つ前面（配列の末尾方向へ 1 つ）へ移動した新しい doc を返す。
+ * 既に最前面（末尾）または対象が無ければ同一参照の doc をそのまま返す。
+ * 描画順は「配列末尾が最前面」なので、前面 = インデックスを +1 する。
+ * スポットライトの暗幕位置は spotlightVeilIndex が type ベースで再計算するので、
+ * ここで配列を並べ替えても暗幕は常に「最初の注釈系の直下」に保たれ整合する。
+ */
+export function moveShapeForward(doc: EditorDoc, id: string): EditorDoc {
+	const index = doc.shapes.findIndex((s) => s.id === id);
+	if (index < 0 || index === doc.shapes.length - 1) return doc;
+	return { ...doc, shapes: moveInArray(doc.shapes, index, index + 1) };
+}
+
+/**
+ * id の図形を 1 つ背面（配列の先頭方向へ 1 つ）へ移動した新しい doc を返す。
+ * 既に最背面（先頭）または対象が無ければ同一参照の doc をそのまま返す。
+ */
+export function moveShapeBackward(doc: EditorDoc, id: string): EditorDoc {
+	const index = doc.shapes.findIndex((s) => s.id === id);
+	if (index <= 0) return doc;
+	return { ...doc, shapes: moveInArray(doc.shapes, index, index - 1) };
+}
+
+/**
+ * id の図形を最前面（配列末尾）へ移動した新しい doc を返す。
+ * 既に最前面または対象が無ければ同一参照の doc をそのまま返す。
+ */
+export function moveShapeToFront(doc: EditorDoc, id: string): EditorDoc {
+	const index = doc.shapes.findIndex((s) => s.id === id);
+	if (index < 0 || index === doc.shapes.length - 1) return doc;
+	return {
+		...doc,
+		shapes: moveInArray(doc.shapes, index, doc.shapes.length - 1),
+	};
+}
+
+/**
+ * id の図形を最背面（配列先頭）へ移動した新しい doc を返す。
+ * 既に最背面または対象が無ければ同一参照の doc をそのまま返す。
+ */
+export function moveShapeToBack(doc: EditorDoc, id: string): EditorDoc {
+	const index = doc.shapes.findIndex((s) => s.id === id);
+	if (index <= 0) return doc;
+	return { ...doc, shapes: moveInArray(doc.shapes, index, 0) };
+}
+
+/** 複製時の既定オフセット（px）。元図形と重ならないよう右下へずらす。 */
+export const DUPLICATE_OFFSET = 16;
+
+/**
+ * 図形を (dx, dy) だけ平行移動した図形を返す純粋関数。
+ * 位置の持ち方が type ごとに違う（x/y を持つもの・points 列を持つもの）ので
+ * type で分岐して該当フィールドをずらす。複製・nudge の両方から使う。
+ */
+export function translateShape(shape: Shape, dx: number, dy: number): Shape {
+	switch (shape.type) {
+		case "arrow":
+		case "line":
+		case "pen":
+		case "marker": {
+			const points = shape.points.map((v, i) => v + (i % 2 === 0 ? dx : dy));
+			return { ...shape, points };
+		}
+		default:
+			return { ...shape, x: shape.x + dx, y: shape.y + dy };
+	}
+}
+
+/**
+ * 図形を複製するための新しい図形を作る純粋関数。
+ * - id は newId で新規採番する。
+ * - 位置は (dx, dy) だけずらす（既定は右下へ DUPLICATE_OFFSET）。
+ * - step バッジは番号が重複しないよう、複製後の並びで nextStepNumber を採り直す
+ *   （baseShapes に元図形を含めて渡し「次の連番」を割り当てる）。
+ * - text/callout は文言（text フィールド）ごとそのまま複製する。
+ * baseShapes には「複製を追加する前の doc.shapes」を渡す。
+ */
+export function duplicateShape(
+	shape: Shape,
+	newId: string,
+	baseShapes: Shape[],
+	dx: number = DUPLICATE_OFFSET,
+	dy: number = DUPLICATE_OFFSET,
+): Shape {
+	const moved = translateShape({ ...shape, id: newId }, dx, dy);
+	if (moved.type === "step") {
+		// 同番号の重複を避け、既存 step の最大 +1 を採る（安定した自動採番）。
+		return { ...moved, number: nextStepNumber(baseShapes) };
+	}
+	return moved;
 }

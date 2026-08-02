@@ -7,11 +7,12 @@ import type { ShapeType } from "./doc";
 
 /**
  * 線種（実線/破線）の切り替えを持つ図形 type の集合。
- * 矢印・矩形・楕円・ペンが対象。マーカー（太い半透明のハイライト）は破線が
+ * 矢印・直線・矩形・楕円・ペンが対象。マーカー（太い半透明のハイライト）は破線が
  * 用途に合わないため対象外。テキスト・モザイク・ステップ・フキダシも線種を持たない。
  */
 const DASH_SUPPORTED: ReadonlySet<ShapeType> = new Set<ShapeType>([
 	"arrow",
+	"line",
 	"rect",
 	"ellipse",
 	"pen",

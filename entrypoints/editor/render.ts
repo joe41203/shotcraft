@@ -130,6 +130,17 @@ export function shapeToNode(
 				hitStrokeWidth: Math.max(shape.strokeWidth, 12),
 				...arrowHead(shape.strokeWidth),
 			});
+		case "line":
+			return new Konva.Line({
+				...common,
+				points: shape.points,
+				stroke: shape.stroke,
+				strokeWidth: shape.strokeWidth,
+				dash: resolveDash(shape.dash, shape.strokeWidth),
+				lineCap: "round",
+				lineJoin: "round",
+				hitStrokeWidth: Math.max(shape.strokeWidth, 12),
+			});
 		case "rect":
 			return new Konva.Rect({
 				...common,
@@ -611,6 +622,7 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 				rotation: line.rotation(),
 			};
 		}
+		case "line":
 		case "pen":
 		case "marker": {
 			const line = node as Konva.Line;
