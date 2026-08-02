@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://shotcraft.pages.dev/sitemap.xml
