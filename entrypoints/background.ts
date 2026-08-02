@@ -1,4 +1,9 @@
 import type { Browser } from "wxt/browser";
+import {
+	ERROR_BADGE_TEXT,
+	formatCountdownBadge,
+	formatTileProgressBadge,
+} from "@/lib/capture-badge";
 import { clampCaptureDelayMs } from "@/lib/capture-delay";
 import { type CaptureRecord, saveCapture } from "@/lib/capture-store";
 import { cssRectToBitmapRect, planFullPageTiles } from "@/lib/geometry";
@@ -22,8 +27,97 @@ const MAX_FULL_PAGE_HEIGHT = 20000;
 /** 各タイル撮影前の待機（遅延読み込み・スクロール追従描画の反映を待つ）。 */
 const FULL_PAGE_SETTLE_MS = 250;
 
+/** 進行バッジの背景色（accent。tokens.css の --accent と同系統）。 */
+const BADGE_PROGRESS_COLOR = "#10b981";
+/** 失敗バッジの背景色（danger。tokens.css の --danger と同系統）。 */
+const BADGE_ERROR_COLOR = "#f87171";
+/** カウントダウンの更新間隔（ms）。1 秒ごとに残り秒数を描き替える。 */
+const COUNTDOWN_TICK_MS = 1000;
+/** 失敗バッジ（!）を自動で消すまでの表示時間（ms）。 */
+const ERROR_BADGE_DURATION_MS = 4000;
+
 export default defineBackground(() => {
 	let nextCaptureAt = 0;
+	/** 失敗バッジの自動クリア用タイマー。新しい進行が始まったら無効化する。 */
+	let errorBadgeTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// --- 拡張アイコンのバッジ（進行・失敗の可視化） ---
+
+	/**
+	 * 進行バッジを描く（テキスト空文字でクリア）。失敗バッジの自動クリア待ちが
+	 * あればここで打ち切る（新しい進行表示を失敗タイマーが上書き消去しないため）。
+	 * バッジ API は失敗しても致命的でないため握りつぶす（本処理を止めない）。
+	 */
+	async function setProgressBadge(text: string): Promise<void> {
+		if (errorBadgeTimer) {
+			clearTimeout(errorBadgeTimer);
+			errorBadgeTimer = null;
+		}
+		try {
+			await browser.action.setBadgeBackgroundColor({
+				color: BADGE_PROGRESS_COLOR,
+			});
+			await browser.action.setBadgeText({ text });
+		} catch {
+			// バッジ表示は補助的な演出。失敗しても撮影処理は続行する。
+		}
+	}
+
+	/**
+	 * 進行バッジを消す（完了・キャンセル時に必ず呼ぶ）。
+	 * ただし失敗バッジ（!）を表示中（errorBadgeTimer が生きている）ときは消さない。
+	 * 失敗経路では catch で flashErrorBadge → finally で clearBadge の順に走るため、
+	 * ここで無条件に消すと "!" が一瞬で消えてしまう。失敗バッジは自分のタイマーで消す。
+	 */
+	async function clearBadge(): Promise<void> {
+		if (errorBadgeTimer) return;
+		try {
+			await browser.action.setBadgeText({ text: "" });
+		} catch {
+			// クリア失敗も致命的でない。
+		}
+	}
+
+	/**
+	 * 失敗バッジ（!・赤背景）を出し、ERROR_BADGE_DURATION_MS 後に自動で消す。
+	 * キャプチャ不可ページや例外など、ユーザーに「押しても無反応」と映る経路で使う。
+	 */
+	async function flashErrorBadge(): Promise<void> {
+		if (errorBadgeTimer) {
+			clearTimeout(errorBadgeTimer);
+			errorBadgeTimer = null;
+		}
+		try {
+			await browser.action.setBadgeBackgroundColor({
+				color: BADGE_ERROR_COLOR,
+			});
+			await browser.action.setBadgeText({ text: ERROR_BADGE_TEXT });
+		} catch {
+			// 失敗通知バッジ自体の表示に失敗しても致命的でない。
+		}
+		errorBadgeTimer = setTimeout(() => {
+			errorBadgeTimer = null;
+			void clearBadge();
+		}, ERROR_BADGE_DURATION_MS);
+	}
+
+	/**
+	 * delayMs 待つ間、残り秒数をバッジにカウントダウン表示する。
+	 * 1 秒ごとに残りを描き替え、最後に待ち切ってから解決する。バッジのクリアは
+	 * 呼び出し側の finally が担う（ここでは消さない）。delayMs<=0 なら即座に解決。
+	 */
+	async function waitWithCountdown(delayMs: number): Promise<void> {
+		if (delayMs <= 0) return;
+		const endAt = Date.now() + delayMs;
+		let remaining = delayMs;
+		while (remaining > 0) {
+			await setProgressBadge(formatCountdownBadge(remaining / 1000));
+			// 次の tick（1 秒刻み）か残り時間の短い方だけ待つ。
+			const step = Math.min(COUNTDOWN_TICK_MS, remaining);
+			await new Promise((resolve) => setTimeout(resolve, step));
+			remaining = endAt - Date.now();
+		}
+	}
 
 	browser.runtime.onMessage.addListener((message: Message, sender) => {
 		switch (message.type) {
@@ -67,27 +161,32 @@ export default defineBackground(() => {
 	 */
 	async function captureVisible(delayMs?: number): Promise<void> {
 		const delay = clampCaptureDelayMs(delayMs);
-		if (delay > 0) {
-			await new Promise((resolve) => setTimeout(resolve, delay));
-		}
-		const [tab] = await browser.tabs.query({
-			active: true,
-			currentWindow: true,
-		});
-		if (!tab?.id) return;
-		await waitForCaptureSlot();
 		try {
-			const dataUrl = await browser.tabs.captureVisibleTab({ format: "png" });
-			const { width, height } = await imageSize(dataUrl);
-			await openViewer({
-				dataUrl,
-				width,
-				height,
-				sourceUrl: tab.url ?? "",
-				sourceTitle: tab.title ?? "",
+			// 遅延中は残り秒数をバッジにカウントダウン表示する。
+			await waitWithCountdown(delay);
+			const [tab] = await browser.tabs.query({
+				active: true,
+				currentWindow: true,
 			});
-		} catch (error) {
-			console.warn("[shotcraft] 表示範囲のキャプチャに失敗しました", error);
+			if (!tab?.id) return;
+			await waitForCaptureSlot();
+			try {
+				const dataUrl = await browser.tabs.captureVisibleTab({ format: "png" });
+				const { width, height } = await imageSize(dataUrl);
+				await openViewer({
+					dataUrl,
+					width,
+					height,
+					sourceUrl: tab.url ?? "",
+					sourceTitle: tab.title ?? "",
+				});
+			} catch (error) {
+				console.warn("[shotcraft] 表示範囲のキャプチャに失敗しました", error);
+				await flashErrorBadge();
+			}
+		} finally {
+			// 進行バッジは成否・例外によらず必ず消す（失敗バッジはこの後に別途出る）。
+			await clearBadge();
 		}
 	}
 
@@ -103,8 +202,10 @@ export default defineBackground(() => {
 				files: [REGION_SELECT_SCRIPT],
 			});
 		} catch (error) {
-			// chrome:// や Chrome Web Store など注入不可のページ。既知の制限として警告に留める
+			// chrome:// や Chrome Web Store など注入不可のページ。console.warn に加え、
+			// 「押しても無反応」と映らないよう拡張アイコンに失敗バッジ（!）を出す。
 			console.warn("[shotcraft] このページでは範囲選択を開始できません", error);
+			await flashErrorBadge();
 		}
 	}
 
@@ -120,66 +221,78 @@ export default defineBackground(() => {
 		// 表示範囲と同じく、撮影に入る前にだけ待つ（レート制限枠の予約より前）。
 		// タブ取得も遅延後にして、待機中にユーザーが対象タブを切り替えても取り違えない。
 		const delay = clampCaptureDelayMs(delayMs);
-		if (delay > 0) {
-			await new Promise((resolve) => setTimeout(resolve, delay));
-		}
-		const [tab] = await browser.tabs.query({
-			active: true,
-			currentWindow: true,
-		});
-		if (!tab?.id) return;
-		const tabId = tab.id;
-
-		let metrics: FullPageMetrics | null = null;
+		// 進行バッジ（遅延カウントダウン・タイル進捗・失敗）を成否によらず必ず消すため、
+		// 遅延待ちからタイル撮影までを 1 つの try/finally で囲う。
 		try {
-			metrics = await runInPage(tabId, measurePageFn);
-		} catch (error) {
-			// chrome:// や Chrome Web Store など注入不可のページ。既知の制限として警告に留める
-			console.warn(
-				"[shotcraft] このページではページ全体をキャプチャできません",
-				error,
-			);
-			return;
-		}
-		if (!metrics) return;
-
-		const { originalScrollX, originalScrollY, viewportHeight, hasFixed } =
-			metrics;
-
-		// 撮影対象の高さは上限で打ち切る。切った場合は既知の制限として info を出す。
-		const pageHeight = Math.min(metrics.pageHeight, MAX_FULL_PAGE_HEIGHT);
-		if (metrics.pageHeight > MAX_FULL_PAGE_HEIGHT) {
-			console.info(
-				`[shotcraft] ページが長いため上限 ${MAX_FULL_PAGE_HEIGHT}px までを撮影します（実際の高さ ${metrics.pageHeight}px）`,
-			);
-		}
-
-		try {
-			const stitched = await captureAndStitch(tabId, {
-				pageHeight,
-				viewportHeight,
-				hasFixed,
+			await waitWithCountdown(delay);
+			const [tab] = await browser.tabs.query({
+				active: true,
+				currentWindow: true,
 			});
-			if (!stitched) return;
-			await openViewer({
-				dataUrl: stitched.dataUrl,
-				width: stitched.width,
-				height: stitched.height,
-				sourceUrl: tab.url ?? "",
-				sourceTitle: tab.title ?? "",
-			});
-		} catch (error) {
-			console.warn("[shotcraft] ページ全体のキャプチャに失敗しました", error);
-		} finally {
-			// スクロール位置と固定要素の表示を必ず元へ戻す（撮影の成否によらず）。
+			if (!tab?.id) return;
+			const tabId = tab.id;
+
+			let metrics: FullPageMetrics | null = null;
 			try {
-				await runInPage(tabId, restorePageFn, [
-					originalScrollX,
-					originalScrollY,
-				]);
+				metrics = await runInPage(tabId, measurePageFn);
 			} catch (error) {
-				console.warn("[shotcraft] ページ状態の復元に失敗しました", error);
+				// chrome:// や Chrome Web Store など注入不可のページ。console.warn に加え、
+				// 「押しても無反応」と映らないよう拡張アイコンに失敗バッジ（!）を出す。
+				console.warn(
+					"[shotcraft] このページではページ全体をキャプチャできません",
+					error,
+				);
+				await flashErrorBadge();
+				return;
 			}
+			if (!metrics) return;
+
+			const { originalScrollX, originalScrollY, viewportHeight, hasFixed } =
+				metrics;
+
+			// 撮影対象の高さは上限で打ち切る。切った場合は既知の制限として info を出す。
+			const pageHeight = Math.min(metrics.pageHeight, MAX_FULL_PAGE_HEIGHT);
+			if (metrics.pageHeight > MAX_FULL_PAGE_HEIGHT) {
+				console.info(
+					`[shotcraft] ページが長いため上限 ${MAX_FULL_PAGE_HEIGHT}px までを撮影します（実際の高さ ${metrics.pageHeight}px）`,
+				);
+			}
+
+			try {
+				const stitched = await captureAndStitch(tabId, {
+					pageHeight,
+					viewportHeight,
+					hasFixed,
+					// タイルを撮るたびに進捗バッジ（"1/5" 形式・収まらなければ割合）を更新する。
+					onTileProgress: (done, total) =>
+						setProgressBadge(formatTileProgressBadge(done, total)),
+				});
+				if (!stitched) return;
+				await openViewer({
+					dataUrl: stitched.dataUrl,
+					width: stitched.width,
+					height: stitched.height,
+					sourceUrl: tab.url ?? "",
+					sourceTitle: tab.title ?? "",
+				});
+			} catch (error) {
+				console.warn("[shotcraft] ページ全体のキャプチャに失敗しました", error);
+				await flashErrorBadge();
+			} finally {
+				// スクロール位置と固定要素の表示を必ず元へ戻す（撮影の成否によらず）。
+				try {
+					await runInPage(tabId, restorePageFn, [
+						originalScrollX,
+						originalScrollY,
+					]);
+				} catch (error) {
+					console.warn("[shotcraft] ページ状態の復元に失敗しました", error);
+				}
+			}
+		} finally {
+			// 進行バッジ（カウントダウン・タイル進捗）を必ず消す。
+			// 失敗バッジ（!）を出した経路では clearBadge が no-op になり、"!" は残る。
+			await clearBadge();
 		}
 	}
 
@@ -189,9 +302,15 @@ export default defineBackground(() => {
 	 */
 	async function captureAndStitch(
 		tabId: number,
-		opts: { pageHeight: number; viewportHeight: number; hasFixed: boolean },
+		opts: {
+			pageHeight: number;
+			viewportHeight: number;
+			hasFixed: boolean;
+			/** タイルを 1 枚撮る（描く）たびに (完了枚数, 総枚数) で呼ばれる。進捗表示用。 */
+			onTileProgress?: (done: number, total: number) => void | Promise<void>;
+		},
 	): Promise<{ dataUrl: string; width: number; height: number } | null> {
-		const { pageHeight, viewportHeight, hasFixed } = opts;
+		const { pageHeight, viewportHeight, hasFixed, onTileProgress } = opts;
 
 		// 先頭タイルを撮り、bitmap 実寸から実測スケール（bitmap 高 / viewport 高）を得る。
 		await runInPage(tabId, scrollToFn, [0]);
@@ -232,6 +351,8 @@ export default defineBackground(() => {
 					await settle();
 					bitmap = await decodeBitmap(await captureTab(tabId));
 				}
+				// このタイルを撮り終えた時点の進捗（i+1 / 総数）を通知する。
+				await onTileProgress?.(i + 1, tiles.length);
 				try {
 					ctx.drawImage(
 						bitmap,
@@ -319,6 +440,7 @@ export default defineBackground(() => {
 			});
 		} catch (error) {
 			console.warn("[shotcraft] 範囲キャプチャに失敗しました", error);
+			await flashErrorBadge();
 		}
 	}
 
