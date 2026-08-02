@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>shotcraft — 撮って、その場で注釈・モザイク・クロップ。パソコンの中で完結するスクリーンショット編集ツール</title>
+    <meta
+      name="description"
+      content="shotcraft は、いま見ている画面をそのまま撮って、矢印・モザイク・クロップなどの書き込みができる Chrome 拡張です。撮影から保存まですべてブラウザの中で完結し、画像がパソコンの外に送られることはありません。"
+    />
+
+    <!-- OGP / Twitter Card -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="shotcraft — パソコンの中で完結するスクリーンショット編集ツール" />
+    <meta
+      property="og:description"
+      content="撮って、その場で注釈・モザイク・クロップ。画像がパソコンの外に送られない Chrome 拡張。"
+    />
+    <meta property="og:image" content="https://shotcraft.pages.dev/promo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="shotcraft — パソコンの中で完結するスクリーンショット編集ツール" />
+    <meta
+      name="twitter:description"
+      content="撮って、その場で注釈・モザイク・クロップ。画像がパソコンの外に送られない Chrome 拡張。"
+    />
+    <meta name="twitter:image" content="https://shotcraft.pages.dev/promo.png" />
+
+    <link rel="icon" type="image/png" sizes="128x128" href="icon-128.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="icon-48.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png" />
+    <link rel="apple-touch-icon" href="icon-128.png" />
+
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <main>
+      <!-- ① ヒーロー -->
+      <header class="hero container">
+        <img
+          class="hero-icon"
+          src="icon-128.png"
+          width="88"
+          height="88"
+          alt="shotcraft のアイコン"
+        />
+        <h1>撮って、その場で注釈・モザイク・クロップ。</h1>
+        <p class="subcopy">
+          <span class="brand">shotcraft</span>
+          は、いま見ている画面をそのまま撮って書き込めるスクリーンショット編集ツール。撮影から保存まですべてブラウザの中で完結し、画像がパソコンの外に送られることはありません。
+        </p>
+
+        <!--
+          [ Chrome ウェブストア公開後の差し替え手順 ]
+            この cta-row の中の <span class="btn btn-primary btn-disabled" ...> ブロックを、
+            下記のようなストアリンク付きボタンに置き換える:
+              <a class="btn btn-primary" href="<ストアの URL>" rel="noopener">Chrome に追加</a>
+            aria-disabled と .btn-disabled は不要になるので付けない。
+        -->
+        <div class="cta-row">
+          <span class="btn btn-primary btn-disabled" role="button" aria-disabled="true">
+            Chrome ウェブストアで近日公開
+          </span>
+        </div>
+        <p class="cta-note">公開までもう少しお待ちください。</p>
+
+        <ul class="badges">
+          <li>画面をそのまま撮って書き込める</li>
+          <li>画像はパソコンの外に送られない</li>
+          <li>13 種類の編集ツール</li>
+          <li>無料</li>
+        </ul>
+      </header>
+
+      <!-- ② スクリーンショット -->
+      <section class="shot container" aria-label="編集画面のスクリーンショット">
+        <figure>
+          <div class="shot-frame">
+            <img
+              src="editor-annotations.png"
+              width="1280"
+              height="800"
+              alt="撮影したダッシュボード画像に注釈・モザイク・矩形強調を施した shotcraft の編集画面。矢印で注目点を示し、伏せたい箇所をモザイクで隠し、重要な行を矩形で囲んでいる。"
+              loading="lazy"
+            />
+          </div>
+          <figcaption>
+            撮った画像に、その場で書き込み。矢印で注目点を示し、見せたくないところはモザイクで隠し、大事な行を四角で囲んでいます。
+          </figcaption>
+        </figure>
+      </section>
+
+      <!-- ③ こんなときに（用途例） -->
+      <section class="section container" id="use-cases">
+        <div class="section-head">
+          <span class="eyebrow">こんなときに</span>
+          <h2>毎日のちょっとした画面共有に</h2>
+          <p>撮る・隠す・強調する・渡すを、画面を切り替えずにそのまま。</p>
+        </div>
+
+        <ul class="usecase-grid">
+          <li class="usecase">
+            <span class="usecase-icon">
+              <!-- 矢印（印を付ける） -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="5" y1="19" x2="19" y2="5" />
+                <polyline points="10 5 19 5 19 14" />
+              </svg>
+            </span>
+            <p>不具合を伝えるスクショに、矢印や囲みで印を付ける</p>
+          </li>
+          <li class="usecase">
+            <span class="usecase-icon">
+              <!-- モザイク（見せたくない部分を隠す） -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="4" y="4" width="16" height="16" rx="1" />
+                <line x1="4" y1="9.5" x2="20" y2="9.5" />
+                <line x1="4" y1="14.5" x2="20" y2="14.5" />
+                <line x1="9.5" y1="4" x2="9.5" y2="20" />
+                <line x1="14.5" y1="4" x2="14.5" y2="20" />
+              </svg>
+            </span>
+            <p>名前やメールなど、見せたくない部分をサッと隠す</p>
+          </li>
+          <li class="usecase">
+            <span class="usecase-icon">
+              <!-- 番号付きステップ（順番を振る） -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M11 9.5l1.8-1.2V16" />
+              </svg>
+            </span>
+            <p>手順書づくりに、操作の順番の番号を振る</p>
+          </li>
+          <li class="usecase">
+            <span class="usecase-icon">
+              <!-- コピー（そのまま貼る） -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+              </svg>
+            </span>
+            <p>整えた画像をそのままコピーして、チャットや SNS に貼る</p>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ④ 特長 3 カラム -->
+      <section class="section container features-section" id="features">
+        <div class="section-head">
+          <span class="eyebrow">できること</span>
+          <h2>撮る・隠す・強調するを、ひとつで</h2>
+          <p>
+            画面を撮ってから相手に渡すまで、タブを離れずにそのまま仕上げられます。
+          </p>
+        </div>
+
+        <div class="features-grid">
+          <!-- 撮影 -->
+          <article class="card">
+            <div class="icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
+                <circle cx="12" cy="13" r="3.2" />
+              </svg>
+            </div>
+            <h3>3 つの撮り方</h3>
+            <p>用途に合わせて撮り方を選べます。少し待ってから撮る遅延（3 秒 / 5 秒）にも対応。</p>
+            <ul>
+              <li>いま見えている範囲をワンクリックで撮る</li>
+              <li>ドラッグで囲んだ好きな範囲だけ撮る</li>
+              <li>スクロールが必要な長いページを縦長 1 枚に</li>
+            </ul>
+          </article>
+
+          <!-- 編集 -->
+          <article class="card">
+            <div class="icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+              </svg>
+            </div>
+            <h3>13 種類の編集ツール</h3>
+            <p>矢印・四角・丸・テキスト・ペン・マーカーから、隠す・強調する専用ツールまでそろっています。</p>
+            <ul>
+              <li>モザイク・ぼかしで見せたくない部分を隠す</li>
+              <li>スポットライトで周りを暗くして視線を集める</li>
+              <li>番号バッジ・フキダシで手順をわかりやすく</li>
+              <li>やり直し自在、色も選べる</li>
+            </ul>
+          </article>
+
+          <!-- 完全ローカル -->
+          <article class="card">
+            <div class="icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+            </div>
+            <h3>パソコンの中で完結</h3>
+            <p>撮影・編集・保存のすべてがブラウザの中で完結。画像がパソコンの外に送られることはありません。</p>
+            <ul>
+              <li>ネットにつながっていなくても使える</li>
+              <li>画像ファイルの保存も、コピーして貼り付けも</li>
+              <li>作業内容は自動で一時保存され、うっかり閉じても復元</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- ⑤ プライバシー節（利用者の安心材料） -->
+      <section class="section privacy" id="privacy">
+        <div class="container">
+          <div class="section-head">
+            <span class="eyebrow">安心して使えます</span>
+            <h2>あなたの画面は、あなたのパソコンの中だけ</h2>
+            <p>
+              「送らない・残さない・余計なことをしない」を最初から徹底しています。
+            </p>
+          </div>
+
+          <div class="privacy-grid">
+            <div class="privacy-item">
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 4h16v12H5.2L4 17.2V4Z" />
+                  <line x1="8" y1="9" x2="16" y2="9" />
+                  <line x1="4" y1="4" x2="20" y2="16" />
+                </svg>
+                外に送られません
+              </h3>
+              <p>
+                撮影も編集も保存も、すべてあなたのパソコンの中で行われます。撮った画像や書き込んだ内容が外部に送られることはありません。
+              </p>
+            </div>
+
+            <div class="privacy-item">
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="10" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                求める権限は最小限
+              </h3>
+              <p>
+                拡張が求めるのは、いま開いているタブを撮るための最小限の許可だけ。閲覧履歴を集めたり、他のサイトを勝手に見たりはしません。
+              </p>
+            </div>
+
+            <div class="privacy-item">
+              <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <ellipse cx="12" cy="5" rx="8" ry="3" />
+                  <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                </svg>
+                勝手に残しません
+              </h3>
+              <p>
+                撮った画像や編集内容は一時的に保持するだけ。あなたが「保存」を選ばない限り、パソコンにファイルとして残ることはありません。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ⑥ フッター -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <img src="icon-32.png" width="32" height="32" alt="" />
+            <span>shotcraft</span>
+          </div>
+          <ul class="footer-links">
+            <li><a href="#use-cases">こんなときに</a></li>
+            <li><a href="#features">できること</a></li>
+            <li><a href="#privacy">安心して使えます</a></li>
+          </ul>
+        </div>
+        <p class="footer-credit">
+          文字入れに使うかわいい丸文字フォントには
+          <a href="https://fonts.google.com/specimen/Mochiy+Pop+One" rel="noopener">Mochiy Pop One</a>
+          （SIL Open Font License 1.1、Copyright 2020 The Mochiypop Project Authors）を使用しています。
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
