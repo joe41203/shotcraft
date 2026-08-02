@@ -74,86 +74,8 @@ main {
   min-width: 0;
 }
 
-/* 3 ボタンと遅延行を区切る線。 */
-.divider {
-  height: 1px;
-  margin: 0;
-  border: none;
-  background: var(--border);
-}
-
-/* 遅延キャプチャの共通行（ラベル＋セグメント）。 */
-.delay-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.delay-row .icon {
-  color: var(--text-muted);
-}
-
-.delay-label {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-/* 遅延がどのキャプチャに効くかの補足（控えめに）。 */
-.delay-note {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-
-.delay-segments {
-  display: inline-flex;
-  gap: 2px;
-  /* ラベルと視覚的に分けるため右端へ寄せる。 */
-  margin-left: auto;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-}
-
-.delay-segment {
-  width: auto;
-  padding: 3px 10px;
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius-md) - 2px);
-  background: transparent;
-  color: var(--text-muted);
-  font-family: inherit;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease;
-}
-
-.delay-segment:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.delay-segment.active {
-  background: color-mix(in srgb, var(--ring) 16%, transparent);
-  border-color: color-mix(in srgb, var(--ring) 42%, transparent);
-  color: var(--text);
-}
-
-.delay-segment:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .capture-method,
-  .delay-segment {
+  .capture-method {
     transition: none;
   }
 }

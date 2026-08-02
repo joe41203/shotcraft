@@ -13,19 +13,6 @@ export const BADGE_MAX_CHARS = 4;
 export const ERROR_BADGE_TEXT = "!";
 
 /**
- * 遅延キャプチャの残り秒数をカウントダウン表示する文字列にする。
- * - 端数は切り上げる（残り 2.3 秒なら "3"）。ユーザー体感の「あと n 秒」に合わせる。
- * - 0 以下・非有限は空文字（バッジ消去相当）。上限は BADGE_MAX_CHARS 桁で頭打ち。
- */
-export function formatCountdownBadge(remainingSeconds: number): string {
-	if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) return "";
-	const secs = Math.ceil(remainingSeconds);
-	const text = String(secs);
-	// 想定外に大きな秒数（99999 秒等）でも 4 文字に収める。
-	return text.length > BADGE_MAX_CHARS ? "9".repeat(BADGE_MAX_CHARS) : text;
-}
-
-/**
  * フルページキャプチャのタイル進捗を表示する文字列にする。
  * - 基本は "現在/総数"（例 "1/5"）。BADGE_MAX_CHARS に収まる場合はこれを使う。
  * - 収まらない場合（例 "12/20" は 5 文字）は割合 "60%" へフォールバックする。

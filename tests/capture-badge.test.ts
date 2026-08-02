@@ -1,34 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-	BADGE_MAX_CHARS,
 	ERROR_BADGE_TEXT,
-	formatCountdownBadge,
 	formatTileProgressBadge,
 } from "../lib/capture-badge";
-
-describe("formatCountdownBadge", () => {
-	it("整数秒はそのまま文字列にする", () => {
-		expect(formatCountdownBadge(3)).toBe("3");
-		expect(formatCountdownBadge(2)).toBe("2");
-		expect(formatCountdownBadge(1)).toBe("1");
-	});
-
-	it("端数は切り上げる（あと n 秒の体感に合わせる）", () => {
-		expect(formatCountdownBadge(2.3)).toBe("3");
-		expect(formatCountdownBadge(0.1)).toBe("1");
-	});
-
-	it("0 以下・非有限は空文字（バッジ消去相当）", () => {
-		expect(formatCountdownBadge(0)).toBe("");
-		expect(formatCountdownBadge(-1)).toBe("");
-		expect(formatCountdownBadge(Number.NaN)).toBe("");
-		expect(formatCountdownBadge(Number.POSITIVE_INFINITY)).toBe("");
-	});
-
-	it("桁あふれは BADGE_MAX_CHARS で頭打ち", () => {
-		expect(formatCountdownBadge(99999).length).toBe(BADGE_MAX_CHARS);
-	});
-});
 
 describe("formatTileProgressBadge", () => {
 	it("4 文字に収まる進捗は 現在/総数 形式", () => {

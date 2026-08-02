@@ -10,15 +10,9 @@ export interface Size {
 	height: number;
 }
 
-/**
- * popup → service worker: 表示範囲をそのままキャプチャする。
- * delayMs があれば background 側でその時間だけ待ってから撮る（遅延キャプチャ）。
- * 省略・0 のときは即時（後方互換）。ホバーメニューやツールチップを出した状態で
- * 撮る用途に使う。
- */
+/** popup → service worker: 表示範囲をそのままキャプチャする。 */
 export interface CaptureVisibleMessage {
 	type: "CAPTURE_VISIBLE";
-	delayMs?: number;
 }
 
 /** popup → service worker: 範囲選択オーバーレイの起動を要求する */
@@ -29,13 +23,9 @@ export interface StartRegionSelectMessage {
 /**
  * popup → service worker: ページ全体をスクロールしながら撮影し、
  * 1 枚の縦長画像に繋ぎ合わせる（フルページキャプチャ）。
- * delayMs があれば background 側で撮影を始める前にその時間だけ待つ
- * （表示範囲と同じ遅延キャプチャ。ホバーメニュー等を出してから撮る用途）。
- * 省略・0 のときは即時（後方互換）。
  */
 export interface CaptureFullPageMessage {
 	type: "CAPTURE_FULL_PAGE";
-	delayMs?: number;
 }
 
 /**

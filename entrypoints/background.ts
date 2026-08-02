@@ -1,10 +1,5 @@
 import type { Browser } from "wxt/browser";
-import {
-	ERROR_BADGE_TEXT,
-	formatCountdownBadge,
-	formatTileProgressBadge,
-} from "@/lib/capture-badge";
-import { clampCaptureDelayMs } from "@/lib/capture-delay";
+import { ERROR_BADGE_TEXT, formatTileProgressBadge } from "@/lib/capture-badge";
 import { type CaptureRecord, saveCapture } from "@/lib/capture-store";
 import { cssRectToBitmapRect, planFullPageTiles } from "@/lib/geometry";
 import type { Message, Rect, Size } from "@/lib/messages";
@@ -31,8 +26,6 @@ const FULL_PAGE_SETTLE_MS = 250;
 const BADGE_PROGRESS_COLOR = "#10b981";
 /** 失敗バッジの背景色（danger。tokens.css の --danger と同系統）。 */
 const BADGE_ERROR_COLOR = "#f87171";
-/** カウントダウンの更新間隔（ms）。1 秒ごとに残り秒数を描き替える。 */
-const COUNTDOWN_TICK_MS = 1000;
 /** 失敗バッジ（!）を自動で消すまでの表示時間（ms）。 */
 const ERROR_BADGE_DURATION_MS = 4000;
 
@@ -101,34 +94,16 @@ export default defineBackground(() => {
 		}, ERROR_BADGE_DURATION_MS);
 	}
 
-	/**
-	 * delayMs 待つ間、残り秒数をバッジにカウントダウン表示する。
-	 * 1 秒ごとに残りを描き替え、最後に待ち切ってから解決する。バッジのクリアは
-	 * 呼び出し側の finally が担う（ここでは消さない）。delayMs<=0 なら即座に解決。
-	 */
-	async function waitWithCountdown(delayMs: number): Promise<void> {
-		if (delayMs <= 0) return;
-		const endAt = Date.now() + delayMs;
-		let remaining = delayMs;
-		while (remaining > 0) {
-			await setProgressBadge(formatCountdownBadge(remaining / 1000));
-			// 次の tick（1 秒刻み）か残り時間の短い方だけ待つ。
-			const step = Math.min(COUNTDOWN_TICK_MS, remaining);
-			await new Promise((resolve) => setTimeout(resolve, step));
-			remaining = endAt - Date.now();
-		}
-	}
-
 	browser.runtime.onMessage.addListener((message: Message, sender) => {
 		switch (message.type) {
 			case "CAPTURE_VISIBLE":
-				void captureVisible(message.delayMs);
+				void captureVisible();
 				break;
 			case "START_REGION_SELECT":
 				void startRegionSelect();
 				break;
 			case "CAPTURE_FULL_PAGE":
-				void captureFullPage(message.delayMs);
+				void captureFullPage();
 				break;
 			case "REGION_SELECTED":
 				void captureRegion(sender.tab, message.rect, message.viewport);
@@ -151,42 +126,27 @@ export default defineBackground(() => {
 		}
 	}
 
-	/**
-	 * 表示範囲をキャプチャする。delayMs があればその時間だけ待ってから撮る
-	 * （ホバーメニュー等を出した状態で撮る用途）。
-	 *
-	 * 遅延はレート制限枠の予約（waitForCaptureSlot）より前に行う。枠は撮影直前に
-	 * 取るので、待機と枠処理が衝突しない。アクティブタブの取得も遅延後にすることで、
-	 * 待機中にユーザーが撮りたいタブへ切り替えても対象を取り違えない。
-	 */
-	async function captureVisible(delayMs?: number): Promise<void> {
-		const delay = clampCaptureDelayMs(delayMs);
+	/** 表示範囲をキャプチャする。 */
+	async function captureVisible(): Promise<void> {
+		const [tab] = await browser.tabs.query({
+			active: true,
+			currentWindow: true,
+		});
+		if (!tab?.id) return;
+		await waitForCaptureSlot();
 		try {
-			// 遅延中は残り秒数をバッジにカウントダウン表示する。
-			await waitWithCountdown(delay);
-			const [tab] = await browser.tabs.query({
-				active: true,
-				currentWindow: true,
+			const dataUrl = await browser.tabs.captureVisibleTab({ format: "png" });
+			const { width, height } = await imageSize(dataUrl);
+			await openViewer({
+				dataUrl,
+				width,
+				height,
+				sourceUrl: tab.url ?? "",
+				sourceTitle: tab.title ?? "",
 			});
-			if (!tab?.id) return;
-			await waitForCaptureSlot();
-			try {
-				const dataUrl = await browser.tabs.captureVisibleTab({ format: "png" });
-				const { width, height } = await imageSize(dataUrl);
-				await openViewer({
-					dataUrl,
-					width,
-					height,
-					sourceUrl: tab.url ?? "",
-					sourceTitle: tab.title ?? "",
-				});
-			} catch (error) {
-				console.warn("[shotcraft] 表示範囲のキャプチャに失敗しました", error);
-				await flashErrorBadge();
-			}
-		} finally {
-			// 進行バッジは成否・例外によらず必ず消す（失敗バッジはこの後に別途出る）。
-			await clearBadge();
+		} catch (error) {
+			console.warn("[shotcraft] 表示範囲のキャプチャに失敗しました", error);
+			await flashErrorBadge();
 		}
 	}
 
@@ -217,14 +177,10 @@ export default defineBackground(() => {
 	 * waitForCaptureSlot() を通してレート制限を守る。固定ヘッダーは 2 枚目以降を非表示にして
 	 * 各タイルへの写り込みを防ぎ、撮影後に必ず元へ戻す。
 	 */
-	async function captureFullPage(delayMs?: number): Promise<void> {
-		// 表示範囲と同じく、撮影に入る前にだけ待つ（レート制限枠の予約より前）。
-		// タブ取得も遅延後にして、待機中にユーザーが対象タブを切り替えても取り違えない。
-		const delay = clampCaptureDelayMs(delayMs);
-		// 進行バッジ（遅延カウントダウン・タイル進捗・失敗）を成否によらず必ず消すため、
-		// 遅延待ちからタイル撮影までを 1 つの try/finally で囲う。
+	async function captureFullPage(): Promise<void> {
+		// 進行バッジ（タイル進捗・失敗）を成否によらず必ず消すため、
+		// タイル撮影を 1 つの try/finally で囲う。
 		try {
-			await waitWithCountdown(delay);
 			const [tab] = await browser.tabs.query({
 				active: true,
 				currentWindow: true,
@@ -290,7 +246,7 @@ export default defineBackground(() => {
 				}
 			}
 		} finally {
-			// 進行バッジ（カウントダウン・タイル進捗）を必ず消す。
+			// 進行バッジ（タイル進捗）を必ず消す。
 			// 失敗バッジ（!）を出した経路では clearBadge が no-op になり、"!" は残る。
 			await clearBadge();
 		}
