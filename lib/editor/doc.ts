@@ -92,6 +92,35 @@ export interface MosaicShape extends ShapeBase {
 }
 
 /**
+ * ぼかし（ガウスぼかし）矩形。x,y は左上、width/height は正の寸法（画像座標系）。
+ * モザイクの姉妹で、ベース画像の該当領域をガウスぼかしにして重ねる。ぼかしの強さ
+ * （半径）は領域サイズから自動決定するので、stroke 等のスタイル属性は持たない。
+ * ぼかしもベース画像のみをサンプリング元にする（注釈図形には掛からない）。
+ * モザイクと同じ扱いで回転不可。
+ */
+export interface BlurShape extends ShapeBase {
+	type: "blur";
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/**
+ * スポットライト（暗幕）矩形。x,y は左上、width/height は正の寸法（画像座標系）。
+ * doc 内の全 spotlight をまとめて 1 枚の暗幕として描き、各矩形の位置に穴を開けて
+ * その領域だけを明るく残す（視線誘導）。暗幕の色・不透明度は spotlight.ts の定数で
+ * 決まるので stroke 等のスタイル属性は持たない。モザイク同様に回転不可。
+ */
+export interface SpotlightShape extends ShapeBase {
+	type: "spotlight";
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/**
  * 番号付きステップバッジ。手順を示す丸バッジ（①②③…）を連番で置く。
  * x,y はバッジ中心。number は配置時点の連番（nextStepNumber で決める）。
  * 円は stroke 色で塗り、中央に白抜きの数字を描く。半径は省略時に既定を使う。
@@ -137,6 +166,8 @@ export type Shape =
 	| PenShape
 	| MarkerShape
 	| MosaicShape
+	| BlurShape
+	| SpotlightShape
 	| StepShape
 	| CalloutShape;
 
@@ -178,6 +209,8 @@ export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
 	Partial<Omit<PenShape, "id" | "type">> &
 	Partial<Omit<MarkerShape, "id" | "type">> &
 	Partial<Omit<MosaicShape, "id" | "type">> &
+	Partial<Omit<BlurShape, "id" | "type">> &
+	Partial<Omit<SpotlightShape, "id" | "type">> &
 	Partial<Omit<StepShape, "id" | "type">> &
 	Partial<Omit<CalloutShape, "id" | "type">>;
 

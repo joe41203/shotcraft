@@ -1,10 +1,12 @@
 import type { EditorApp } from "../app";
 import { ArrowTool } from "./arrow";
+import { BlurTool } from "./blur";
 import { CalloutTool } from "./callout";
 import { EllipseTool } from "./ellipse";
 import { MosaicTool } from "./mosaic";
 import { RectTool } from "./rect";
 import { SelectTool } from "./select";
+import { SpotlightTool } from "./spotlight";
 import { StepTool } from "./step";
 import { MarkerTool, PenTool } from "./stroke";
 import { TextTool } from "./text";
@@ -25,4 +27,6 @@ export function registerTools(app: EditorApp): void {
 	app.registerTool(new CalloutTool(ctx));
 	app.registerTool(new TextTool(ctx));
 	app.registerTool(new MosaicTool(ctx));
+	app.registerTool(new BlurTool(ctx));
+	app.registerTool(new SpotlightTool(ctx));
 }

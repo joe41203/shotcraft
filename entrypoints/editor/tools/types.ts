@@ -14,6 +14,8 @@ export type ToolName =
 	| "step"
 	| "callout"
 	| "mosaic"
+	| "blur"
+	| "spotlight"
 	| "crop";
 
 /**
@@ -38,6 +40,8 @@ export interface EditorContext {
 	};
 	/** ステージ（座標変換・コンテナ取得に使う）。 */
 	readonly stage: Konva.Stage;
+	/** キャプチャ原寸（画像全体の寸法・画像座標系）。スポットライト暗幕の範囲などに使う。 */
+	contentSize(): { width: number; height: number };
 	/** 現在の描画スケール（ズーム率）。テキスト編集オーバーレイのフォント換算に使う。 */
 	scale(): number;
 	/** 一意な図形 id を生成する。 */
