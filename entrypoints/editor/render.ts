@@ -1,5 +1,5 @@
 import Konva from "konva";
-import { blurRadius } from "@/lib/editor/blur";
+import { blurCornerRadius, blurRadius } from "@/lib/editor/blur";
 import {
 	CALLOUT_CORNER_RADIUS,
 	CALLOUT_FILL_ALPHA,
@@ -23,6 +23,9 @@ import { mosaicPixelSize } from "@/lib/editor/mosaic";
 import {
 	clampSpotlightHole,
 	SPOTLIGHT_DIM_ALPHA,
+	spotlightCornerRadius,
+	spotlightFeather,
+	spotlightVeilIndex,
 } from "@/lib/editor/spotlight";
 import { STEP_RADIUS, stepFontSize } from "@/lib/editor/step";
 import { clampFontSize } from "@/lib/editor/text";
@@ -244,7 +247,9 @@ export function buildMosaicNode(
  * [x,y,width,height] を ctx.filter = "blur(Npx)" を掛けて原寸で描くことでガウス
  * ぼかしを得る。半径は領域サイズから blurRadius で自動決定する。端がぼけて素の
  * 画像が透けないよう、ソース領域を半径分だけ外側へ広げて描いてから元の矩形で
- * 切り出す。サンプリング元はベース画像のみなので注釈にはぼかしが掛からない。
+ * 切り出す。仕上げにパッチを角丸矩形（blurCornerRadius・スポットライトの穴と統一感の
+ * ある半径ルール）でクリップして四隅を丸める。サンプリング元はベース画像のみなので
+ * 注釈にはぼかしが掛からない。エディタ表示と PNG 書き出しは同じこの関数で描く。
  */
 export function buildBlurNode(
 	shape: BlurShape,
@@ -278,6 +283,17 @@ export function buildBlurNode(
 			srcW,
 			srcH,
 		);
+
+		// ぼかし済みパッチを角丸矩形でクリップする（スポットライトの穴と統一感のある
+		// 半径ルール）。filter を解除してから destination-in で角丸マスクを掛け、四隅を
+		// 透明にする（マスク自体はぼかさず、角の切り口をくっきり保つ）。モザイクは対象外。
+		const corner = Math.min(blurCornerRadius(w, h), w / 2, h / 2);
+		cx.filter = "none";
+		cx.globalCompositeOperation = "destination-in";
+		cx.fillStyle = "#000000";
+		cx.beginPath();
+		roundRectPath(cx, 0, 0, w, h, corner);
+		cx.fill();
 	}
 
 	return new Konva.Image({
@@ -294,56 +310,106 @@ export function buildBlurNode(
 }
 
 /**
- * doc 内の全 spotlight をまとめた 1 枚の暗幕を Konva.Group として作る。
+ * doc 内の全 spotlight をまとめた 1 枚の暗幕を単一の Konva.Shape として作る。
  *
- * 画像全体を覆う半透明黒（SPOTLIGHT_DIM_ALPHA）を描いたうえで、各 spotlight 矩形の
- * 位置に globalCompositeOperation="destination-out" の矩形を重ねて穴を開ける。
- * これにより穴の内側だけ暗幕が消えて明るく残り、外側が暗くなる（視線誘導）。
- * 複数 spotlight があっても暗幕は 1 枚のまま穴が増える。穴矩形は画像範囲へ
- * クランプ（clampSpotlightHole）し、範囲外・寸法 0 のものは無視する。
- * Group は元の各 spotlight の id を持たないため、選択・変形は個別の透明ヒット矩形
+ * 描画はオフスクリーン canvas に自前で行い、その結果を sceneFunc で 1 枚絵として
+ * ステージへ転写する（エディタ表示と export の同一関数・同一手順で見た目を揃える）。
+ * オフスクリーン canvas で:
+ *   1) 画像全体を半透明黒（SPOTLIGHT_DIM_ALPHA）で塗る。
+ *   2) ctx.filter = blur(feather) を掛けたうえで各穴を destination-out でくり抜く。
+ *      これにより穴の縁がフェザー（ぼかし）で柔らかくなり、硬い切り口にならない。
+ *   3) 穴は角丸矩形（spotlightCornerRadius）でくり抜く（硬い直角より角丸のほうが
+ *      プロ品質に見える）。
+ * 穴矩形は画像範囲へクランプ（clampSpotlightHole）し、範囲外・寸法 0 のものは無視する。
+ *
+ * destination-out はオフスクリーン canvas 内で完結するので、ステージ側の背後（ベース
+ * 画像・モザイク等）は消えない。Group.cache() を毎フレーム呼ぶ方式に比べ、単一 Shape の
+ * sceneFunc は Konva の内部キャッシュ生成を挟まないぶんドラッグ中のプレビューが軽い。
+ * 返す Shape は元の各 spotlight の id を持たないため、選択・変形は個別の透明ヒット矩形
  * （renderShapes で別途追加）が担う。
  */
 export function buildSpotlightVeil(
 	spotlights: SpotlightShape[],
 	size: { width: number; height: number },
-): Konva.Group {
-	const group = new Konva.Group({ listening: false });
+): Konva.Shape {
+	const w = Math.max(1, Math.round(size.width));
+	const h = Math.max(1, Math.round(size.height));
 
-	// 画像全体を覆う半透明黒の暗幕。
-	group.add(
-		new Konva.Rect({
-			x: 0,
-			y: 0,
-			width: size.width,
-			height: size.height,
-			fill: `rgba(0, 0, 0, ${SPOTLIGHT_DIM_ALPHA})`,
-		}),
-	);
+	// 暗幕本体をオフスクリーン canvas に一度だけ合成しておき、sceneFunc では
+	// それを転写するだけにする（ドラッグ中の再描画でも合成は 1 回で済む）。
+	const veil = document.createElement("canvas");
+	veil.width = w;
+	veil.height = h;
+	const vx = veil.getContext("2d");
+	if (vx) {
+		vx.fillStyle = `rgba(0, 0, 0, ${SPOTLIGHT_DIM_ALPHA})`;
+		vx.fillRect(0, 0, w, h);
 
-	// 各 spotlight の位置に穴を開ける（暗幕を destination-out でくり抜く）。
-	for (const s of spotlights) {
-		const hole = clampSpotlightHole(
-			{ x: s.x, y: s.y, width: s.width, height: s.height },
-			size,
-		);
-		if (!hole) continue;
-		group.add(
-			new Konva.Rect({
-				x: hole.x,
-				y: hole.y,
-				width: hole.width,
-				height: hole.height,
-				fill: "#000000",
-				globalCompositeOperation: "destination-out",
-			}),
-		);
+		for (const s of spotlights) {
+			const hole = clampSpotlightHole(
+				{ x: s.x, y: s.y, width: s.width, height: s.height },
+				size,
+			);
+			if (!hole) continue;
+			const feather = spotlightFeather(hole.width, hole.height);
+			// ぼかしフィルタを掛けたまま穴形を destination-out で塗ると、穴の縁が
+			// feather 幅ぶん内外へなめらかに減衰する（硬い切り口にならない）。穴の
+			// 芯（クランプ後の矩形／楕円の内側）は完全にくり抜かれて明るく残る。
+			const r = Math.min(
+				spotlightCornerRadius(hole.width, hole.height),
+				hole.width / 2,
+				hole.height / 2,
+			);
+			vx.save();
+			vx.filter = `blur(${feather}px)`;
+			vx.globalCompositeOperation = "destination-out";
+			vx.fillStyle = "#000000";
+			vx.beginPath();
+			roundRectPath(vx, hole.x, hole.y, hole.width, hole.height, r);
+			vx.fill();
+			vx.restore();
+		}
 	}
 
-	// Group を単一の合成結果としてキャッシュし、destination-out を Group 内に
-	// 閉じ込める（背後のベース画像・モザイク等を消さないため）。
-	group.cache();
-	return group;
+	// 合成済みオフスクリーン canvas を転写するだけの Shape。sceneFunc は再描画のたびに
+	// 呼ばれるが、重い合成（塗り＋フェザーくり抜き）は上で 1 回済ませてある。
+	return new Konva.Shape({
+		listening: false,
+		x: 0,
+		y: 0,
+		width: w,
+		height: h,
+		sceneFunc: (ctx, shape) => {
+			ctx.drawImage(veil, 0, 0);
+			// Konva のヒット判定用フィルパスは張らない（listening:false のため）。
+			ctx.fillStrokeShape(shape);
+		},
+	});
+}
+
+/**
+ * canvas 2D コンテキストへ角丸矩形のパスを引く。ctx.roundRect が使える環境
+ * （Chrome MV3）ではそれを使い、無い場合は 4 隅の円弧で手引きする（フォールバック）。
+ */
+function roundRectPath(
+	ctx: CanvasRenderingContext2D,
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	radius: number,
+): void {
+	const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+	if (typeof ctx.roundRect === "function") {
+		ctx.roundRect(x, y, width, height, r);
+		return;
+	}
+	ctx.moveTo(x + r, y);
+	ctx.arcTo(x + width, y, x + width, y + height, r);
+	ctx.arcTo(x + width, y + height, x, y + height, r);
+	ctx.arcTo(x, y + height, x, y, r);
+	ctx.arcTo(x, y, x + width, y, r);
+	ctx.closePath();
 }
 
 /**
@@ -472,24 +538,27 @@ export function renderShapes(
 ): void {
 	layer.destroyChildren();
 
-	// spotlight は全体で 1 枚の暗幕にまとめる。暗幕本体は doc 配列で最初に現れる
-	// spotlight の z 位置へ 1 度だけ差し込み（＝配列順どおりの前後関係）、各 spotlight
-	// の選択・変形は透明なヒット矩形（select ツール時のみ）が個別に担う。
+	// spotlight は全体で 1 枚の暗幕にまとめる。暗幕の挿入位置は描き順に依らず
+	// spotlightVeilIndex（＝最初の注釈系図形の直下、無ければ最上位）に固定する。
+	// これにより注釈（矢印・テキスト等）は常に暗幕より上＝明るいまま、注釈より前に
+	// 置いた mosaic/blur は暗幕の下＝暗くなる。各 spotlight の選択・変形は透明な
+	// ヒット矩形（select ツール時のみ）が個別に担う。
 	const spotlights = doc.shapes.filter(
 		(s): s is SpotlightShape => s.type === "spotlight",
 	);
 	const size =
 		veilSize ??
 		(source ? { width: source.width, height: source.height } : undefined);
-	let veilInserted = false;
+	const veilIndex =
+		spotlights.length > 0 && size ? spotlightVeilIndex(doc.shapes) : -1;
 
-	for (const shape of doc.shapes) {
+	doc.shapes.forEach((shape, index) => {
+		// 暗幕は「注釈系が始まる直前」に 1 枚だけ差し込む。veilIndex が末尾（注釈系
+		// なし）のときは下のループ後に追加する。
+		if (index === veilIndex && size) {
+			layer.add(buildSpotlightVeil(spotlights, size));
+		}
 		if (shape.type === "spotlight") {
-			// 最初の spotlight の位置で暗幕を 1 枚だけ差し込む。
-			if (!veilInserted && spotlights.length > 0 && size) {
-				layer.add(buildSpotlightVeil(spotlights, size));
-				veilInserted = true;
-			}
 			// select ツール時のみ、個別選択・変形用の透明ヒット矩形を重ねる。
 			if (draggable) {
 				const hit = new Konva.Rect({
@@ -506,11 +575,16 @@ export function renderShapes(
 				});
 				layer.add(hit);
 			}
-			continue;
+			return;
 		}
 		const node = shapeToNode(shape, source);
 		node.draggable(draggable);
 		layer.add(node);
+	});
+
+	// 注釈系図形が無い場合（veilIndex === shapes.length）は最上位へ差し込む。
+	if (veilIndex === doc.shapes.length && size) {
+		layer.add(buildSpotlightVeil(spotlights, size));
 	}
 	layer.batchDraw();
 }

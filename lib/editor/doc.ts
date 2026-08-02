@@ -108,9 +108,10 @@ export interface BlurShape extends ShapeBase {
 
 /**
  * スポットライト（暗幕）矩形。x,y は左上、width/height は正の寸法（画像座標系）。
- * doc 内の全 spotlight をまとめて 1 枚の暗幕として描き、各矩形の位置に穴を開けて
- * その領域だけを明るく残す（視線誘導）。暗幕の色・不透明度は spotlight.ts の定数で
- * 決まるので stroke 等のスタイル属性は持たない。モザイク同様に回転不可。
+ * doc 内の全 spotlight をまとめて 1 枚の暗幕として描き、各矩形の位置に角丸の穴を開けて
+ * その領域だけを明るく残す（視線誘導）。穴の縁はフェザー（ぼかし）で柔らかくする。
+ * 暗幕の色・不透明度は spotlight.ts の定数で決まるので stroke 等のスタイル属性は
+ * 持たない。モザイク同様に回転不可。
  */
 export interface SpotlightShape extends ShapeBase {
 	type: "spotlight";

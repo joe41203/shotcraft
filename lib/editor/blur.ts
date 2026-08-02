@@ -21,3 +21,23 @@ export function blurRadius(width: number, height: number): number {
 	const base = Math.round(Math.min(width, height) / 12);
 	return Math.min(MAX_BLUR_RADIUS, Math.max(MIN_BLUR_RADIUS, base));
 }
+
+/** ぼかしパッチの角丸半径の下限（px）。 */
+export const MIN_BLUR_CORNER_RADIUS = 4;
+/** ぼかしパッチの角丸半径の上限（px）。 */
+export const MAX_BLUR_CORNER_RADIUS = 16;
+
+/**
+ * ぼかしパッチの角丸半径（px）を領域の寸法から決める純粋関数。
+ * スポットライトの穴（spotlightCornerRadius）と統一感を持たせ、短辺の 12% を
+ * 目安に下限 4 / 上限 16px へクランプする。硬い直角より角丸のほうがプロ品質に
+ * 見える（ぼかしのみで、モザイクは従来どおり角のまま）。
+ */
+export function blurCornerRadius(width: number, height: number): number {
+	const shortSide = Math.min(Math.abs(width), Math.abs(height));
+	const base = shortSide * 0.12;
+	return Math.min(
+		MAX_BLUR_CORNER_RADIUS,
+		Math.max(MIN_BLUR_CORNER_RADIUS, base),
+	);
+}

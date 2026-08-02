@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	blurCornerRadius,
 	blurRadius,
+	MAX_BLUR_CORNER_RADIUS,
 	MAX_BLUR_RADIUS,
+	MIN_BLUR_CORNER_RADIUS,
 	MIN_BLUR_RADIUS,
 } from "../lib/editor/blur";
 
@@ -34,5 +37,32 @@ describe("blurRadius", () => {
 	it("下限・上限は MIN < MAX の妥当な範囲", () => {
 		expect(MIN_BLUR_RADIUS).toBeLessThan(MAX_BLUR_RADIUS);
 		expect(MIN_BLUR_RADIUS).toBeGreaterThanOrEqual(1);
+	});
+});
+
+describe("blurCornerRadius", () => {
+	it("短辺の約 12% を採る（スポットライトの穴と統一の半径ルール）", () => {
+		// 短辺 100 の 12% = 12px（下限 4・上限 16 の内側）。
+		expect(blurCornerRadius(200, 100)).toBeCloseTo(12);
+		expect(blurCornerRadius(100, 200)).toBeCloseTo(12);
+	});
+
+	it("小さい領域は下限 MIN_BLUR_CORNER_RADIUS にクランプ", () => {
+		// 短辺 10 の 12% = 1.2px → 下限 4。
+		expect(blurCornerRadius(10, 10)).toBe(MIN_BLUR_CORNER_RADIUS);
+	});
+
+	it("大きい領域は上限 MAX_BLUR_CORNER_RADIUS にクランプ", () => {
+		// 短辺 1000 の 12% = 120px → 上限 16。
+		expect(blurCornerRadius(1000, 1000)).toBe(MAX_BLUR_CORNER_RADIUS);
+	});
+
+	it("負の寸法でも絶対値で扱う", () => {
+		expect(blurCornerRadius(-200, -100)).toBeCloseTo(12);
+	});
+
+	it("下限・上限は MIN < MAX の妥当な範囲", () => {
+		expect(MIN_BLUR_CORNER_RADIUS).toBeLessThan(MAX_BLUR_CORNER_RADIUS);
+		expect(MIN_BLUR_CORNER_RADIUS).toBeGreaterThanOrEqual(1);
 	});
 });

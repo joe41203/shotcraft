@@ -11,9 +11,9 @@ import type { EditorContext, Tool, ToolName } from "./types";
  * プレビュー表示し、確定後は doc の全 spotlight をまとめて 1 枚の暗幕として
  * render.ts が描く。矩形と同じドラッグ操作だが回転は不可（モザイクと同様）。
  *
- * プレビューの暗幕は穴の位置を後から書き換えにくい（cache 済み Group）ため、
- * DragTool の「単一ノードを updatePreview で使い回す」方式には乗せず、Tool を
- * 直接実装して move のたびに暗幕 Group を作り直す。
+ * プレビューの暗幕は穴の位置を後から書き換えにくい（合成済みのオフスクリーン
+ * canvas を転写する単一 Shape）ため、DragTool の「単一ノードを updatePreview で
+ * 使い回す」方式には乗せず、Tool を直接実装して move のたびに暗幕 Shape を作り直す。
  */
 export class SpotlightTool implements Tool {
 	readonly name: ToolName = "spotlight";
@@ -21,7 +21,7 @@ export class SpotlightTool implements Tool {
 	private readonly minDrag = 4;
 
 	private start: Point | null = null;
-	private preview: Konva.Group | null = null;
+	private preview: Konva.Shape | null = null;
 
 	constructor(private ctx: EditorContext) {}
 
