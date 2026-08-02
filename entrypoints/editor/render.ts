@@ -256,7 +256,7 @@ function buildStepNode(
  * 本体高さは shape.height を下限に、折り返したテキストが収まるよう
  * calloutBodyHeight で広げる（リサイズ時のテキスト追従）。しっぽは本体下辺
  * 中央から下向きの三角で固定形状。塗りは color の淡い背景＋枠線＝color、
- * テキストは視認できる濃色（#0b0f19）にする。
+ * テキストは shape.stroke（注釈色）で描き、テキスト注釈と色を統一する。
  */
 function buildCalloutNode(
 	shape: CalloutShape,
@@ -275,7 +275,7 @@ function buildCalloutNode(
 		text: shape.text,
 		fontSize: shape.fontSize,
 		fontFamily,
-		fill: "#0b0f19",
+		fill: shape.stroke,
 		lineHeight: 1.25,
 		wrap: "word",
 		listening: false,

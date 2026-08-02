@@ -109,7 +109,8 @@ export interface StepShape extends ShapeBase {
 /**
  * コールアウト（フキダシ）注釈。x,y は本体（角丸長方形）の左上、width/height は
  * 本体の寸法。下辺中央から下向きのしっぽ（三角）を固定形状で出す。
- * 塗りは color の淡い背景＋枠線＝color、テキストは視認できる濃色で本体内に折り返す。
+ * 塗りは stroke 色の淡い背景＋枠線＝stroke 色、テキストも stroke 色で本体内に
+ * 折り返す（テキスト注釈と色を統一）。
  * text はテキスト注釈のオーバーレイ機構で編集する。
  */
 export interface CalloutShape extends ShapeBase {

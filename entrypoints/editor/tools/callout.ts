@@ -122,7 +122,7 @@ export class CalloutTool implements Tool {
 				docPos: { x: shape.x + CALLOUT_PADDING, y: shape.y + CALLOUT_PADDING },
 				fontSize: shape.fontSize,
 				fontFamily: theme.fontAnnotation,
-				color: "#0b0f19",
+				color: shape.stroke,
 				wrapWidth: calloutInnerWidth(shape.width, CALLOUT_PADDING),
 			},
 			(text) => {
