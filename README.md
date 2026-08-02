@@ -15,10 +15,7 @@
 [![font: OFL 1.1](https://img.shields.io/badge/font-OFL%201.1-informational)](public/fonts/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-yellow)](./LICENSE)
 
-<!--
-  Chrome ウェブストアの審査を通過してストア公開されたら、ストアリンクのバッジをここに足す:
-  [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/<EXTENSION_ID>)](https://chromewebstore.google.com/detail/<EXTENSION_ID>)
--->
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/pkhbgheiebgdikjbhegjfbidgbphccfo)](https://chromewebstore.google.com/detail/pkhbgheiebgdikjbhegjfbidgbphccfo)
 
 </div>
 
@@ -79,7 +76,7 @@ shotcraft は、いま見ているタブを撮影し、そのまま**矢印・�
 
 ### Chrome ウェブストアから
 
-現在 Chrome ウェブストアの審査中です。公開され次第、ここにインストールリンクを掲載します。
+[Chrome ウェブストアの shotcraft ページ](https://chromewebstore.google.com/detail/pkhbgheiebgdikjbhegjfbidgbphccfo)から「Chrome に追加」でインストールできます。
 
 ### ローカルに読み込む（開発版）
 
