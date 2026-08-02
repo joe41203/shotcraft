@@ -44,6 +44,13 @@
   --border-strong: rgba(255, 255, 255, 0.14); /* select 等のやや明確な境界 */
   --text: #f2f5f9; /* 主文字 */
   --text-muted: #9aa6b8; /* 補助文字（--surface 上でコントラスト比 7.0:1） */
+  /*
+   * 無効（disabled）状態の文字・アイコン色。opacity で薄めると実効コントラストが
+   * 3.57:1 と低くなるため、専用色に切り替える。--surface(#161b26) 上で 3.4:1 を確保
+   * （--text-muted より暗いが 3:1 は上回る）。拡張ページ（editor）専用で Shadow DOM
+   * では使わないため lib/theme.ts への複製は不要。
+   */
+  --text-disabled: #65707e;
   --accent: #10b981; /* 主要アクション（emerald） */
   --accent-hover: #34d399; /* 主要アクションの hover */
   --accent-text: #04140d; /* accent 面上の文字（暗色・コントラスト比 7.5:1） */

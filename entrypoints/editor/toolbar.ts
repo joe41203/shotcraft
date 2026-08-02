@@ -1,6 +1,6 @@
 import { icons } from "@/lib/icons";
-import { Tooltip } from "./tooltip";
 import type { ToolName } from "./tools/types";
+import { Tooltip } from "./tooltip";
 
 /** 色スウォッチ（モダンミュート）。デフォルトはコーラル。 */
 export const COLORS = [
@@ -25,12 +25,21 @@ const TOOLS: ToolDef[] = [
 	{ name: "arrow", label: "矢印", shortcut: "A", icon: icons.arrow },
 	{ name: "rect", label: "矩形", shortcut: "R", icon: icons.rect },
 	{ name: "ellipse", label: "楕円", shortcut: "E", icon: icons.ellipse },
+	// スポットライト（暗幕）は強調系。矩形・楕円の近くに置く。
+	{
+		name: "spotlight",
+		label: "スポットライト",
+		shortcut: "O",
+		icon: icons.spotlight,
+	},
 	{ name: "text", label: "テキスト", shortcut: "T", icon: icons.text },
 	{ name: "pen", label: "ペン", shortcut: "P", icon: icons.pen },
 	{ name: "marker", label: "マーカー", shortcut: "M", icon: icons.marker },
 	{ name: "step", label: "ステップ", shortcut: "S", icon: icons.step },
 	{ name: "callout", label: "フキダシ", shortcut: "B", icon: icons.callout },
+	// 伏せ系グループ: モザイク・ぼかしを隣り合わせに置く。
 	{ name: "mosaic", label: "モザイク", shortcut: "X", icon: icons.mosaic },
+	{ name: "blur", label: "ぼかし", shortcut: "U", icon: icons.blur },
 	{ name: "crop", label: "クロップ", shortcut: "C", icon: icons.crop },
 ];
 
@@ -55,7 +64,7 @@ export interface ToolbarCallbacks {
 }
 
 /**
- * 上部固定ツールバー。ツール 7 ボタン・色スウォッチ・線種・undo/redo を持つ。
+ * 上部固定ツールバー。ツールボタン群・色スウォッチ・線種・undo/redo を持つ。
  * 状態（選択中ツール・色・undo/redo の可否・ズーム率）は set* で反映する。
  */
 export class Toolbar {
@@ -68,8 +77,6 @@ export class Toolbar {
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
-	/** ツールバー全体に委譲するカスタムツールチップ。 */
-	private tooltip!: Tooltip;
 
 	constructor(
 		private root: HTMLElement,
@@ -95,6 +102,9 @@ export class Toolbar {
 
 		// 色スウォッチ群
 		const colorGroup = group();
+		// スウォッチはヒット領域を 24px に広げているため、隣接の当たり判定が
+		// 重ならないよう間隔をやや広げる（.color-group で gap を上書き）。
+		colorGroup.classList.add("color-group");
 		for (const color of COLORS) {
 			const btn = document.createElement("button");
 			btn.type = "button";
@@ -119,6 +129,8 @@ export class Toolbar {
 			btn.className = "dash-btn";
 			btn.dataset.tooltip = opt.label;
 			btn.setAttribute("aria-label", `線種: ${opt.label}`);
+			// トグルとしての選択状態を明示する（初期化時に setDash が反映する）。
+			btn.setAttribute("aria-pressed", "false");
 			const line = document.createElement("span");
 			line.className = opt.value ? "dash-line dashed" : "dash-line";
 			btn.append(line);
@@ -130,6 +142,9 @@ export class Toolbar {
 		}
 		this.dashDivider = divider();
 		this.root.append(this.dashGroup, this.dashDivider);
+		// 表示前でも「どちらが選択中か」を確定させておく（既定は実線）。
+		// 実際の現在値・復元値は初期化直後の syncToolbar → syncDashControls が反映する。
+		this.setDash(false);
 		this.setDashControlsVisible(false);
 
 		// undo/redo
@@ -154,7 +169,9 @@ export class Toolbar {
 		this.root.append(spacer);
 
 		// 出力: コピー（通常ボタン）と PNG 保存（主要アクション）。
+		// 誤クリック防止のため、両ボタンは他グループより広い間隔で並べる。
 		const exportGroup = group();
+		exportGroup.classList.add("export-group");
 		const copyBtn = textButton(
 			icons.copy,
 			"コピー",
@@ -169,7 +186,9 @@ export class Toolbar {
 		this.root.append(exportGroup);
 
 		// data-tooltip を持つ全ボタンにホバー/フォーカスでツールチップを出す。
-		this.tooltip = new Tooltip(this.root);
+		// Tooltip はコンストラクタで root にイベントを委譲し body 直下に要素を
+		// 生成するため、参照を保持しなくてもツールバーと同じ寿命で動き続ける。
+		new Tooltip(this.root);
 	}
 
 	setTool(tool: ToolName): void {
@@ -184,10 +203,12 @@ export class Toolbar {
 		}
 	}
 
-	/** 線種（実線/破線）の現在値を反映する。 */
+	/** 線種（実線/破線）の現在値を反映する（active クラスと aria-pressed の両方）。 */
 	setDash(dash: boolean): void {
 		for (const [value, btn] of this.dashButtons) {
-			btn.classList.toggle("active", value === dash);
+			const on = value === dash;
+			btn.classList.toggle("active", on);
+			btn.setAttribute("aria-pressed", String(on));
 		}
 	}
 

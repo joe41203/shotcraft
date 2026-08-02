@@ -88,7 +88,10 @@ function startOverlay(onDispose: () => void): void {
 	badge.className = "badge";
 	const hint = document.createElement("div");
 	hint.className = "hint";
-	hint.textContent = "ドラッグで範囲選択 / Esc でキャンセル";
+	// ドラッグ前の初期案内。ドラッグ開始後は「Esc でキャンセル」に切り替えて出し続ける。
+	const HINT_IDLE = "ドラッグで範囲選択 / Esc でキャンセル";
+	const HINT_DRAGGING = "Esc でキャンセル";
+	hint.textContent = HINT_IDLE;
 	shadow.append(style, backdrop, selection, badge, hint);
 
 	let dragging = false;
@@ -116,7 +119,8 @@ function startOverlay(onDispose: () => void): void {
 		startY = e.clientY;
 		backdrop.classList.add("dragging");
 		backdrop.setPointerCapture(e.pointerId);
-		hint.style.display = "none";
+		// ドラッグ中も操作方法が分かるよう、ヒントは消さず「Esc でキャンセル」に切り替える。
+		hint.textContent = HINT_DRAGGING;
 		update(e);
 	};
 

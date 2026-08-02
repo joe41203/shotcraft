@@ -67,6 +67,17 @@ header {
   gap: 2px;
 }
 
+/* 色スウォッチ群は当たり判定（24px）が重ならないよう間隔を広げる。
+   丸自体は 20px なので見た目は大きく変わらない。 */
+.color-group {
+  gap: 4px;
+}
+
+/* 出力ボタン（コピー・PNG保存）は誤クリック防止のため広めの間隔で並べる */
+.export-group {
+  gap: 8px;
+}
+
 .divider {
   width: 1px;
   align-self: stretch;
@@ -112,8 +123,11 @@ header {
   outline-offset: 2px;
 }
 
+/* 無効時は opacity で薄めず専用色に切り替える（アイコンは currentColor 追従）。
+   opacity 0.4 だと実効コントラストが 3.57:1 と低かったのを、--text-disabled で
+   --surface 上 3.4:1 を確保する。 */
 .icon-btn:disabled {
-  opacity: 0.4;
+  color: var(--text-disabled);
   cursor: default;
 }
 
@@ -121,8 +135,10 @@ header {
   background: transparent;
 }
 
-/* 色スウォッチ */
+/* 色スウォッチ。見た目の丸は 20px のまま、擬似要素でヒット領域を 24px 以上へ広げ、
+   ガイドライン（最小 24px のクリックターゲット）を満たす。 */
 .swatch {
+  position: relative;
   width: 20px;
   height: 20px;
   padding: 0;
@@ -132,6 +148,18 @@ header {
   cursor: pointer;
   box-shadow: inset 0 0 0 2px var(--surface);
   transition: box-shadow 150ms ease;
+}
+
+/* 20px の丸の周囲に透明な当たり判定を張り出し、実効ヒット領域を 24px 四方にする。
+   見た目（丸のサイズ・間隔）は変えない。 */
+.swatch::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
 }
 
 .swatch:hover {
@@ -177,9 +205,13 @@ header {
   background: var(--surface-2);
 }
 
+/* active はツールボタン（.icon-btn.active）と同じトーンで締める。
+   どちらが選択中か初期表示でも一目で分かるよう、面・枠・線サンプルの色を
+   まとめて ring 色へ寄せる。 */
 .dash-btn.active {
   background: color-mix(in srgb, var(--ring) 14%, transparent);
   border-color: color-mix(in srgb, var(--ring) 40%, transparent);
+  color: var(--ring);
 }
 
 .dash-btn:focus-visible {
@@ -187,12 +219,13 @@ header {
   outline-offset: 2px;
 }
 
-/* 線種サンプル: 実線は下ボーダーの実線、破線は破線で描く */
+/* 線種サンプル: 実線は下ボーダーの実線、破線は破線で描く。
+   非選択時は補助色にして、選択中（ring 色・太め）とのコントラストを付ける。 */
 .dash-line {
   display: block;
   width: 18px;
   height: 0;
-  border-bottom: 2px solid var(--text);
+  border-bottom: 2px solid var(--text-muted);
 }
 
 .dash-line.dashed {
@@ -200,6 +233,7 @@ header {
 }
 
 .dash-btn.active .dash-line {
+  border-bottom-width: 3px;
   border-bottom-color: var(--ring);
 }
 
@@ -284,7 +318,7 @@ header {
 /*
  * 単一要素を使い回す（entrypoints/editor/tooltip.ts が body 直下に 1 つ生成）。
  * 位置は JS が left/top を絶対座標で与える。表示は data-visible 属性で切替え、
- * ~400ms のホバーディレイの後にフェードイン（ディレイ自体は JS のタイマー）。
+ * ホバー/フォーカスで即座にフェードイン（表示ディレイ無し）。
  * トースト（z:20）より手前に出す。
  */
 .tooltip {
@@ -374,6 +408,14 @@ header {
   animation: toast-in 200ms ease;
 }
 
+/* 失敗トースト: danger 色の左ボーダー + 面へ danger を極薄で混ぜたトーンで
+   成功系と視覚的に区別する。文字は読みやすさ優先で通常の --text のまま。 */
+.toast-error {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-strong));
+  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-2));
+}
+
 .toast-leaving {
   opacity: 0;
   transition: opacity 200ms ease;
@@ -409,10 +451,28 @@ main {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   margin: 0;
-  font-size: 14px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text);
+}
+
+/* 次の行動を案内する補助文。主タイトルより控えめに。 */
+.empty-hint {
+  max-width: 32em;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--text-muted);
 }
 

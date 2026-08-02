@@ -1,11 +1,12 @@
 import { type CaptureRecord, loadCapture } from "@/lib/capture-store";
 import { createDocAutosaver, loadDoc } from "@/lib/editor/doc-store";
+import { loadStylePrefs } from "@/lib/editor/style-prefs";
 import { EditorApp } from "./app";
 import { registerTools } from "./tools";
 
 const stageContainer = document.getElementById("stage") as HTMLDivElement;
 const toolbarRoot = document.getElementById("toolbar") as HTMLElement;
-const empty = document.getElementById("empty") as HTMLParagraphElement;
+const empty = document.getElementById("empty") as HTMLDivElement;
 const meta = document.getElementById("meta") as HTMLSpanElement;
 const title = document.getElementById("title") as HTMLSpanElement;
 
@@ -58,6 +59,8 @@ async function main(): Promise<void> {
 
 	// 前回の編集内容があれば復元し、履歴の初期状態にする。
 	const savedDoc = await loadDoc(id);
+	// 前回選んだ新規図形用スタイル（色・線種・フォントサイズ）を復元する。
+	const stylePrefs = await loadStylePrefs();
 
 	// 画像・保存済み注釈にテキストが含まれると初期描画で Konva.Text が走るため、
 	// 同梱フォントの読み込みを画像ロードと並行して待ってから EditorApp を生成する。
@@ -71,6 +74,7 @@ async function main(): Promise<void> {
 		record,
 		imageEl,
 		savedDoc ?? undefined,
+		stylePrefs,
 	);
 	registerTools(app);
 

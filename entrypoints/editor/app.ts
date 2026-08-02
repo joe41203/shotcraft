@@ -1,6 +1,7 @@
 import Konva from "konva";
 import type { CaptureRecord } from "@/lib/capture-store";
 import { croppedSize } from "@/lib/editor/crop";
+import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
 	type CropRect,
 	type EditorDoc,
@@ -9,10 +10,8 @@ import {
 	removeShape,
 	replaceShape,
 	type Shape,
-	setCrop,
 	updateShape,
 } from "@/lib/editor/doc";
-import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
 	canRedo,
 	canUndo,
@@ -22,7 +21,11 @@ import {
 	redo,
 	undo,
 } from "@/lib/editor/history";
-import { DEFAULT_FONT_SIZE } from "@/lib/editor/text";
+import {
+	createStylePrefsSaver,
+	DEFAULT_STYLE_PREFS,
+	type StylePrefs,
+} from "@/lib/editor/style-prefs";
 import { CropController } from "./crop-controller";
 import {
 	canvasToPngBlob,
@@ -92,12 +95,18 @@ export class EditorApp {
 	 * 保存値のまま描画され、新規図形だけが 4px になる）。
 	 */
 	style = {
-		stroke: "#fb7185",
+		stroke: DEFAULT_STYLE_PREFS.stroke,
 		strokeWidth: 4,
-		fontSize: DEFAULT_FONT_SIZE,
+		fontSize: DEFAULT_STYLE_PREFS.fontSize,
 		/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。既定は実線。 */
-		dash: false,
+		dash: DEFAULT_STYLE_PREFS.dash,
 	};
+
+	/**
+	 * 色・線種・フォントサイズの変更を storage.local に保存するセーバ。
+	 * 同値なら書かないので、色や線種を切り替えたときだけ書き込みが走る。
+	 */
+	private stylePrefsSaver: { save(prefs: StylePrefs): void };
 
 	private toolbar: Toolbar;
 	private idCounter = 0;
@@ -119,9 +128,19 @@ export class EditorApp {
 		record: CaptureRecord,
 		imageEl: HTMLImageElement,
 		initialDoc?: EditorDoc,
+		stylePrefs?: StylePrefs,
 	) {
 		this.contentSize = { width: record.width, height: record.height };
 		this.baseImage = imageEl;
+		// 前回のスタイル設定（色・線種・フォントサイズ）を復元する。線の太さは 4px 固定。
+		// この時点で this.style に反映しておくことで、下の Toolbar 生成後の
+		// syncToolbar() がスウォッチのアクティブ表示・線種トグルへ復元値を映す。
+		const prefs = stylePrefs ?? DEFAULT_STYLE_PREFS;
+		this.style.stroke = prefs.stroke;
+		this.style.dash = prefs.dash;
+		this.style.fontSize = prefs.fontSize;
+		// 復元値を初期値としてセーバに渡し、起動直後の同値保存を抑止する。
+		this.stylePrefsSaver = createStylePrefsSaver(prefs);
 		// crop フィールドが無い旧保存データも読めるよう null で補完する。
 		const startDoc: EditorDoc = initialDoc
 			? { ...initialDoc, crop: initialDoc.crop ?? null }
@@ -202,6 +221,7 @@ export class EditorApp {
 			previewLayer: this.previewLayer,
 			style: this.style,
 			stage: this.stage,
+			contentSize: () => this.contentSize,
 			scale: () => this.stage.scaleX(),
 			newId: () => this.newId(),
 			docPointer: () => this.docPointer(),
@@ -392,7 +412,8 @@ export class EditorApp {
 	 *   fontSize へ焼き込む運用のため、辺アンカー（片軸だけ伸ばす）を出さない。
 	 * - step: アンカー・回転とも無効（固定サイズの丸バッジ）。選択枠だけ出して
 	 *   ドラッグ移動のみを許す。
-	 * - mosaic: 全アンカーだが回転無効（ピクセル化の再計算を矩形に限定する）。
+	 * - mosaic / blur / spotlight: 全アンカーだが回転無効（加工の再計算・暗幕の穴を
+	 *   矩形に限定する）。
 	 * - それ以外: 全アンカー・回転あり（既定）。
 	 */
 	private configureTransformerFor(type: Shape["type"] | undefined): void {
@@ -410,7 +431,10 @@ export class EditorApp {
 		}
 		this.transformer.enabledAnchors(ALL_ANCHORS);
 		this.transformer.keepRatio(false);
-		this.transformer.rotateEnabled(type !== "mosaic");
+		// モザイク・ぼかし・スポットライトは回転不可。他は回転可。
+		const noRotate =
+			type === "mosaic" || type === "blur" || type === "spotlight";
+		this.transformer.rotateEnabled(!noRotate);
 	}
 
 	private readTransform(): ViewTransform {
@@ -478,6 +502,7 @@ export class EditorApp {
 	setColor(color: string): void {
 		this.style.stroke = color;
 		this.toolbar.setColor(color);
+		this.persistStylePrefs();
 	}
 
 	/**
@@ -488,6 +513,20 @@ export class EditorApp {
 		this.style.dash = dash;
 		this.applyDashToSelection(dash);
 		this.toolbar.setDash(dash);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 現在の新規図形用スタイル（色・線種・フォントサイズ）を storage.local に保存する。
+	 * セーバ側で直前の保存値と同値なら書き込みをスキップするので、色や線種を
+	 * 切り替えたときだけ実際の書き込みが走る。線の太さは固定なので保存しない。
+	 */
+	private persistStylePrefs(): void {
+		this.stylePrefsSaver.save({
+			stroke: this.style.stroke,
+			dash: this.style.dash,
+			fontSize: this.style.fontSize,
+		});
 	}
 
 	/**
@@ -702,6 +741,14 @@ export class EditorApp {
 				case "X":
 					this.setTool("mosaic");
 					break;
+				case "u":
+				case "U":
+					this.setTool("blur");
+					break;
+				case "o":
+				case "O":
+					this.setTool("spotlight");
+					break;
 				case "c":
 				case "C":
 					this.setTool("crop");
@@ -756,7 +803,7 @@ export class EditorApp {
 				downloadBlob(blob, exportFilename());
 				this.toast.show("保存しました");
 			})
-			.catch(() => this.toast.show("保存に失敗しました"));
+			.catch(() => this.toast.show("保存に失敗しました", "error"));
 	}
 
 	/**
@@ -771,7 +818,7 @@ export class EditorApp {
 			await navigator.clipboard.write([item]);
 			this.toast.show("コピーしました");
 		} catch {
-			this.toast.show("コピーに失敗しました");
+			this.toast.show("コピーに失敗しました", "error");
 		}
 	}
 

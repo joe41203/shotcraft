@@ -1,15 +1,12 @@
 import { placeTooltip } from "@/lib/editor/tooltip";
 
-/** ホバーから表示までのディレイ（ms）。即出しはうるさいので少し待つ。 */
-const SHOW_DELAY_MS = 400;
-
 /**
  * 単一の要素を使い回すカスタムツールチップ。
  *
  * ルート要素にイベントを委譲し、`data-tooltip` を持つ子孫を対象に
  * ホバー/フォーカスで本文（＋任意の `data-shortcut`）を表示する。
  * - 位置はボタンの真下・中央揃え。画面端は placeTooltip がクランプする。
- * - ホバーは SHOW_DELAY_MS 待ってからフェードイン、離脱・クリックで即消し。
+ * - ホバー/フォーカスで即座にフェードイン、離脱・クリックで即消し（表示ディレイ無し）。
  * - focus でも出す（キーボード操作）。role="tooltip"・aria-hidden を切替える。
  * - 見た目のトランジションは CSS 側。prefers-reduced-motion は CSS が無効化する。
  */
@@ -18,11 +15,8 @@ export class Tooltip {
 	private body: HTMLSpanElement;
 	private key: HTMLSpanElement;
 	private caret: HTMLSpanElement;
-	private showTimer: ReturnType<typeof setTimeout> | null = null;
 	/** 現在ツールチップを出している対象（重複表示・多重フェードを避ける）。 */
 	private current: HTMLElement | null = null;
-	/** schedule 中の対象（まだ表示前）。onOut での取り消し判定に使う。 */
-	private pending: HTMLElement | null = null;
 
 	constructor(private root: HTMLElement) {
 		this.el = document.createElement("div");
@@ -55,7 +49,7 @@ export class Tooltip {
 	private onOver = (e: Event): void => {
 		const target = this.resolveTarget(e.target);
 		if (!target || target === this.current) return;
-		this.schedule(target);
+		this.render(target);
 	};
 
 	private onOut = (e: Event): void => {
@@ -64,7 +58,7 @@ export class Tooltip {
 		// 対象内での要素間移動（アイコン→ボタン等）では消さない。
 		const related = (e as MouseEvent | FocusEvent).relatedTarget;
 		if (related instanceof Node && target.contains(related)) return;
-		if (target === this.current || target === this.pending) this.hide();
+		if (target === this.current) this.hide();
 	};
 
 	/** ツールチップ対象（data-tooltip を持つ最寄りの要素）を探す。 */
@@ -74,14 +68,7 @@ export class Tooltip {
 		return el && this.root.contains(el) ? el : null;
 	}
 
-	private schedule(target: HTMLElement): void {
-		this.clearTimer();
-		this.pending = target;
-		this.showTimer = setTimeout(() => this.render(target), SHOW_DELAY_MS);
-	}
-
 	private render(target: HTMLElement): void {
-		this.pending = null;
 		const body = target.dataset.tooltip ?? "";
 		if (!body) return;
 		const shortcut = target.dataset.shortcut ?? "";
@@ -114,17 +101,8 @@ export class Tooltip {
 	}
 
 	private hide = (): void => {
-		this.clearTimer();
-		this.pending = null;
 		this.current = null;
 		this.el.removeAttribute("data-visible");
 		this.el.setAttribute("aria-hidden", "true");
 	};
-
-	private clearTimer(): void {
-		if (this.showTimer) {
-			clearTimeout(this.showTimer);
-			this.showTimer = null;
-		}
-	}
 }
