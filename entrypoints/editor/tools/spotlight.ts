@@ -43,7 +43,15 @@ export class SpotlightTool implements Tool {
 
 		const shape = this.makeShape(start, pos);
 		if (shape.width < this.minDrag || shape.height < this.minDrag) return;
-		this.ctx.commitDoc(addShape(this.ctx.getDoc(), shape));
+		const doc = this.ctx.getDoc();
+		// doc にまだ暗さ設定が無いとき（この doc で最初の spotlight）は、現在の既定
+		// （style.spotlightAlpha＝前回記憶値）を doc の暗さとして焼き込む。既に設定
+		// 済みの doc はその値を尊重する（新規 spotlight を足しても暗さは変えない）。
+		const withAlpha =
+			doc.spotlightAlpha == null
+				? { ...doc, spotlightAlpha: this.ctx.style.spotlightAlpha }
+				: doc;
+		this.ctx.commitDoc(addShape(withAlpha, shape));
 	}
 
 	deactivate(): void {
@@ -54,9 +62,11 @@ export class SpotlightTool implements Tool {
 	/** 現在のドラッグ矩形 1 個を穴にした暗幕プレビューへ差し替える。 */
 	private renderPreview(start: Point, end: Point): void {
 		this.clearPreview();
+		// プレビューも現在の暗さ設定（新規 doc に適用される値）で表示する。
 		const veil = buildSpotlightVeil(
 			[this.makeShape(start, end)],
 			this.ctx.contentSize(),
+			this.ctx.style.spotlightAlpha,
 		);
 		this.preview = veil;
 		this.ctx.previewLayer.add(veil);

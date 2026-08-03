@@ -1,22 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SPOTLIGHT_DIM_ALPHA } from "../lib/editor/spotlight";
 import {
 	createStylePrefsSaver,
 	DEFAULT_STYLE_PREFS,
+	normalizeIntensity,
 	normalizeStylePrefs,
 	type StylePrefs,
 	stylePrefsEqual,
 } from "../lib/editor/style-prefs";
 import { MAX_FONT_SIZE, MIN_FONT_SIZE } from "../lib/editor/text";
 
+/** 全フィールドを埋めた妥当な StylePrefs（テスト用の基準値）。 */
+const FULL: StylePrefs = {
+	stroke: "#34d399",
+	dash: true,
+	fontSize: 40,
+	arrowStyle: "double",
+	fill: true,
+	intensity: "strong",
+	spotlightAlpha: 0.85,
+};
+
 describe("normalizeStylePrefs", () => {
 	it("有効な値はそのまま通す", () => {
-		const raw: StylePrefs = {
-			stroke: "#34d399",
-			dash: true,
-			fontSize: 40,
-			arrowStyle: "double",
-		};
-		expect(normalizeStylePrefs(raw)).toEqual(raw);
+		expect(normalizeStylePrefs(FULL)).toEqual(FULL);
 	});
 
 	it("非オブジェクト（null / undefined / 文字列 / 数値）は全て既定へ", () => {
@@ -69,30 +76,75 @@ describe("normalizeStylePrefs", () => {
 			DEFAULT_STYLE_PREFS.fontSize,
 		);
 	});
+
+	it("fill は boolean 以外を false（塗りなし）へ落とす", () => {
+		expect(normalizeStylePrefs({ fill: true }).fill).toBe(true);
+		expect(normalizeStylePrefs({ fill: false }).fill).toBe(false);
+		expect(normalizeStylePrefs({ fill: "true" }).fill).toBe(false);
+		expect(normalizeStylePrefs({ fill: 1 }).fill).toBe(false);
+	});
+
+	it("intensity は 3 値のみ受け付け、それ以外は normal へ", () => {
+		expect(normalizeStylePrefs({ intensity: "weak" }).intensity).toBe("weak");
+		expect(normalizeStylePrefs({ intensity: "normal" }).intensity).toBe(
+			"normal",
+		);
+		expect(normalizeStylePrefs({ intensity: "strong" }).intensity).toBe(
+			"strong",
+		);
+		expect(normalizeStylePrefs({ intensity: "extreme" }).intensity).toBe(
+			"normal",
+		);
+		expect(normalizeStylePrefs({ intensity: 5 }).intensity).toBe("normal");
+	});
+
+	it("spotlightAlpha は [0,1] へクランプし、数値でなければ既定へ", () => {
+		expect(normalizeStylePrefs({ spotlightAlpha: 0.55 }).spotlightAlpha).toBe(
+			0.55,
+		);
+		expect(normalizeStylePrefs({ spotlightAlpha: 2 }).spotlightAlpha).toBe(1);
+		expect(normalizeStylePrefs({ spotlightAlpha: -1 }).spotlightAlpha).toBe(0);
+		expect(
+			normalizeStylePrefs({ spotlightAlpha: Number.NaN }).spotlightAlpha,
+		).toBe(SPOTLIGHT_DIM_ALPHA);
+		expect(normalizeStylePrefs({ spotlightAlpha: "0.7" }).spotlightAlpha).toBe(
+			SPOTLIGHT_DIM_ALPHA,
+		);
+	});
+});
+
+describe("normalizeIntensity", () => {
+	it("3 値はそのまま通す", () => {
+		expect(normalizeIntensity("weak")).toBe("weak");
+		expect(normalizeIntensity("normal")).toBe("normal");
+		expect(normalizeIntensity("strong")).toBe("strong");
+	});
+
+	it("未設定・不正値は normal へ", () => {
+		expect(normalizeIntensity(undefined)).toBe("normal");
+		expect(normalizeIntensity(null)).toBe("normal");
+		expect(normalizeIntensity("high")).toBe("normal");
+		expect(normalizeIntensity(1)).toBe("normal");
+	});
 });
 
 describe("stylePrefsEqual", () => {
 	it("全フィールド一致で true", () => {
-		const a: StylePrefs = {
-			stroke: "#fff",
-			dash: true,
-			fontSize: 20,
-			arrowStyle: "single",
-		};
-		expect(stylePrefsEqual(a, { ...a })).toBe(true);
+		expect(stylePrefsEqual(FULL, { ...FULL })).toBe(true);
 	});
 
 	it("いずれかが違えば false", () => {
-		const a: StylePrefs = {
-			stroke: "#fff",
-			dash: true,
-			fontSize: 20,
-			arrowStyle: "single",
-		};
-		expect(stylePrefsEqual(a, { ...a, stroke: "#000" })).toBe(false);
-		expect(stylePrefsEqual(a, { ...a, dash: false })).toBe(false);
-		expect(stylePrefsEqual(a, { ...a, fontSize: 21 })).toBe(false);
-		expect(stylePrefsEqual(a, { ...a, arrowStyle: "curved" })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, stroke: "#000" })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, dash: false })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, fontSize: 21 })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, arrowStyle: "curved" })).toBe(
+			false,
+		);
+		expect(stylePrefsEqual(FULL, { ...FULL, fill: false })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, intensity: "weak" })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, spotlightAlpha: 0.55 })).toBe(
+			false,
+		);
 	});
 });
 
@@ -109,14 +161,8 @@ describe("createStylePrefsSaver", () => {
 
 	it("初期値と同値の save は書き込まない", () => {
 		const { set } = stubBrowser();
-		const initial: StylePrefs = {
-			stroke: "#fb7185",
-			dash: false,
-			fontSize: 24,
-			arrowStyle: "single",
-		};
-		const saver = createStylePrefsSaver(initial);
-		saver.save({ ...initial });
+		const saver = createStylePrefsSaver(DEFAULT_STYLE_PREFS);
+		saver.save({ ...DEFAULT_STYLE_PREFS });
 		expect(set).not.toHaveBeenCalled();
 	});
 
@@ -128,6 +174,9 @@ describe("createStylePrefsSaver", () => {
 			dash: true,
 			fontSize: 24,
 			arrowStyle: "double",
+			fill: true,
+			intensity: "strong",
+			spotlightAlpha: 0.85,
 		};
 		saver.save(changed);
 		saver.save({ ...changed });
@@ -143,6 +192,9 @@ describe("createStylePrefsSaver", () => {
 			dash: false,
 			fontSize: 9999,
 			arrowStyle: "single",
+			fill: false,
+			intensity: "normal",
+			spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
 		});
 		expect(set).toHaveBeenCalledWith({
 			"style-prefs": {
@@ -150,6 +202,9 @@ describe("createStylePrefsSaver", () => {
 				dash: false,
 				fontSize: MAX_FONT_SIZE,
 				arrowStyle: "single",
+				fill: false,
+				intensity: "normal",
+				spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
 			},
 		});
 	});

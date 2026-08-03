@@ -17,7 +17,7 @@ export class RectTool extends DragTool {
 
 	private makeShape(start: Point, end: Point): RectShape {
 		const r = normalizeRect(start.x, start.y, end.x, end.y);
-		return { ...this.base(), type: "rect", ...r };
+		return { ...this.base(), type: "rect", ...r, fill: this.ctx.style.fill };
 	}
 
 	protected createPreview(start: Point, end: Point): Konva.Shape {

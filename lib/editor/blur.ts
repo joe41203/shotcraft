@@ -6,6 +6,9 @@
  * 決める」純粋関数だけを置き、テスト可能にする。
  */
 
+import type { MosaicBlurIntensity } from "./doc";
+import { intensityScale } from "./mosaic";
+
 /** ぼかし半径の下限（px）。小さい領域でも最低これだけはぼかす。 */
 export const MIN_BLUR_RADIUS = 4;
 /** ぼかし半径の上限（px）。大きい領域でぼかしが効きすぎるのを防ぐ。 */
@@ -13,12 +16,19 @@ export const MAX_BLUR_RADIUS = 32;
 
 /**
  * ぼかし領域の寸法から、ガウスぼかしの半径（px）を決める。
- * モザイクの粒度決定（短辺の約 1/12）と同じ思想で、短辺の約 1/12 を基準に
- * 下限 MIN_BLUR_RADIUS・上限 MAX_BLUR_RADIUS でクランプする。
- * 領域が大きいほど強く、小さいほど弱くぼかす。
+ * モザイクの粒度決定（短辺の約 1/12）と同じ思想で、短辺の約 1/12 を基準に、
+ * 強度倍率（弱 0.6 / 標準 1.0 / 強 1.6。mosaic.ts の intensityScale を共有）を掛けてから
+ * 下限 MIN_BLUR_RADIUS・上限 MAX_BLUR_RADIUS でクランプする。領域が大きいほど・
+ * 強度が高いほど強くぼかす。intensity 省略時は標準（従来と同じ値）。
  */
-export function blurRadius(width: number, height: number): number {
-	const base = Math.round(Math.min(width, height) / 12);
+export function blurRadius(
+	width: number,
+	height: number,
+	intensity?: MosaicBlurIntensity,
+): number {
+	const base = Math.round(
+		(Math.min(width, height) / 12) * intensityScale(intensity),
+	);
 	return Math.min(MAX_BLUR_RADIUS, Math.max(MIN_BLUR_RADIUS, base));
 }
 

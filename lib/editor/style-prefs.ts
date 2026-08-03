@@ -1,5 +1,5 @@
 /**
- * 新規図形用スタイル（色・線種・フォントサイズ）の永続化。
+ * 新規図形用スタイル（色・線種・フォントサイズ・塗り・強度・暗さ）の永続化。
  *
  * エディタで最後に選んだ「これから描く図形のスタイル」を browser.storage.local に
  * 保存し、次回エディタを開いたときに前回の設定で始められるようにする。
@@ -11,6 +11,8 @@
  */
 
 import { type ArrowStyle, normalizeArrowStyle } from "./arrow";
+import type { MosaicBlurIntensity } from "./doc";
+import { normalizeSpotlightAlpha, SPOTLIGHT_DIM_ALPHA } from "./spotlight";
 import { clampFontSize, DEFAULT_FONT_SIZE } from "./text";
 
 /** 新規図形に適用する記憶対象のスタイル。app.ts の EditorContext.style の永続化部分。 */
@@ -19,10 +21,16 @@ export interface StylePrefs {
 	stroke: string;
 	/** 新規の線系図形（矢印・矩形・楕円・ペン）を破線にするか。 */
 	dash: boolean;
-	/** 新規テキストの既定フォントサイズ（px）。 */
+	/** 新規テキスト・フキダシの既定フォントサイズ（px）。 */
 	fontSize: number;
 	/** 新規矢印のスタイル（片側 / 両側 / 曲線）。既定は "single"。 */
 	arrowStyle: ArrowStyle;
+	/** 新規の矩形・楕円に半透明の塗りを付けるか。既定は false（塗りなし）。 */
+	fill: boolean;
+	/** 新規のモザイク・ぼかしの強度（弱 / 標準 / 強）。既定は "normal"。 */
+	intensity: MosaicBlurIntensity;
+	/** 新規 doc のスポットライト暗幕の暗さ（不透明度 0〜1）。既定は SPOTLIGHT_DIM_ALPHA。 */
+	spotlightAlpha: number;
 }
 
 /** 保存値が無い・壊れているときに使う既定スタイル（app.ts の初期値と一致させる）。 */
@@ -31,16 +39,35 @@ export const DEFAULT_STYLE_PREFS: StylePrefs = {
 	dash: false,
 	fontSize: DEFAULT_FONT_SIZE,
 	arrowStyle: "single",
+	fill: false,
+	intensity: "normal",
+	spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
 };
 
 /** storage.local のキー。capture/doc（storage.session）とは名前空間を分ける。 */
 export const STYLE_PREFS_KEY = "style-prefs";
 
 /**
+ * 任意の値を MosaicBlurIntensity へ正規化する純粋関数。
+ * "weak" / "normal" / "strong" のいずれかならそのまま、それ以外（未設定・不正値）は
+ * "normal"（後方互換の既定）へ落とす。
+ */
+export function normalizeIntensity(raw: unknown): MosaicBlurIntensity {
+	if (raw === "weak" || raw === "normal" || raw === "strong") {
+		return raw;
+	}
+	return "normal";
+}
+
+/**
  * 任意の値を StylePrefs へ正規化する純粋関数。
  * - stroke: 非空文字列ならそのまま。それ以外（未設定・数値・空文字など）は既定色。
  * - dash: boolean ならそのまま。それ以外は false（＝実線）。
  * - fontSize: 有限数なら clampFontSize で [MIN, MAX] にクランプ。数値でなければ既定。
+ * - arrowStyle: 不正値・未設定は "single"（normalizeArrowStyle が担保）。
+ * - fill: boolean ならそのまま。それ以外は false（＝塗りなし）。
+ * - intensity: "weak"/"normal"/"strong" のいずれか。それ以外は "normal"。
+ * - spotlightAlpha: 有限数なら [0,1] へクランプ。数値でなければ既定（SPOTLIGHT_DIM_ALPHA）。
  * 部分的に壊れていても、壊れたキーだけ既定へ落として全体は必ず有効な値を返す。
  */
 export function normalizeStylePrefs(raw: unknown): StylePrefs {
@@ -52,6 +79,7 @@ export function normalizeStylePrefs(raw: unknown): StylePrefs {
 	const stroke = source.stroke;
 	const dash = source.dash;
 	const fontSize = source.fontSize;
+	const fill = source.fill;
 
 	return {
 		stroke:
@@ -65,6 +93,13 @@ export function normalizeStylePrefs(raw: unknown): StylePrefs {
 				: DEFAULT_STYLE_PREFS.fontSize,
 		// 不正値・未設定は "single" へ（normalizeArrowStyle が担保）。
 		arrowStyle: normalizeArrowStyle(source.arrowStyle),
+		fill: typeof fill === "boolean" ? fill : DEFAULT_STYLE_PREFS.fill,
+		intensity: normalizeIntensity(source.intensity),
+		spotlightAlpha:
+			typeof source.spotlightAlpha === "number" &&
+			Number.isFinite(source.spotlightAlpha)
+				? normalizeSpotlightAlpha(source.spotlightAlpha)
+				: DEFAULT_STYLE_PREFS.spotlightAlpha,
 	};
 }
 
@@ -74,7 +109,10 @@ export function stylePrefsEqual(a: StylePrefs, b: StylePrefs): boolean {
 		a.stroke === b.stroke &&
 		a.dash === b.dash &&
 		a.fontSize === b.fontSize &&
-		a.arrowStyle === b.arrowStyle
+		a.arrowStyle === b.arrowStyle &&
+		a.fill === b.fill &&
+		a.intensity === b.intensity &&
+		a.spotlightAlpha === b.spotlightAlpha
 	);
 }
 
@@ -98,7 +136,7 @@ export async function saveStylePrefs(prefs: StylePrefs): Promise<void> {
 
 /**
  * スタイル設定の保存を「同値なら書かない」形にまとめたセーバを作る。
- * 色・線種・フォントサイズが変わったときに save() を呼べば、直前に書いた値と
+ * 色・線種・フォントサイズ等が変わったときに save() を呼べば、直前に書いた値と
  * 同値のときは storage への書き込みをスキップする（過剰な書き込みを避ける）。
  * initial には読み込み時の値を渡し、起動直後の同値保存を抑止する。
  */

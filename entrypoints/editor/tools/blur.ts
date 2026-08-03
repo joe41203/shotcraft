@@ -16,7 +16,12 @@ export class BlurTool extends DragTool {
 
 	private makeShape(start: Point, end: Point): BlurShape {
 		const r = normalizeRect(start.x, start.y, end.x, end.y);
-		return { ...this.base(), type: "blur", ...r };
+		return {
+			...this.base(),
+			type: "blur",
+			...r,
+			intensity: this.ctx.style.intensity,
+		};
 	}
 
 	protected createPreview(start: Point, end: Point): Konva.Shape {

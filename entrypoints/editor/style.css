@@ -276,7 +276,52 @@ header {
   outline-offset: 2px;
 }
 
-/* --- 線種・矢印スタイルのフライアウト --- */
+/* テキストラベル式のトグルボタン（サイズ S/M/L・塗り なし/半透明・強度 弱/標準/強・
+   暗さ 薄め/標準/濃いめ）。線種・矢印トグルと同じ面・枠・active トーンで揃え、中身は
+   文字ラベルで見分ける。高さは他トグル（36px）に合わせ、幅は内容に応じて可変。 */
+.style-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.style-toggle-btn:hover {
+  background: var(--surface-hover);
+}
+
+.style-toggle-btn:active {
+  background: var(--surface-2);
+}
+
+.style-toggle-btn.active {
+  background: color-mix(in srgb, var(--ring) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ring) 40%, transparent);
+  color: var(--ring);
+}
+
+.style-toggle-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* --- スタイルフライアウト（線種・矢印・サイズ・塗り・強度・暗さ） --- */
 
 /*
  * アンカー先ツールボタンの真下に固定表示する小パネル。left/top は JS が

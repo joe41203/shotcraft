@@ -10,6 +10,7 @@ import {
 	type EditorDoc,
 	emptyDoc,
 	findShape,
+	type MosaicBlurIntensity,
 	moveShapeBackward,
 	moveShapeForward,
 	moveShapeToBack,
@@ -21,6 +22,8 @@ import {
 	translateShape,
 	updateShape,
 } from "@/lib/editor/doc";
+import { resolveSpotlightAlpha } from "@/lib/editor/spotlight";
+import { clampFontSize } from "@/lib/editor/text";
 import {
 	canRedo,
 	canUndo,
@@ -157,6 +160,12 @@ export class EditorApp {
 		dash: DEFAULT_STYLE_PREFS.dash,
 		/** 新規矢印のスタイル（片側 / 両側 / 曲線）。既定は片側。 */
 		arrowStyle: DEFAULT_STYLE_PREFS.arrowStyle,
+		/** 新規の矩形・楕円に半透明の塗りを付けるか。既定は塗りなし。 */
+		fill: DEFAULT_STYLE_PREFS.fill,
+		/** 新規のモザイク・ぼかしの強度（弱 / 標準 / 強）。既定は標準。 */
+		intensity: DEFAULT_STYLE_PREFS.intensity,
+		/** 新規 doc のスポットライト暗幕の暗さ（不透明度）。既定は標準（0.7）。 */
+		spotlightAlpha: DEFAULT_STYLE_PREFS.spotlightAlpha,
 	};
 
 	/**
@@ -197,6 +206,9 @@ export class EditorApp {
 		this.style.dash = prefs.dash;
 		this.style.fontSize = prefs.fontSize;
 		this.style.arrowStyle = prefs.arrowStyle;
+		this.style.fill = prefs.fill;
+		this.style.intensity = prefs.intensity;
+		this.style.spotlightAlpha = prefs.spotlightAlpha;
 		// 復元値を初期値としてセーバに渡し、起動直後の同値保存を抑止する。
 		this.stylePrefsSaver = createStylePrefsSaver(prefs);
 		// crop フィールドが無い旧保存データも読めるよう null で補完する。
@@ -254,6 +266,10 @@ export class EditorApp {
 			onColorChange: (c) => this.setColor(c),
 			onDashChange: (d) => this.setDash(d),
 			onArrowStyleChange: (s) => this.setArrowStyle(s),
+			onFontSizeChange: (px) => this.setFontSize(px),
+			onFillChange: (f) => this.setFill(f),
+			onIntensityChange: (i) => this.setIntensity(i),
+			onSpotlightDimChange: (a) => this.setSpotlightDim(a),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
@@ -738,9 +754,109 @@ export class EditorApp {
 	}
 
 	/**
-	 * 現在の新規図形用スタイル（色・線種・フォントサイズ）を storage.local に保存する。
-	 * セーバ側で直前の保存値と同値なら書き込みをスキップするので、色や線種を
-	 * 切り替えたときだけ実際の書き込みが走る。線の太さは固定なので保存しない。
+	 * フォントサイズ（テキスト・フキダシの S/M/L プリセット）を新規テキスト・フキダシの
+	 * 既定にする。テキスト/フキダシを選択中はそのシェイプへ即時適用して 1 回 commit する
+	 * （フキダシは高さがテキスト折返しに追従するため、fontSize を更新すれば render.ts の
+	 * calloutBodyHeight が自動で高さを再計算する）。同値なら no-op。
+	 */
+	setFontSize(size: number): void {
+		this.style.fontSize = clampFontSize(size);
+		this.applyFontSizeToSelection(this.style.fontSize);
+		this.toolbar.setFontSize(this.style.fontSize);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 選択中がテキストまたはフキダシなら fontSize を差し替えて commit する。
+	 * 現在値と同じなら何もしない。テキスト・フキダシ以外は対象外。フキダシの本体高さは
+	 * doc に fontSize を書けば render.ts が calloutBodyHeight で再計算するので、ここでは
+	 * fontSize だけ更新すればよい（高さフィールドは下限なので、文字が大きくなれば広がる）。
+	 */
+	private applyFontSizeToSelection(size: number): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || (shape.type !== "text" && shape.type !== "callout")) return;
+		if (shape.fontSize === size) return;
+		this.commitDoc(updateShape(this.history.present, id, { fontSize: size }));
+	}
+
+	/**
+	 * 塗り（なし / 半透明）を新規の矩形・楕円の既定にする。矩形・楕円を選択中は
+	 * そのシェイプへ即時適用して 1 回 commit する（線種と同じパターン・同値なら no-op）。
+	 */
+	setFill(fill: boolean): void {
+		this.style.fill = fill;
+		this.applyFillToSelection(fill);
+		this.toolbar.setFill(fill);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 選択中が矩形・楕円なら fill を差し替えて commit する。未設定（レガシー）は塗りなし
+	 * 相当なので、現在の解決値（?? false）と比較して no-op を判定する。他は対象外。
+	 */
+	private applyFillToSelection(fill: boolean): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || (shape.type !== "rect" && shape.type !== "ellipse")) return;
+		if ((shape.fill ?? false) === fill) return;
+		this.commitDoc(updateShape(this.history.present, id, { fill }));
+	}
+
+	/**
+	 * 強度（弱 / 標準 / 強）を新規のモザイク・ぼかしの既定にする。モザイク・ぼかしを
+	 * 選択中はそのシェイプへ即時適用して 1 回 commit する（次の renderShapes で粒度・
+	 * ぼかし半径を新強度から再計算＝再ピクセル化 / 再ぼかしになる）。同値なら no-op。
+	 */
+	setIntensity(intensity: MosaicBlurIntensity): void {
+		this.style.intensity = intensity;
+		this.applyIntensityToSelection(intensity);
+		this.toolbar.setIntensity(intensity);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 選択中がモザイク・ぼかしなら intensity を差し替えて commit する。未設定
+	 * （レガシー）は "normal" 相当なので、現在の解決値（?? "normal"）と比較して
+	 * no-op を判定する。他は対象外。
+	 */
+	private applyIntensityToSelection(intensity: MosaicBlurIntensity): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || (shape.type !== "mosaic" && shape.type !== "blur")) return;
+		if ((shape.intensity ?? "normal") === intensity) return;
+		this.commitDoc(updateShape(this.history.present, id, { intensity }));
+	}
+
+	/**
+	 * スポットライト暗幕の暗さ（薄め / 標準 / 濃いめ）を設定する。暗幕は doc 内の全
+	 * spotlight で 1 枚なので、値は doc レベルのフィールド（spotlightAlpha）へ commit する
+	 * （undo 対象）。同時に style.spotlightAlpha を新規 doc の既定として更新し記憶する。
+	 *
+	 * doc に spotlight が 1 つも無いときは doc を書かない（見た目に何も変わらない undo が
+	 * 積まれるのを避ける）。この場合は既定の更新・保存だけ行い、最初の spotlight を描いた
+	 * ときに SpotlightTool が style.spotlightAlpha を doc へ焼き込む。spotlight があり、かつ
+	 * doc の現在値（未設定は標準 0.7）と異なるときだけ commit する。
+	 */
+	setSpotlightDim(alpha: number): void {
+		this.style.spotlightAlpha = alpha;
+		const doc = this.history.present;
+		const hasSpotlight = doc.shapes.some((s) => s.type === "spotlight");
+		if (hasSpotlight && resolveSpotlightAlpha(doc.spotlightAlpha) !== alpha) {
+			this.commitDoc({ ...doc, spotlightAlpha: alpha });
+		}
+		this.toolbar.setSpotlightDim(alpha);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 現在の新規図形用スタイル（色・線種・フォントサイズ・塗り・強度・暗さ）を
+	 * storage.local に保存する。セーバ側で直前の保存値と同値なら書き込みをスキップ
+	 * するので、いずれかを切り替えたときだけ実際の書き込みが走る。線の太さは固定
+	 * なので保存しない。
 	 */
 	private persistStylePrefs(): void {
 		this.stylePrefsSaver.save({
@@ -748,6 +864,9 @@ export class EditorApp {
 			dash: this.style.dash,
 			fontSize: this.style.fontSize,
 			arrowStyle: this.style.arrowStyle,
+			fill: this.style.fill,
+			intensity: this.style.intensity,
+			spotlightAlpha: this.style.spotlightAlpha,
 		});
 	}
 
@@ -1350,6 +1469,10 @@ export class EditorApp {
 		this.toolbar.setColor(this.style.stroke);
 		this.syncDashControls();
 		this.syncArrowStyleControls();
+		this.syncFontSizeControls();
+		this.syncFillControls();
+		this.syncIntensityControls();
+		this.syncSpotlightDimControls();
 		// アンカー先ボタンはセクション表示を確定させた後に渡す（表示位置を最終決定する）。
 		this.syncStyleAnchor();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
@@ -1418,6 +1541,82 @@ export class EditorApp {
 			selected && shapeSupportsDash(selected.type) ? selected : undefined;
 		const dash = selectedLine?.dash ?? this.style.dash;
 		this.toolbar.setDash(dash);
+	}
+
+	/**
+	 * サイズ（S/M/L）コントロールの表示と現在値を同期する。
+	 * テキスト/フキダシを選択中はそのシェイプの fontSize を、そうでなくテキストツール
+	 * 選択中は新規デフォルト（style.fontSize）を表示する。現在値がプリセット外（ハンドル
+	 * ドラッグで変えた連続値）ならどのボタンも active にしない（toolbar 側で判定）。
+	 */
+	private syncFontSizeControls(): void {
+		const visible = this.currentStyleSections().fontSize;
+		this.toolbar.setFontSizeControlsVisible(visible);
+		if (!visible) return;
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const selectedText =
+			selected?.type === "text" || selected?.type === "callout"
+				? selected
+				: undefined;
+		const size = selectedText ? selectedText.fontSize : this.style.fontSize;
+		this.toolbar.setFontSize(size);
+	}
+
+	/**
+	 * 塗り（なし/半透明）コントロールの表示と現在値を同期する。
+	 * 矩形・楕円を選択中はそのシェイプの塗り（未設定は塗りなし）を、そうでなく
+	 * 矩形・楕円ツール選択中は新規デフォルト（style.fill）を表示する。
+	 */
+	private syncFillControls(): void {
+		const visible = this.currentStyleSections().fill;
+		this.toolbar.setFillControlsVisible(visible);
+		if (!visible) return;
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const selectedFillable =
+			selected?.type === "rect" || selected?.type === "ellipse"
+				? selected
+				: undefined;
+		const fill = selectedFillable?.fill ?? this.style.fill;
+		this.toolbar.setFill(fill);
+	}
+
+	/**
+	 * 強度（弱/標準/強）コントロールの表示と現在値を同期する。
+	 * モザイク・ぼかしを選択中はそのシェイプの強度（未設定は "normal"）を、そうでなく
+	 * モザイク・ぼかしツール選択中は新規デフォルト（style.intensity）を表示する。
+	 */
+	private syncIntensityControls(): void {
+		const visible = this.currentStyleSections().intensity;
+		this.toolbar.setIntensityControlsVisible(visible);
+		if (!visible) return;
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const selectedProc =
+			selected?.type === "mosaic" || selected?.type === "blur"
+				? selected
+				: undefined;
+		const intensity = selectedProc?.intensity ?? this.style.intensity;
+		this.toolbar.setIntensity(intensity);
+	}
+
+	/**
+	 * 暗さ（薄め/標準/濃いめ）コントロールの表示と現在値を同期する。
+	 * 暗さは doc レベルの単一値なので、選択の有無に依らず doc.spotlightAlpha（未設定は
+	 * 標準 0.7）を表示する。spotlight ツール中・spotlight 図形選択中のどちらでも同じ
+	 * doc の値を出す（プリセット外の値ならどのボタンも active にしない）。
+	 */
+	private syncSpotlightDimControls(): void {
+		const visible = this.currentStyleSections().dim;
+		this.toolbar.setSpotlightDimControlsVisible(visible);
+		if (!visible) return;
+		this.toolbar.setSpotlightDim(
+			resolveSpotlightAlpha(this.history.present.spotlightAlpha),
+		);
 	}
 
 	getContentSize(): { width: number; height: number } {

@@ -38,6 +38,22 @@ describe("blurRadius", () => {
 		expect(MIN_BLUR_RADIUS).toBeLessThan(MAX_BLUR_RADIUS);
 		expect(MIN_BLUR_RADIUS).toBeGreaterThanOrEqual(1);
 	});
+
+	it("intensity 省略時は従来値（標準）と一致する", () => {
+		expect(blurRadius(600, 240)).toBe(blurRadius(600, 240, "normal"));
+	});
+
+	it("強度でぼかし半径が変わる（弱 < 標準 < 強、クランプ範囲内で）", () => {
+		// 短辺 240: 標準 20 / 弱 240/12*0.6=12 / 強 240/12*1.6=32（上限 32 に一致）。
+		expect(blurRadius(600, 240, "weak")).toBe(12);
+		expect(blurRadius(600, 240, "normal")).toBe(20);
+		expect(blurRadius(600, 240, "strong")).toBe(MAX_BLUR_RADIUS);
+	});
+
+	it("強度を掛けても下限・上限のクランプは維持する", () => {
+		expect(blurRadius(24, 24, "weak")).toBe(MIN_BLUR_RADIUS);
+		expect(blurRadius(3000, 2000, "strong")).toBe(MAX_BLUR_RADIUS);
+	});
 });
 
 describe("blurCornerRadius", () => {

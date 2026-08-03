@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	INTENSITY_SCALE,
+	intensityScale,
 	MAX_PIXEL_SIZE,
 	MIN_PIXEL_SIZE,
 	mosaicPixelSize,
@@ -34,5 +36,42 @@ describe("mosaicPixelSize", () => {
 	it("下限・上限は MIN < MAX の妥当な範囲", () => {
 		expect(MIN_PIXEL_SIZE).toBeLessThan(MAX_PIXEL_SIZE);
 		expect(MIN_PIXEL_SIZE).toBeGreaterThanOrEqual(1);
+	});
+
+	it("intensity 省略時は従来値（標準）と一致する", () => {
+		// 引数 2 個（従来シグネチャ）と intensity="normal" が同値であることを確認。
+		expect(mosaicPixelSize(600, 240)).toBe(mosaicPixelSize(600, 240, "normal"));
+	});
+
+	it("強度で粒度が変わる（弱 < 標準 < 強、クランプ範囲内で）", () => {
+		// 短辺 240: 標準 20 / 弱 240/12*0.6=12 / 強 240/12*1.6=32。
+		expect(mosaicPixelSize(600, 240, "weak")).toBe(12);
+		expect(mosaicPixelSize(600, 240, "normal")).toBe(20);
+		expect(mosaicPixelSize(600, 240, "strong")).toBe(32);
+	});
+
+	it("強度を掛けても下限・上限のクランプは維持する", () => {
+		// 小さい領域は弱でも下限 MIN_PIXEL_SIZE。
+		expect(mosaicPixelSize(24, 24, "weak")).toBe(MIN_PIXEL_SIZE);
+		// 大きい領域は強でも上限 MAX_PIXEL_SIZE。
+		expect(mosaicPixelSize(3000, 2000, "strong")).toBe(MAX_PIXEL_SIZE);
+	});
+});
+
+describe("intensityScale", () => {
+	it("3 段階の倍率を返す（弱 0.6 / 標準 1.0 / 強 1.6）", () => {
+		expect(intensityScale("weak")).toBe(0.6);
+		expect(intensityScale("normal")).toBe(1.0);
+		expect(intensityScale("strong")).toBe(1.6);
+	});
+
+	it("省略時は標準（1.0）", () => {
+		expect(intensityScale()).toBe(1.0);
+		expect(intensityScale(undefined)).toBe(1.0);
+	});
+
+	it("INTENSITY_SCALE は弱 < 標準 < 強", () => {
+		expect(INTENSITY_SCALE.weak).toBeLessThan(INTENSITY_SCALE.normal);
+		expect(INTENSITY_SCALE.normal).toBeLessThan(INTENSITY_SCALE.strong);
 	});
 });

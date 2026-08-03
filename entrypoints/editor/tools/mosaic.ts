@@ -16,7 +16,12 @@ export class MosaicTool extends DragTool {
 
 	private makeShape(start: Point, end: Point): MosaicShape {
 		const r = normalizeRect(start.x, start.y, end.x, end.y);
-		return { ...this.base(), type: "mosaic", ...r };
+		return {
+			...this.base(),
+			type: "mosaic",
+			...r,
+			intensity: this.ctx.style.intensity,
+		};
 	}
 
 	protected createPreview(start: Point, end: Point): Konva.Shape {

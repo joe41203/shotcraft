@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { ShapeType } from "../lib/editor/doc";
 import {
 	clampSpotlightHole,
+	isSpotlightDimPreset,
+	normalizeSpotlightAlpha,
+	resolveSpotlightAlpha,
 	SPOTLIGHT_DIM_ALPHA,
+	SPOTLIGHT_DIM_OPTIONS,
 	spotlightCornerRadius,
 	spotlightFeather,
 	spotlightVeilIndex,
@@ -86,6 +90,68 @@ describe("SPOTLIGHT_DIM_ALPHA", () => {
 
 	it("視線誘導を強めた濃さ（0.70）", () => {
 		expect(SPOTLIGHT_DIM_ALPHA).toBe(0.7);
+	});
+});
+
+describe("SPOTLIGHT_DIM_OPTIONS", () => {
+	it("薄め / 標準 / 濃いめの 3 段階（標準は SPOTLIGHT_DIM_ALPHA）", () => {
+		expect(SPOTLIGHT_DIM_OPTIONS.map((o) => o.value)).toEqual([
+			0.55,
+			SPOTLIGHT_DIM_ALPHA,
+			0.85,
+		]);
+	});
+
+	it("すべて 0〜1 の妥当な不透明度で昇順", () => {
+		const values = SPOTLIGHT_DIM_OPTIONS.map((o) => o.value);
+		for (const v of values) {
+			expect(v).toBeGreaterThan(0);
+			expect(v).toBeLessThanOrEqual(1);
+		}
+		expect(values).toEqual([...values].sort((a, b) => a - b));
+	});
+});
+
+describe("normalizeSpotlightAlpha", () => {
+	it("有限数は [0,1] へクランプする", () => {
+		expect(normalizeSpotlightAlpha(0.55)).toBe(0.55);
+		expect(normalizeSpotlightAlpha(0.85)).toBe(0.85);
+		expect(normalizeSpotlightAlpha(2)).toBe(1);
+		expect(normalizeSpotlightAlpha(-0.5)).toBe(0);
+	});
+
+	it("数値でない・非有限値は既定（SPOTLIGHT_DIM_ALPHA）へ", () => {
+		expect(normalizeSpotlightAlpha("0.7")).toBe(SPOTLIGHT_DIM_ALPHA);
+		expect(normalizeSpotlightAlpha(null)).toBe(SPOTLIGHT_DIM_ALPHA);
+		expect(normalizeSpotlightAlpha(Number.NaN)).toBe(SPOTLIGHT_DIM_ALPHA);
+		expect(normalizeSpotlightAlpha(Number.POSITIVE_INFINITY)).toBe(
+			SPOTLIGHT_DIM_ALPHA,
+		);
+	});
+});
+
+describe("resolveSpotlightAlpha", () => {
+	it("省略（未設定の旧 doc）は既定へ", () => {
+		expect(resolveSpotlightAlpha()).toBe(SPOTLIGHT_DIM_ALPHA);
+		expect(resolveSpotlightAlpha(undefined)).toBe(SPOTLIGHT_DIM_ALPHA);
+	});
+
+	it("有効値はクランプして返す", () => {
+		expect(resolveSpotlightAlpha(0.85)).toBe(0.85);
+		expect(resolveSpotlightAlpha(3)).toBe(1);
+	});
+});
+
+describe("isSpotlightDimPreset", () => {
+	it("プリセット（薄め / 標準 / 濃いめ）に一致すれば true", () => {
+		expect(isSpotlightDimPreset(0.55)).toBe(true);
+		expect(isSpotlightDimPreset(0.7)).toBe(true);
+		expect(isSpotlightDimPreset(0.85)).toBe(true);
+	});
+
+	it("プリセット外（ドラッグ等の中間値）は false", () => {
+		expect(isSpotlightDimPreset(0.6)).toBe(false);
+		expect(isSpotlightDimPreset(1)).toBe(false);
 	});
 });
 

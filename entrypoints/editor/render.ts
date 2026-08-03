@@ -25,6 +25,7 @@ import { haloColor, haloStrokeWidth } from "@/lib/editor/halo";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
 import {
 	clampSpotlightHole,
+	resolveSpotlightAlpha,
 	SPOTLIGHT_DIM_ALPHA,
 	spotlightCornerRadius,
 	spotlightFeather,
@@ -218,6 +219,11 @@ export function shapeToNode(
 				stroke: shape.stroke,
 				strokeWidth: shape.strokeWidth,
 				dash: resolveDash(shape.dash, shape.strokeWidth),
+				// 塗り（省略・false は塗りなし＝枠線のみ）。true のとき stroke 色の
+				// 半透明（フキダシと同じ CALLOUT_FILL_ALPHA）で内側を塗る。
+				fill: shape.fill
+					? hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA)
+					: undefined,
 			});
 		case "ellipse":
 			return new Konva.Ellipse({
@@ -229,6 +235,9 @@ export function shapeToNode(
 				stroke: shape.stroke,
 				strokeWidth: shape.strokeWidth,
 				dash: resolveDash(shape.dash, shape.strokeWidth),
+				fill: shape.fill
+					? hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA)
+					: undefined,
 			});
 		case "text":
 			return new Konva.Text({
@@ -294,7 +303,8 @@ export function buildMosaicNode(
 ): Konva.Image {
 	const w = Math.max(1, Math.round(shape.width));
 	const h = Math.max(1, Math.round(shape.height));
-	const pixel = mosaicPixelSize(w, h);
+	// 強度（弱 0.6 / 標準 1.0 / 強 1.6）を粒度へ反映する。省略時は標準。
+	const pixel = mosaicPixelSize(w, h, shape.intensity);
 	// 縮小先の寸法（最低 1px）。ここが粗さを決める。
 	const sw = Math.max(1, Math.round(w / pixel));
 	const sh = Math.max(1, Math.round(h / pixel));
@@ -342,7 +352,8 @@ export function buildBlurNode(
 ): Konva.Image {
 	const w = Math.max(1, Math.round(shape.width));
 	const h = Math.max(1, Math.round(shape.height));
-	const radius = blurRadius(w, h);
+	// 強度（弱 0.6 / 標準 1.0 / 強 1.6）をぼかし半径へ反映する。省略時は標準。
+	const radius = blurRadius(w, h, shape.intensity);
 
 	const canvas = document.createElement("canvas");
 	canvas.width = w;
@@ -400,7 +411,8 @@ export function buildBlurNode(
  * 描画はオフスクリーン canvas に自前で行い、その結果を sceneFunc で 1 枚絵として
  * ステージへ転写する（エディタ表示と export の同一関数・同一手順で見た目を揃える）。
  * オフスクリーン canvas で:
- *   1) 画像全体を半透明黒（SPOTLIGHT_DIM_ALPHA）で塗る。
+ *   1) 画像全体を半透明黒（dimAlpha。省略時は SPOTLIGHT_DIM_ALPHA＝標準）で塗る。
+ *      暗さは doc.spotlightAlpha（薄め 0.55 / 標準 0.7 / 濃いめ 0.85）で決まる。
  *   2) ctx.filter = blur(feather) を掛けたうえで各穴を destination-out でくり抜く。
  *      これにより穴の縁がフェザー（ぼかし）で柔らかくなり、硬い切り口にならない。
  *   3) 穴は角丸矩形（spotlightCornerRadius）でくり抜く（硬い直角より角丸のほうが
@@ -416,9 +428,13 @@ export function buildBlurNode(
 export function buildSpotlightVeil(
 	spotlights: SpotlightShape[],
 	size: { width: number; height: number },
+	dimAlpha: number = SPOTLIGHT_DIM_ALPHA,
 ): Konva.Shape {
 	const w = Math.max(1, Math.round(size.width));
 	const h = Math.max(1, Math.round(size.height));
+	// 暗さは呼び出し側から渡された値（doc.spotlightAlpha）を [0,1] へ正規化して使う。
+	// 未指定なら既定（標準 0.7）。
+	const alpha = resolveSpotlightAlpha(dimAlpha);
 
 	// 暗幕本体をオフスクリーン canvas に一度だけ合成しておき、sceneFunc では
 	// それを転写するだけにする（ドラッグ中の再描画でも合成は 1 回で済む）。
@@ -427,7 +443,7 @@ export function buildSpotlightVeil(
 	veil.height = h;
 	const vx = veil.getContext("2d");
 	if (vx) {
-		vx.fillStyle = `rgba(0, 0, 0, ${SPOTLIGHT_DIM_ALPHA})`;
+		vx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
 		vx.fillRect(0, 0, w, h);
 
 		for (const s of spotlights) {
@@ -639,12 +655,14 @@ export function renderShapes(
 		(source ? { width: source.width, height: source.height } : undefined);
 	const veilIndex =
 		spotlights.length > 0 && size ? spotlightVeilIndex(doc.shapes) : -1;
+	// 暗幕の暗さは doc レベルの単一フィールド（省略時は標準 0.7）。
+	const dimAlpha = resolveSpotlightAlpha(doc.spotlightAlpha);
 
 	doc.shapes.forEach((shape, index) => {
 		// 暗幕は「注釈系が始まる直前」に 1 枚だけ差し込む。veilIndex が末尾（注釈系
 		// なし）のときは下のループ後に追加する。
 		if (index === veilIndex && size) {
-			layer.add(buildSpotlightVeil(spotlights, size));
+			layer.add(buildSpotlightVeil(spotlights, size, dimAlpha));
 		}
 		if (shape.type === "spotlight") {
 			// select ツール時のみ、個別選択・変形用の透明ヒット矩形を重ねる。
@@ -672,7 +690,7 @@ export function renderShapes(
 
 	// 注釈系図形が無い場合（veilIndex === shapes.length）は最上位へ差し込む。
 	if (veilIndex === doc.shapes.length && size) {
-		layer.add(buildSpotlightVeil(spotlights, size));
+		layer.add(buildSpotlightVeil(spotlights, size, dimAlpha));
 	}
 	layer.batchDraw();
 }

@@ -1,4 +1,10 @@
 import type { ArrowStyle } from "@/lib/editor/arrow";
+import type { MosaicBlurIntensity } from "@/lib/editor/doc";
+import {
+	isSpotlightDimPreset,
+	SPOTLIGHT_DIM_OPTIONS,
+} from "@/lib/editor/spotlight";
+import { FONT_SIZE_OPTIONS, isFontSizePreset } from "@/lib/editor/text";
 import { placeTooltip } from "@/lib/editor/tooltip";
 import { icons } from "@/lib/icons";
 import type { ToolName } from "./tools/types";
@@ -63,6 +69,22 @@ export const ARROW_STYLE_OPTIONS: {
 	{ value: "curved", label: "曲線矢印", icon: icons.arrowCurved },
 ];
 
+/** 塗り（なし / 半透明）の選択肢。矩形・楕円ツール選択中（または図形選択中）に表示する。 */
+export const FILL_OPTIONS = [
+	{ value: false, label: "なし" },
+	{ value: true, label: "半透明" },
+] as const;
+
+/** 強度（弱 / 標準 / 強）の選択肢。モザイク・ぼかしツール選択中（または図形選択中）に表示する。 */
+export const INTENSITY_OPTIONS: {
+	value: MosaicBlurIntensity;
+	label: string;
+}[] = [
+	{ value: "weak", label: "弱" },
+	{ value: "normal", label: "標準" },
+	{ value: "strong", label: "強" },
+];
+
 export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
@@ -70,6 +92,14 @@ export interface ToolbarCallbacks {
 	onDashChange(dash: boolean): void;
 	/** 矢印スタイル（片側 / 両側 / 曲線）が選ばれたとき。 */
 	onArrowStyleChange(style: ArrowStyle): void;
+	/** フォントサイズ（S/M/L）が選ばれたとき（テキスト・フキダシ）。 */
+	onFontSizeChange(px: number): void;
+	/** 塗り（なし/半透明）が選ばれたとき（矩形・楕円）。 */
+	onFillChange(fill: boolean): void;
+	/** 強度（弱/標準/強）が選ばれたとき（モザイク・ぼかし）。 */
+	onIntensityChange(intensity: MosaicBlurIntensity): void;
+	/** 暗さ（薄め/標準/濃いめ）が選ばれたとき（スポットライト）。値は暗幕の不透明度。 */
+	onSpotlightDimChange(alpha: number): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
@@ -101,9 +131,25 @@ export class Toolbar {
 	/** 矢印スタイル（片側 / 両側 / 曲線）セクションと各ボタン。フライアウト内に置く。 */
 	private arrowStyleSection!: HTMLDivElement;
 	private arrowStyleButtons = new Map<ArrowStyle, HTMLButtonElement>();
+	/** サイズ（S/M/L）セクションと各ボタン（テキスト・フキダシ）。 */
+	private fontSizeSection!: HTMLDivElement;
+	private fontSizeButtons = new Map<number, HTMLButtonElement>();
+	/** 塗り（なし/半透明）セクションと各ボタン（矩形・楕円）。 */
+	private fillSection!: HTMLDivElement;
+	private fillButtons = new Map<boolean, HTMLButtonElement>();
+	/** 強度（弱/標準/強）セクションと各ボタン（モザイク・ぼかし）。 */
+	private intensitySection!: HTMLDivElement;
+	private intensityButtons = new Map<MosaicBlurIntensity, HTMLButtonElement>();
+	/** 暗さ（薄め/標準/濃いめ）セクションと各ボタン（スポットライト）。 */
+	private dimSection!: HTMLDivElement;
+	private dimButtons = new Map<number, HTMLButtonElement>();
 	/** 各セクションの表示状態。 */
 	private dashSectionVisible = false;
 	private arrowSectionVisible = false;
+	private fontSizeSectionVisible = false;
+	private fillSectionVisible = false;
+	private intensitySectionVisible = false;
+	private dimSectionVisible = false;
 	/** フライアウトを真下に出すツールボタン名。null なら非表示。 */
 	private anchorTool: ToolName | null = null;
 	private undoButton!: HTMLButtonElement;
@@ -209,19 +255,20 @@ export class Toolbar {
 	}
 
 	/**
-	 * 線種・矢印スタイルのフライアウトパネルを組み立てる。
-	 * - パネル: 線種セクション（実線/破線）と矢印セクション（片側/両側/曲線）を横に並べる。
+	 * スタイルフライアウトパネルを組み立てる。
+	 * - パネル: 各ツール共通の 1 枚。線種・矢印・サイズ・塗り・強度・暗さのセクションを
+	 *   横に並べ、現在のツール/選択に応じて出すセクションだけを表示する。
 	 *   role="group" + aria-label。固定配置でアンカー先ツールボタンの真下に置く。
 	 * - しっぽ（caret）: 対応するボタンを指す小さな三角形。
-	 * 各セクションの表示は setDashControlsVisible / setArrowStyleControlsVisible が制御し、
-	 * アンカー先ボタンは setStyleAnchor が決める（両方非表示・アンカー無しなら隠す）。
+	 * 各セクションの表示は set*ControlsVisible が制御し、アンカー先ボタンは setStyleAnchor
+	 * が決める（すべて非表示・アンカー無しなら隠す）。
 	 */
 	private buildStyleFlyout(): void {
 		this.styleFlyout = document.createElement("div");
 		this.styleFlyout.className = "style-flyout";
 		this.styleFlyout.hidden = true;
 		this.styleFlyout.setAttribute("role", "group");
-		this.styleFlyout.setAttribute("aria-label", "線種・矢印スタイル");
+		this.styleFlyout.setAttribute("aria-label", "図形スタイル");
 
 		// ボタンを指すしっぽ（三角）。left は placeFlyout がボタン中央に合わせる。
 		this.styleCaret = document.createElement("span");
@@ -267,11 +314,68 @@ export class Toolbar {
 			arrow.options.append(btn);
 		}
 
-		this.styleFlyout.append(this.dashSection, this.arrowStyleSection);
+		// サイズセクション（テキスト・フキダシ）。S/M/L のテキストラベルトグル。
+		this.fontSizeSection = this.buildLabeledToggleSection(
+			"サイズ",
+			FONT_SIZE_OPTIONS.map((o) => ({ label: o.label, tooltip: o.label })),
+			(i) => this.callbacks.onFontSizeChange(FONT_SIZE_OPTIONS[i]?.value ?? 24),
+			(btn, i) => {
+				const v = FONT_SIZE_OPTIONS[i]?.value;
+				if (v != null) this.fontSizeButtons.set(v, btn);
+			},
+		);
+
+		// 塗りセクション（矩形・楕円）。なし/半透明のテキストラベルトグル。
+		this.fillSection = this.buildLabeledToggleSection(
+			"塗り",
+			FILL_OPTIONS.map((o) => ({ label: o.label, tooltip: o.label })),
+			(i) => this.callbacks.onFillChange(FILL_OPTIONS[i]?.value ?? false),
+			(btn, i) => {
+				const v = FILL_OPTIONS[i]?.value;
+				if (v != null) this.fillButtons.set(v, btn);
+			},
+		);
+
+		// 強度セクション（モザイク・ぼかし）。弱/標準/強のテキストラベルトグル。
+		this.intensitySection = this.buildLabeledToggleSection(
+			"強度",
+			INTENSITY_OPTIONS.map((o) => ({ label: o.label, tooltip: o.label })),
+			(i) =>
+				this.callbacks.onIntensityChange(
+					INTENSITY_OPTIONS[i]?.value ?? "normal",
+				),
+			(btn, i) => {
+				const v = INTENSITY_OPTIONS[i]?.value;
+				if (v != null) this.intensityButtons.set(v, btn);
+			},
+		);
+
+		// 暗さセクション（スポットライト）。薄め/標準/濃いめのテキストラベルトグル。
+		this.dimSection = this.buildLabeledToggleSection(
+			"暗さ",
+			SPOTLIGHT_DIM_OPTIONS.map((o) => ({ label: o.label, tooltip: o.label })),
+			(i) =>
+				this.callbacks.onSpotlightDimChange(
+					SPOTLIGHT_DIM_OPTIONS[i]?.value ?? 0.7,
+				),
+			(btn, i) => {
+				const v = SPOTLIGHT_DIM_OPTIONS[i]?.value;
+				if (v != null) this.dimButtons.set(v, btn);
+			},
+		);
+
+		this.styleFlyout.append(
+			this.dashSection,
+			this.arrowStyleSection,
+			this.fontSizeSection,
+			this.fillSection,
+			this.intensitySection,
+			this.dimSection,
+		);
 		this.root.append(this.styleFlyout);
 
-		// 表示前でも「どれが選択中か」を確定させておく（既定は実線・片側）。
-		// 実際の現在値・復元値は初期化直後の syncToolbar が反映する。
+		// 表示前でも「どれが選択中か」を確定させておく（既定は実線・片側・M・塗りなし・
+		// 標準強度・標準の暗さ）。実際の現在値・復元値は初期化直後の syncToolbar が反映する。
 		this.setDash(false);
 		this.setArrowStyle("single");
 	}
@@ -296,6 +400,55 @@ export class Toolbar {
 	}
 
 	/**
+	 * テキストラベル式トグルボタンのセクション（サイズ・塗り・強度・暗さ）を組み立てる。
+	 * dash・矢印セクションと同じ骨組み（buildStylesection）に、共通の見た目
+	 * （.style-toggle-btn）でラベル文字を載せたボタンを並べる。aria-pressed でトグルの
+	 * 選択状態を表す（現在値の反映は各 set* 系メソッドが担う）。
+	 *
+	 * @param label 見出し（"サイズ" 等）
+	 * @param options 各ボタンの表示ラベルとツールチップ本文
+	 * @param onClick i 番目のボタンがクリックされたとき呼ぶ
+	 * @param register i 番目のボタン要素を各 Map へ登録するコールバック
+	 */
+	private buildLabeledToggleSection(
+		label: string,
+		options: { label: string; tooltip: string }[],
+		onClick: (index: number) => void,
+		register: (btn: HTMLButtonElement, index: number) => void,
+	): HTMLDivElement {
+		const { section, options: optionsEl } = this.buildStyleSection(label);
+		options.forEach((opt, i) => {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "style-toggle-btn";
+			btn.dataset.tooltip = opt.tooltip;
+			btn.setAttribute("aria-label", `${label}: ${opt.tooltip}`);
+			btn.setAttribute("aria-pressed", "false");
+			btn.textContent = opt.label;
+			btn.addEventListener("click", () => onClick(i));
+			register(btn, i);
+			optionsEl.append(btn);
+		});
+		return section;
+	}
+
+	/**
+	 * トグルボタン群の現在値を反映する共通ヘルパ（active クラス + aria-pressed）。
+	 * value に一致するキーのボタンだけ on にする。value がどのキーとも一致しないとき
+	 * （プリセット外の連続値など）はすべて off になる。
+	 */
+	private setToggleActive<K>(
+		buttons: Map<K, HTMLButtonElement>,
+		matches: (key: K) => boolean,
+	): void {
+		for (const [key, btn] of buttons) {
+			const on = matches(key);
+			btn.classList.toggle("active", on);
+			btn.setAttribute("aria-pressed", String(on));
+		}
+	}
+
+	/**
 	 * フライアウトを真下に出すツールボタンを設定する（null・未知のツール名で非表示）。
 	 * app 側が styleAnchorToolFor で決めた結果（ツール名文字列 or null）を渡す。
 	 * アンカーが決まっていてかつ表示すべきセクションがあるときだけ出す（無ければ隠す）。
@@ -314,7 +467,13 @@ export class Toolbar {
 	 * いずれかのセクションが表示対象のときだけ出して真下へ配置する。
 	 */
 	private syncFlyoutVisibility(): void {
-		const hasSection = this.dashSectionVisible || this.arrowSectionVisible;
+		const hasSection =
+			this.dashSectionVisible ||
+			this.arrowSectionVisible ||
+			this.fontSizeSectionVisible ||
+			this.fillSectionVisible ||
+			this.intensitySectionVisible ||
+			this.dimSectionVisible;
 		const visible = this.anchorTool != null && hasSection;
 		this.styleFlyout.hidden = !visible;
 		if (visible) this.placeFlyout();
@@ -383,6 +542,64 @@ export class Toolbar {
 	setArrowStyleControlsVisible(visible: boolean): void {
 		this.arrowSectionVisible = visible;
 		this.arrowStyleSection.hidden = !visible;
+		this.syncFlyoutVisibility();
+	}
+
+	/**
+	 * サイズ（S/M/L）の現在値を反映する。size がプリセット（S/M/L のどれか）に一致する
+	 * ボタンだけ on にする。プリセット外（ハンドルドラッグで変えた連続値）ならどのボタンも
+	 * active にしない（isFontSizePreset で一括判定してから設定する）。
+	 */
+	setFontSize(size: number): void {
+		const preset = isFontSizePreset(size);
+		this.setToggleActive(this.fontSizeButtons, (v) => preset && v === size);
+	}
+
+	/** サイズセクションの表示/非表示を切り替える（フライアウト内）。 */
+	setFontSizeControlsVisible(visible: boolean): void {
+		this.fontSizeSectionVisible = visible;
+		this.fontSizeSection.hidden = !visible;
+		this.syncFlyoutVisibility();
+	}
+
+	/** 塗り（なし/半透明）の現在値を反映する。 */
+	setFill(fill: boolean): void {
+		this.setToggleActive(this.fillButtons, (v) => v === fill);
+	}
+
+	/** 塗りセクションの表示/非表示を切り替える（フライアウト内）。 */
+	setFillControlsVisible(visible: boolean): void {
+		this.fillSectionVisible = visible;
+		this.fillSection.hidden = !visible;
+		this.syncFlyoutVisibility();
+	}
+
+	/** 強度（弱/標準/強）の現在値を反映する。 */
+	setIntensity(intensity: MosaicBlurIntensity): void {
+		this.setToggleActive(this.intensityButtons, (v) => v === intensity);
+	}
+
+	/** 強度セクションの表示/非表示を切り替える（フライアウト内）。 */
+	setIntensityControlsVisible(visible: boolean): void {
+		this.intensitySectionVisible = visible;
+		this.intensitySection.hidden = !visible;
+		this.syncFlyoutVisibility();
+	}
+
+	/**
+	 * 暗さ（薄め/標準/濃いめ）の現在値を反映する。alpha がプリセット（3 値のどれか）に
+	 * 一致するボタンだけ on にする。プリセット外ならどのボタンも active にしない
+	 * （isSpotlightDimPreset で一括判定）。
+	 */
+	setSpotlightDim(alpha: number): void {
+		const preset = isSpotlightDimPreset(alpha);
+		this.setToggleActive(this.dimButtons, (v) => preset && v === alpha);
+	}
+
+	/** 暗さセクションの表示/非表示を切り替える（フライアウト内）。 */
+	setSpotlightDimControlsVisible(visible: boolean): void {
+		this.dimSectionVisible = visible;
+		this.dimSection.hidden = !visible;
 		this.syncFlyoutVisibility();
 	}
 

@@ -6,6 +6,13 @@
  * undo/redo はこの EditorDoc のスナップショット履歴で実現する（history.ts）。
  */
 
+/**
+ * モザイク・ぼかしの強度。弱 / 標準 / 強の 3 段階。自動決定した粒度・半径への
+ * 倍率で表現する（mosaic.ts / blur.ts の intensityScale）。省略時（未設定の旧データ）は
+ * "normal" 扱い（後方互換）。
+ */
+export type MosaicBlurIntensity = "weak" | "normal" | "strong";
+
 /** 図形の色・太さ・回転など、種類によらず共通のスタイル。 */
 export interface ShapeBase {
 	id: string;
@@ -51,6 +58,12 @@ export interface RectShape extends ShapeBase {
 	y: number;
 	width: number;
 	height: number;
+	/**
+	 * 塗り（半透明の内側塗り）を付けるか。省略・false は塗りなし（枠線のみ＝レガシー
+	 * doc 互換）。true のとき stroke 色の alpha 0.15（フキダシと同じ CALLOUT_FILL_ALPHA）で
+	 * 内側を塗る。render.ts が Konva の fill プロパティへ解決する。
+	 */
+	fill?: boolean;
 }
 
 /** 楕円。x,y は外接矩形の左上、width/height は外接矩形の寸法。 */
@@ -60,6 +73,11 @@ export interface EllipseShape extends ShapeBase {
 	y: number;
 	width: number;
 	height: number;
+	/**
+	 * 塗り（半透明の内側塗り）を付けるか。矩形（RectShape.fill）と同じ扱い。
+	 * 省略・false は塗りなし（後方互換）、true は stroke 色の alpha 0.15 で内側を塗る。
+	 */
+	fill?: boolean;
 }
 
 /** テキスト。x,y は左上。 */
@@ -103,6 +121,12 @@ export interface MosaicShape extends ShapeBase {
 	y: number;
 	width: number;
 	height: number;
+	/**
+	 * ピクセルの粗さ（強度）。省略時は "normal"（後方互換）。自動決定した blockSize に
+	 * 倍率（弱=0.6 / 標準=1.0 / 強=1.6）を掛けてから上下限クランプする（mosaic.ts）。
+	 * 強いほどブロックが大きく粗く伏せられる。
+	 */
+	intensity?: MosaicBlurIntensity;
 }
 
 /**
@@ -118,6 +142,12 @@ export interface BlurShape extends ShapeBase {
 	y: number;
 	width: number;
 	height: number;
+	/**
+	 * ぼかしの強さ（強度）。モザイク（MosaicShape.intensity）と同じ扱い。省略時は
+	 * "normal"（後方互換）。自動決定した blurRadius に倍率（弱=0.6 / 標準=1.0 / 強=1.6）を
+	 * 掛けてから上下限クランプする（blur.ts）。
+	 */
+	intensity?: MosaicBlurIntensity;
 }
 
 /**
@@ -206,6 +236,13 @@ export interface CropRect {
 export interface EditorDoc {
 	shapes: Shape[];
 	crop: CropRect | null;
+	/**
+	 * スポットライト暗幕の暗さ（不透明度 0〜1）。doc 内の全 spotlight は 1 枚の暗幕に
+	 * まとまるため、暗さも図形ごとでなく doc レベルの単一フィールドで持つ。省略時は
+	 * SPOTLIGHT_DIM_ALPHA（0.7）＝標準（後方互換。旧 doc は未設定でも 0.7 で描く）。
+	 * 薄め=0.55 / 標準=0.7 / 濃いめ=0.85（spotlight.ts の SPOTLIGHT_DIM_OPTIONS）。
+	 */
+	spotlightAlpha?: number;
 }
 
 /** 空のドキュメント。 */

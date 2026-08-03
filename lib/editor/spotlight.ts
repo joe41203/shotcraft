@@ -13,11 +13,49 @@ import type { Rect, Size } from "../messages";
 import type { ShapeType } from "./doc";
 
 /**
- * 暗幕（画像全体を覆う黒）の不透明度（0〜1）。
+ * 暗幕（画像全体を覆う黒）の既定不透明度（0〜1）。
  * 明るく残る穴との差が視線誘導として十分つく程度に濃くする。0.70 は「暗部の
  * 内容がうっすら残る」より一段濃く、明るい穴へ視線が強く集まる濃さ。
+ * doc.spotlightAlpha 未設定（旧データ）のフォールバック値でもある。
  */
 export const SPOTLIGHT_DIM_ALPHA = 0.7;
+
+/** 暗さ（薄め / 標準 / 濃いめ）の選択肢。値は暗幕の不透明度（0〜1）。標準は SPOTLIGHT_DIM_ALPHA。 */
+export const SPOTLIGHT_DIM_OPTIONS = [
+	{ value: 0.55, label: "薄め" },
+	{ value: SPOTLIGHT_DIM_ALPHA, label: "標準" },
+	{ value: 0.85, label: "濃いめ" },
+] as const;
+
+/** SPOTLIGHT_DIM_OPTIONS の値の集合（正規化・プリセット一致判定に使う）。 */
+const DIM_ALPHA_VALUES: ReadonlySet<number> = new Set(
+	SPOTLIGHT_DIM_OPTIONS.map((o) => o.value),
+);
+
+/**
+ * 任意の値を暗幕の不透明度（0〜1）へ正規化する純粋関数。
+ * 有限数なら [0, 1] へクランプ、数値でなければ既定（SPOTLIGHT_DIM_ALPHA）へ落とす。
+ * doc.spotlightAlpha の読み込み・style-prefs の検証で使う。
+ */
+export function normalizeSpotlightAlpha(raw: unknown): number {
+	if (typeof raw === "number" && Number.isFinite(raw)) {
+		return clamp(raw, 0, 1);
+	}
+	return SPOTLIGHT_DIM_ALPHA;
+}
+
+/**
+ * 暗幕の不透明度（省略時は既定 SPOTLIGHT_DIM_ALPHA）を解決する純粋関数。
+ * doc.spotlightAlpha が未設定（旧データ）や不正値でも既定へ落として必ず有効な値を返す。
+ */
+export function resolveSpotlightAlpha(alpha?: number): number {
+	return alpha != null ? normalizeSpotlightAlpha(alpha) : SPOTLIGHT_DIM_ALPHA;
+}
+
+/** alpha がプリセット（薄め / 標準 / 濃いめ）のどれかに一致するか。フライアウトの active 表示に使う。 */
+export function isSpotlightDimPreset(alpha: number): boolean {
+	return DIM_ALPHA_VALUES.has(alpha);
+}
 
 /**
  * 矩形穴の角丸半径（px）を穴の寸法から決める純粋関数。

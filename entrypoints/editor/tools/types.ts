@@ -1,6 +1,6 @@
 import type Konva from "konva";
 import type { ArrowStyle } from "@/lib/editor/arrow";
-import type { EditorDoc, Shape } from "@/lib/editor/doc";
+import type { EditorDoc, MosaicBlurIntensity, Shape } from "@/lib/editor/doc";
 import type { Point } from "../geometry-view";
 
 /** ツール識別子。ツールバーのボタン・ショートカットと対応する。 */
@@ -41,6 +41,12 @@ export interface EditorContext {
 		dash: boolean;
 		/** 新規矢印のスタイル（片側 / 両側 / 曲線）。 */
 		arrowStyle: ArrowStyle;
+		/** 新規の矩形・楕円に半透明の塗りを付けるか。 */
+		fill: boolean;
+		/** 新規のモザイク・ぼかしの強度（弱 / 標準 / 強）。 */
+		intensity: MosaicBlurIntensity;
+		/** 新規 doc のスポットライト暗幕の暗さ（不透明度 0〜1）。 */
+		spotlightAlpha: number;
 	};
 	/** ステージ（座標変換・コンテナ取得に使う）。 */
 	readonly stage: Konva.Stage;
