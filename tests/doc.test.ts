@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	addShape,
 	type ArrowShape,
+	assignGroup,
 	type CropRect,
 	duplicateShape,
 	type EditorDoc,
@@ -12,6 +13,7 @@ import {
 	moveShapeToBack,
 	moveShapeToFront,
 	type RectShape,
+	remapDuplicatedGroups,
 	removeShape,
 	replaceShape,
 	setCrop,
@@ -21,6 +23,7 @@ import {
 	type StepShape,
 	type TextShape,
 	translateShape,
+	ungroup,
 	updateShape,
 } from "../lib/editor/doc";
 
@@ -420,5 +423,94 @@ describe("duplicateShape", () => {
 			arrow("a", 0),
 		]) as ArrowShape;
 		expect(dup.points).toEqual([16, 16, 26, 26]);
+	});
+});
+
+describe("assignGroup", () => {
+	it("複数図形へ同じ groupId を付与する", () => {
+		const doc = docOf("a", "b", "c");
+		const next = assignGroup(doc, ["a", "b"], "g1");
+		expect(findShape(next, "a")?.groupId).toBe("g1");
+		expect(findShape(next, "b")?.groupId).toBe("g1");
+		// 対象外は変えない。
+		expect(findShape(next, "c")?.groupId).toBeUndefined();
+	});
+
+	it("対象が 1 つ以下ならグループ化しない（doc をそのまま返す）", () => {
+		const doc = docOf("a", "b");
+		expect(assignGroup(doc, ["a"], "g1")).toBe(doc);
+		expect(assignGroup(doc, [], "g1")).toBe(doc);
+	});
+
+	it("既に同じ groupId なら doc をそのまま返す（no-op）", () => {
+		const grouped = assignGroup(docOf("a", "b"), ["a", "b"], "g1");
+		expect(assignGroup(grouped, ["a", "b"], "g1")).toBe(grouped);
+	});
+
+	it("元の doc を変更しない（immutable）", () => {
+		const doc = docOf("a", "b");
+		assignGroup(doc, ["a", "b"], "g1");
+		expect(findShape(doc, "a")?.groupId).toBeUndefined();
+	});
+});
+
+describe("ungroup", () => {
+	it("対象図形から groupId を取り除く", () => {
+		const grouped = assignGroup(docOf("a", "b", "c"), ["a", "b"], "g1");
+		const next = ungroup(grouped, ["a", "b"]);
+		expect(findShape(next, "a")?.groupId).toBeUndefined();
+		expect(findShape(next, "b")?.groupId).toBeUndefined();
+	});
+
+	it("groupId フィールド自体を削除する（省略 = 非所属の表現に合わせる）", () => {
+		const grouped = assignGroup(docOf("a", "b"), ["a", "b"], "g1");
+		const next = ungroup(grouped, ["a"]);
+		expect(Object.hasOwn(findShape(next, "a") as object, "groupId")).toBe(
+			false,
+		);
+	});
+
+	it("非所属の図形しか無ければ doc をそのまま返す（no-op）", () => {
+		const doc = docOf("a", "b");
+		expect(ungroup(doc, ["a", "b"])).toBe(doc);
+	});
+});
+
+describe("remapDuplicatedGroups", () => {
+	/** 呼ぶたびに g#1, g#2, ... を返す採番ジェネレータ。 */
+	function counter(): () => string {
+		let n = 0;
+		return () => {
+			n += 1;
+			return `ng${n}`;
+		};
+	}
+
+	it("同じ元グループの図形は同じ新グループへ、別グループは別の新グループへ", () => {
+		const shapes: Shape[] = [
+			{ ...rect("a"), groupId: "g1" },
+			{ ...rect("b"), groupId: "g1" },
+			{ ...rect("c"), groupId: "g2" },
+		];
+		const out = remapDuplicatedGroups(shapes, counter());
+		// g1 の 2 つは同じ新 id、g2 は別の新 id。
+		expect(out[0]?.groupId).toBe(out[1]?.groupId);
+		expect(out[0]?.groupId).not.toBe(out[2]?.groupId);
+		// 新 id は元の g1/g2 と異なる。
+		expect(out[0]?.groupId).not.toBe("g1");
+		expect(out[2]?.groupId).not.toBe("g2");
+	});
+
+	it("非所属（groupId 省略）はそのまま非所属で返す", () => {
+		const shapes: Shape[] = [rect("a"), { ...rect("b"), groupId: "g1" }];
+		const out = remapDuplicatedGroups(shapes, counter());
+		expect(out[0]?.groupId).toBeUndefined();
+		expect(out[1]?.groupId).toBe("ng1");
+	});
+
+	it("順序と長さを保つ", () => {
+		const shapes: Shape[] = [rect("a"), rect("b"), rect("c")];
+		const out = remapDuplicatedGroups(shapes, counter());
+		expect(out.map((s) => s.id)).toEqual(["a", "b", "c"]);
 	});
 });

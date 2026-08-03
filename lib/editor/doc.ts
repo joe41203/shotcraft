@@ -29,6 +29,13 @@ export interface ShapeBase {
 	 * 省略・false は実線（レガシー doc 互換）。
 	 */
 	dash?: boolean;
+	/**
+	 * 所属するグループの識別子。同じ groupId を持つ図形はひとまとまりとして扱い、
+	 * どれか 1 つをクリック・範囲選択すると同グループ全体が選択される
+	 * （expandSelectionToGroups）。省略 = どのグループにも属さない（後方互換。旧 doc は
+	 * 未設定でも非所属として読める）。Cmd/Ctrl+G で採番・付与、Shift 併用で除去する。
+	 */
+	groupId?: string;
 }
 
 /** 矢印。points は始点・終点の [x1, y1, x2, y2]。 */
@@ -454,6 +461,70 @@ export function moveShapeToBack(doc: EditorDoc, id: string): EditorDoc {
 	const index = doc.shapes.findIndex((s) => s.id === id);
 	if (index <= 0) return doc;
 	return { ...doc, shapes: moveInArray(doc.shapes, index, 0) };
+}
+
+/**
+ * ids の図形すべてに groupId を付与した新しい doc を返す純粋関数。
+ * Cmd/Ctrl+G のグループ化に使う。ids が 2 つ未満なら（グループ化の意味が無いので）
+ * doc をそのまま返す。ids に含まれる図形にだけ groupId を書き、他は変えない。
+ */
+export function assignGroup(
+	doc: EditorDoc,
+	ids: string[],
+	groupId: string,
+): EditorDoc {
+	if (ids.length < 2) return doc;
+	const set = new Set(ids);
+	let changed = false;
+	const shapes = doc.shapes.map((shape) => {
+		if (!set.has(shape.id)) return shape;
+		if (shape.groupId === groupId) return shape;
+		changed = true;
+		return { ...shape, groupId };
+	});
+	return changed ? { ...doc, shapes } : doc;
+}
+
+/**
+ * ids の図形から groupId を取り除いた（グループ解除した）新しい doc を返す純粋関数。
+ * Shift+Cmd/Ctrl+G の解除に使う。既に非所属の図形は変えない。groupId フィールドは
+ * 削除する（省略 = 非所属という後方互換の表現に合わせる）。1 つも変化が無ければ
+ * doc をそのまま返す。
+ */
+export function ungroup(doc: EditorDoc, ids: string[]): EditorDoc {
+	const set = new Set(ids);
+	let changed = false;
+	const shapes = doc.shapes.map((shape) => {
+		if (!set.has(shape.id) || shape.groupId === undefined) return shape;
+		changed = true;
+		const { groupId: _omit, ...rest } = shape;
+		return rest as Shape;
+	});
+	return changed ? { ...doc, shapes } : doc;
+}
+
+/**
+ * 複製する図形群のグループ所属を「複製側だけの新しいグループ」へ振り直す純粋関数。
+ * 元グループごとに新 groupId を採番し（同じ元グループの図形は同じ新グループへ、
+ * 別の元グループは別の新グループへ）、複製同士が元グループと混ざらないようにする。
+ * 非所属（groupId 省略）の図形はそのまま非所属で複製する。
+ * newGroupId は呼び出しのたびに一意な id を返すジェネレータ（app 側の採番に委ねる）。
+ * 返す配列は入力と同じ順序・同じ長さ。
+ */
+export function remapDuplicatedGroups(
+	shapes: Shape[],
+	newGroupId: () => string,
+): Shape[] {
+	const map = new Map<string, string>();
+	return shapes.map((shape) => {
+		if (shape.groupId === undefined) return shape;
+		let next = map.get(shape.groupId);
+		if (next === undefined) {
+			next = newGroupId();
+			map.set(shape.groupId, next);
+		}
+		return { ...shape, groupId: next };
+	});
 }
 
 /** 複製時の既定オフセット（px）。元図形と重ならないよう右下へずらす。 */

@@ -8,6 +8,7 @@ import type {
 } from "../lib/editor/doc";
 import {
 	type BBox,
+	expandSelectionToGroups,
 	rectsIntersect,
 	shapeBoundingBox,
 	shapesInBand,
@@ -168,5 +169,65 @@ describe("shapesInBand", () => {
 		expect(
 			shapesInBand(shapes, { x: -10, y: -10, width: 200, height: 200 }),
 		).toEqual(["a", "b", "c"]);
+	});
+});
+
+describe("expandSelectionToGroups", () => {
+	/** groupId 付きの矩形を作るヘルパー。 */
+	function grouped(id: string, groupId?: string): RectShape {
+		return { ...rect(id, 0, 0), groupId };
+	}
+
+	it("グループ所属の 1 つを選ぶと同グループ全体へ拡張する", () => {
+		const shapes: Shape[] = [
+			grouped("a", "g1"),
+			grouped("b", "g1"),
+			grouped("c"),
+		];
+		// a だけ選んでも b（同 g1）が加わる。c は非所属なので入らない。
+		expect(expandSelectionToGroups(["a"], shapes)).toEqual(["a", "b"]);
+	});
+
+	it("非所属の図形はそのまま単独で扱う", () => {
+		const shapes: Shape[] = [grouped("a"), grouped("b", "g1")];
+		expect(expandSelectionToGroups(["a"], shapes)).toEqual(["a"]);
+	});
+
+	it("複数グループに触れると各グループ全体を含む（描画順）", () => {
+		const shapes: Shape[] = [
+			grouped("a", "g1"),
+			grouped("b", "g2"),
+			grouped("c", "g1"),
+			grouped("d", "g2"),
+			grouped("e"),
+		];
+		// a（g1）と d（g2）を選ぶと g1={a,c}・g2={b,d} 全員へ拡張し、doc 順で返す。
+		expect(expandSelectionToGroups(["a", "d"], shapes)).toEqual([
+			"a",
+			"b",
+			"c",
+			"d",
+		]);
+	});
+
+	it("選択に触れないグループ・非所属図形は加えない", () => {
+		const shapes: Shape[] = [
+			grouped("a", "g1"),
+			grouped("b", "g1"),
+			grouped("c", "g2"),
+			grouped("d"),
+		];
+		// c(g2)・d は選択にも同グループにも触れないので入らない。
+		expect(expandSelectionToGroups(["a"], shapes)).toEqual(["a", "b"]);
+	});
+
+	it("空の選択は空のまま", () => {
+		const shapes: Shape[] = [grouped("a", "g1")];
+		expect(expandSelectionToGroups([], shapes)).toEqual([]);
+	});
+
+	it("存在しない id は無視する", () => {
+		const shapes: Shape[] = [grouped("a", "g1"), grouped("b", "g1")];
+		expect(expandSelectionToGroups(["a", "zzz"], shapes)).toEqual(["a", "b"]);
 	});
 });

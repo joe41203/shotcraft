@@ -6,6 +6,7 @@ import { type CropRatio, croppedSize } from "@/lib/editor/crop";
 import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
 	addShape,
+	assignGroup,
 	type CropRect,
 	duplicateShape,
 	type EditorDoc,
@@ -16,11 +17,13 @@ import {
 	moveShapeForward,
 	moveShapeToBack,
 	moveShapeToFront,
+	remapDuplicatedGroups,
 	removeShape,
 	replaceShape,
 	type Shape,
 	shapeSupportsColor,
 	translateShape,
+	ungroup,
 	updateShape,
 } from "@/lib/editor/doc";
 import type { ExportFormat, ExportQuality } from "@/lib/editor/export-format";
@@ -33,7 +36,13 @@ import {
 	redo,
 	undo,
 } from "@/lib/editor/history";
-import { shapesInBand } from "@/lib/editor/selection";
+import {
+	type BBox,
+	expandSelectionToGroups,
+	shapeBoundingBox,
+	shapesInBand,
+} from "@/lib/editor/selection";
+import { computeSnap, type SnapGuide } from "@/lib/editor/snap";
 import { resolveSpotlightAlpha } from "@/lib/editor/spotlight";
 import {
 	createStylePrefsSaver,
@@ -80,6 +89,16 @@ function modifiers(e: Konva.KonvaEventObject<PointerEvent>): PointerModifiers {
  * この時間だけ追加の nudge が無ければ、それまでの移動をまとめて 1 回 commit する。
  */
 const NUDGE_COMMIT_MS = 500;
+
+/**
+ * 整列スナップの吸着しきい値（画面 px）。ドラッグ中の図形の端が他図形の端に
+ * この距離まで近づいたら吸着する。ドキュメント座標へはズーム率で割って換算し
+ * （SNAP_THRESHOLD_PX / scale）、画面上で一定の吸着感になるようにする。
+ */
+const SNAP_THRESHOLD_PX = 6;
+
+/** 整列スナップのガイド線の色（tokens の danger 系。赤の細線）。 */
+const SNAP_GUIDE_COLOR = "#ef4444";
 
 /** Transformer の全 8 アンカー（辺 4 + 四隅 4）。テキスト以外の既定。 */
 const ALL_ANCHORS = [
@@ -490,10 +509,16 @@ export class EditorApp {
 				this.beginGroupDrag(node);
 			}
 		});
-		node.on("dragmove.group", () => {
+		node.on("dragmove.group", (e: Konva.KonvaEventObject<DragEvent>) => {
+			// まずグループドラッグの一括移動を反映（掴んだノードの移動量を他へ伝える）。
 			this.updateGroupDrag(node);
+			// 続いて整列スナップ: 移動中の図形の端を他図形の端へ吸着し、ガイド線を出す。
+			// Shift 押下中は無効（自由移動）。単一ドラッグ・グループドラッグの双方で効く。
+			this.applyDragSnap(node, e.evt.shiftKey);
 		});
 		node.on("dragend.commit transformend.commit", () => {
+			// ドラッグ終了でスナップのガイド線を消す（変形終了時も無害に消える）。
+			this.clearSnapGuides();
 			// グループドラッグ確定: 選択中の全ノードの新位置をまとめて 1 回 commit する。
 			if (this.groupDrag) {
 				this.finishGroupDrag();
@@ -515,8 +540,11 @@ export class EditorApp {
 					0,
 					0,
 				);
-				this.commitDoc(addShape(this.history.present, copy));
-				this.select(copy.id);
+				// Alt ドラッグ複製は単一図形のみ（複数選択中はグループドラッグに切り替わる）。
+				// 単独の複製がソースのグループへ紛れ込まないよう、groupId は引き継がない。
+				const { groupId: _omit, ...solo } = copy;
+				this.commitDoc(addShape(this.history.present, solo as Shape));
+				this.select(solo.id);
 				return;
 			}
 			this.commitDoc(replaceShape(this.history.present, id, next));
@@ -581,6 +609,130 @@ export class EditorApp {
 			next = replaceShape(next, id, shapeFromNode(node, prev));
 		}
 		this.commitDoc(next);
+	}
+
+	// --- 整列スナップ（ドラッグ中の吸着ガイド） ---
+
+	/**
+	 * ドラッグ中に描いているガイド線ノード（previewLayer 上）。ドラッグ終了・
+	 * 次フレームの描き直しで破棄する。ドラッグ外は空配列。
+	 */
+	private snapGuideNodes: Konva.Line[] = [];
+
+	/**
+	 * ドラッグ中の図形の端を他図形の端へ吸着させ、赤いガイド線を出す。
+	 * dragmove から毎フレーム呼ぶ。手順:
+	 *   1) Shift 押下中は自由移動（吸着せずガイドを消す）。
+	 *   2) 移動中のノード集合（選択中の全ノード。単一ドラッグなら 1 つ）の現在位置から
+	 *      合成バウンディングボックスを取る（getClientRect で回転・スケール込みの doc 座標）。
+	 *   3) 吸着候補は「移動対象でない他図形の doc バウンディングボックス」＋「画像全体の
+	 *      ボックス（キャンバス境界・中央への吸着）」。
+	 *   4) computeSnap で最近傍の吸着量（dx,dy）とガイド線を求め、しきい値は画面 px を
+	 *      ズーム率で割った doc 座標のしきい値にする（画面上で一定の吸着感）。
+	 *   5) 吸着量ぶん移動中の全ノードをずらし（Konva が次フレームでポインタ位置へ戻すため
+	 *      累積しない）、ガイド線を描く。
+	 */
+	private applyDragSnap(anchor: Konva.Node, shiftKey: boolean): void {
+		if (shiftKey) {
+			this.clearSnapGuides();
+			return;
+		}
+		// 移動中のノード集合を決める。掴んだノードが選択に含まれるなら選択全体
+		// （グループ／複数選択の一括移動）、含まれなければ掴んだノード単体。
+		const movingIds = this.selectedIds.includes(anchor.id())
+			? this.selectedIds
+			: [anchor.id()];
+		const movingNodes = movingIds
+			.map((id) => this.shapeLayer.findOne(`#${id}`))
+			.filter((n): n is Konva.Node => n != null);
+		if (movingNodes.length === 0) {
+			this.clearSnapGuides();
+			return;
+		}
+		const movingBox = this.unionLiveBox(movingNodes);
+		if (!movingBox) {
+			this.clearSnapGuides();
+			return;
+		}
+
+		// 吸着候補: 移動対象でない図形の doc バウンディングボックス＋画像全体のボックス。
+		const movingSet = new Set(movingIds);
+		const others: BBox[] = [];
+		for (const shape of this.history.present.shapes) {
+			if (movingSet.has(shape.id)) continue;
+			others.push(shapeBoundingBox(shape));
+		}
+		// 画像全体（キャンバス境界・中央）への吸着も候補に含める。
+		const size = this.contentSize;
+		others.push({ x: 0, y: 0, width: size.width, height: size.height });
+
+		const threshold = SNAP_THRESHOLD_PX / this.stage.scaleX();
+		const snap = computeSnap(movingBox, others, threshold);
+
+		// 吸着量ぶん移動中の全ノードをずらす（Konva が次の dragmove でポインタ位置へ
+		// 戻すため、このずれは累積しない）。
+		if (snap.dx !== 0 || snap.dy !== 0) {
+			for (const n of movingNodes) {
+				n.position({ x: n.x() + snap.dx, y: n.y() + snap.dy });
+			}
+			this.shapeLayer.batchDraw();
+		}
+		this.drawSnapGuides(snap.guides);
+	}
+
+	/**
+	 * ノード集合の合成バウンディングボックス（doc 座標）を返す。各ノードの
+	 * getClientRect を shapeLayer 基準で取り（現在のドラッグ位置・回転・スケール込み）、
+	 * それらを内包する外接矩形を求める。ノードが無ければ null。
+	 */
+	private unionLiveBox(nodes: Konva.Node[]): BBox | null {
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		for (const n of nodes) {
+			const r = n.getClientRect({ relativeTo: this.shapeLayer });
+			if (r.width === 0 && r.height === 0) continue;
+			minX = Math.min(minX, r.x);
+			minY = Math.min(minY, r.y);
+			maxX = Math.max(maxX, r.x + r.width);
+			maxY = Math.max(maxY, r.y + r.height);
+		}
+		if (!Number.isFinite(minX)) return null;
+		return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+	}
+
+	/**
+	 * 整列ガイド線を previewLayer に赤の細線で描き直す。既存のガイドは毎回捨てて
+	 * 描き直す（本数は 0〜2 本）。線幅はズームに依らず画面上で 1px 相当にする。
+	 */
+	private drawSnapGuides(guides: SnapGuide[]): void {
+		this.clearSnapGuides();
+		const scale = this.stage.scaleX();
+		for (const g of guides) {
+			const points =
+				g.axis === "x"
+					? [g.position, g.from, g.position, g.to] // 縦線
+					: [g.from, g.position, g.to, g.position]; // 横線
+			const line = new Konva.Line({
+				points,
+				stroke: SNAP_GUIDE_COLOR,
+				// ズームで割って画面上 1px 相当の細線に保つ。
+				strokeWidth: 1 / scale,
+				listening: false,
+			});
+			this.previewLayer.add(line);
+			this.snapGuideNodes.push(line);
+		}
+		this.previewLayer.batchDraw();
+	}
+
+	/** 描画中の整列ガイド線をすべて破棄する（ドラッグ終了・描き直し時）。 */
+	private clearSnapGuides(): void {
+		if (this.snapGuideNodes.length === 0) return;
+		for (const line of this.snapGuideNodes) line.destroy();
+		this.snapGuideNodes = [];
+		this.previewLayer.batchDraw();
 	}
 
 	/**
@@ -1045,12 +1197,16 @@ export class EditorApp {
 	}
 
 	/**
-	 * 選択集合をまとめて差し替える（複数選択の実処理）。ids は doc に存在する図形へ
-	 * 正規化（存在しない id・重複を除去し、描画順に整える）してから反映する。
+	 * 選択集合をまとめて差し替える（複数選択の実処理）。
+	 * まずグループ所属図形を同グループ全体へ拡張し（expandSelectionToGroups）、その後
+	 * doc に存在する図形へ正規化（存在しない id・重複を除去し、描画順に整える）してから
+	 * 反映する。これによりクリック・ラバーバンド・Shift 追加・複製結果のどの経路でも
+	 * グループはひとまとまりとして選ばれる（グループは分割選択できない）。
 	 * 変化が無ければ何もしない。
 	 */
 	private setSelection(ids: string[]): void {
-		const next = this.normalizeSelection(ids);
+		const expanded = expandSelectionToGroups(ids, this.history.present.shapes);
+		const next = this.normalizeSelection(expanded);
 		if (this.sameSelection(next, this.selectedIds)) return;
 		this.selectedIds = next;
 		this.syncTransformer();
@@ -1313,6 +1469,14 @@ export class EditorApp {
 				this.duplicateSelection();
 				return;
 			}
+			// Cmd/Ctrl+G でグループ化、Shift 併用でグループ解除（クロップ操作中は無効）。
+			if (mod && (e.key === "g" || e.key === "G")) {
+				if (this.currentTool === "crop") return;
+				e.preventDefault();
+				if (e.shiftKey) this.ungroupSelection();
+				else this.groupSelection();
+				return;
+			}
 			if (mod) return; // 他の修飾キー付きは無視
 
 			// クロップ操作中は Enter で適用 / Esc でキャンセル（他ショートカットより優先）。
@@ -1462,23 +1626,65 @@ export class EditorApp {
 	 * 複数選択時は全図形を一括複製して複製群を選択に切り替える（1 回だけ commit）。
 	 * step バッジは次の連番を自動採番、テキスト・フキダシは文言ごと複製する
 	 * （duplicateShape に集約。baseShapes を伸ばしながら渡し番号の重複を避ける）。
+	 * グループ所属の図形は remapDuplicatedGroups で「複製側だけの新しいグループ」へ
+	 * 振り直す（複製同士が元グループと混ざらない。setSelection の拡張で複製群が
+	 * まとまって選ばれる）。
 	 */
 	private duplicateSelection(): void {
 		this.flushNudge(); // 進行中の nudge があれば先に確定してから複製する
 		const ids = this.selectedIds;
 		if (ids.length === 0) return;
 		let next = this.history.present;
-		const copyIds: string[] = [];
+		// まず複製図形（新 id・位置ずらし・step 採番）を作る。step の連番は
+		// baseShapes を伸ばしながら渡すため、いったん next へ順次追加していく。
+		const copies: Shape[] = [];
 		for (const id of ids) {
 			const shape = findShape(next, id);
 			if (!shape) continue;
 			const copy = duplicateShape(shape, this.newId(), next.shapes);
 			next = addShape(next, copy);
-			copyIds.push(copy.id);
+			copies.push(copy);
 		}
-		if (copyIds.length === 0) return;
+		if (copies.length === 0) return;
+		// 複製群のグループ所属を新グループへ振り直し、doc 内の該当図形へ焼き込む。
+		const remapped = remapDuplicatedGroups(copies, () => this.newGroupId());
+		for (const shape of remapped) next = replaceShape(next, shape.id, shape);
 		this.commitDoc(next);
-		this.setSelection(copyIds);
+		this.setSelection(remapped.map((s) => s.id));
+	}
+
+	/**
+	 * Cmd/Ctrl+G: 複数選択中の図形に新しい groupId を付与してグループ化する。
+	 * 2 つ以上選択しているときだけ意味を持つ（assignGroup が 1 つ以下なら no-op）。
+	 * 以降はこのグループのどれかを選ぶと全体が選ばれる（setSelection の拡張）。
+	 */
+	private groupSelection(): void {
+		this.flushNudge();
+		const ids = this.selectedIds;
+		if (ids.length < 2) return;
+		const next = assignGroup(this.history.present, ids, this.newGroupId());
+		if (next === this.history.present) return;
+		this.commitDoc(next);
+	}
+
+	/**
+	 * Shift+Cmd/Ctrl+G: 選択中の図形のグループを解除する（groupId を除去）。
+	 * 選択がグループ全体に拡張されている前提なので、選択中 id からまとめて外せば
+	 * そのグループは解散する。非所属だけなら no-op。
+	 */
+	private ungroupSelection(): void {
+		this.flushNudge();
+		const ids = this.selectedIds;
+		if (ids.length === 0) return;
+		const next = ungroup(this.history.present, ids);
+		if (next === this.history.present) return;
+		this.commitDoc(next);
+	}
+
+	/** グループ用の一意な id を生成する（図形 id と衝突しないよう接頭辞を分ける）。 */
+	private newGroupId(): string {
+		this.idCounter += 1;
+		return `g${Date.now().toString(36)}-${this.idCounter}`;
 	}
 
 	/**

@@ -120,3 +120,37 @@ export function shapesInBand(shapes: Shape[], band: BBox): string[] {
 	}
 	return ids;
 }
+
+/**
+ * 選択 id 群を「グループ所属の図形はその同グループ全員も含む」ように拡張して返す
+ * 純粋関数（doc の並び順・重複なし）。
+ *
+ * 図形をクリック / ラバーバンドで選ぶとき、その図形が groupId を持つなら同じ groupId の
+ * 図形すべてを選択に加える。これにより単一クリックでもグループ全体がまとまって選ばれ、
+ * 既存の複数選択機構（一括移動・削除・複製・nudge）がそのまま効く。groupId を持たない
+ * （非所属の）図形はそのまま単独で扱う。
+ *
+ * 入力 ids に含まれない id は追加されない（拡張は「選ばれた図形の所属グループ」に限る）。
+ * 存在しない id は無視する。
+ */
+export function expandSelectionToGroups(
+	ids: string[],
+	shapes: Shape[],
+): string[] {
+	// 選ばれた図形が属するグループの集合を集める。
+	const byId = new Map(shapes.map((s) => [s.id, s]));
+	const groups = new Set<string>();
+	for (const id of ids) {
+		const g = byId.get(id)?.groupId;
+		if (g !== undefined) groups.add(g);
+	}
+	const selected = new Set(ids);
+	// doc の並び順を保ったまま、元の選択 id と「所属グループが選択に触れた図形」を返す。
+	return shapes
+		.filter(
+			(s) =>
+				selected.has(s.id) ||
+				(s.groupId !== undefined && groups.has(s.groupId)),
+		)
+		.map((s) => s.id);
+}
