@@ -7,6 +7,12 @@ export interface CaptureRecord {
 	capturedAt: number;
 	sourceUrl: string;
 	sourceTitle: string;
+	/**
+	 * 撮影時のビューポート（CSS px）。バグ報告テンプレートに使う。取れる経路
+	 * （範囲選択・フルページ）でのみ記録し、既存の保存済みレコードとも後方互換
+	 * （欠落＝未取得。URL・タイトルは既存の sourceUrl / sourceTitle を使う）。
+	 */
+	viewport?: { width: number; height: number };
 }
 
 const CAPTURE_PREFIX = "capture:";

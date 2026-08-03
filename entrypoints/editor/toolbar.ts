@@ -123,6 +123,8 @@ export interface ToolbarCallbacks {
 	onSavePng(): void;
 	/** クリップボードへコピー。 */
 	onCopy(): void;
+	/** バグ報告テンプレート（Markdown）をクリップボードへコピー。 */
+	onBugReport(): void;
 }
 
 /**
@@ -256,6 +258,14 @@ export class Toolbar {
 		// 誤クリック防止のため、両ボタンは他グループより広い間隔で並べる。
 		const exportGroup = group();
 		exportGroup.classList.add("export-group");
+		// バグ報告: Markdown テンプレートをコピーする補助アクション（text-btn トーン）。
+		// 画像は含めない（本文の案内に従い「コピー」で別途貼り付ける）。
+		const bugBtn = textButton(
+			icons.bug,
+			"バグ報告",
+			"バグ報告テンプレートをコピー",
+		);
+		bugBtn.addEventListener("click", () => this.callbacks.onBugReport());
 		const copyBtn = textButton(
 			icons.copy,
 			"コピー",
@@ -266,7 +276,7 @@ export class Toolbar {
 		const saveBtn = textButton(icons.download, "PNG保存", "PNG をダウンロード");
 		saveBtn.classList.add("primary");
 		saveBtn.addEventListener("click", () => this.callbacks.onSavePng());
-		exportGroup.append(copyBtn, saveBtn);
+		exportGroup.append(bugBtn, copyBtn, saveBtn);
 		this.root.append(exportGroup);
 
 		// data-tooltip を持つ全ボタンにホバー/フォーカスでツールチップを出す。

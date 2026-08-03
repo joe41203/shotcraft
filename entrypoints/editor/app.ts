@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { buildBugReportMarkdown } from "@/lib/bug-report";
 import type { CaptureRecord } from "@/lib/capture-store";
 import { type ArrowStyle, normalizeArrowStyle } from "@/lib/editor/arrow";
 import { type CalloutTail, normalizeCalloutTail } from "@/lib/editor/callout";
@@ -112,6 +113,17 @@ export class EditorApp {
 	/** モザイクのサンプリング元（キャプチャ原寸のベース画像）。 */
 	private baseImage: HTMLImageElement;
 	private contentSize: { width: number; height: number };
+	/**
+	 * バグ報告テンプレートに載せるキャプチャのコンテキスト（URL・タイトル・撮影時刻・
+	 * ビューポート）。record から取り出して保持する。取れなかった項目は欠落したまま
+	 * （後方互換。buildBugReportMarkdown 側で値のある行だけ出力する）。
+	 */
+	private captureMeta: {
+		pageUrl?: string;
+		pageTitle?: string;
+		capturedAt?: number;
+		viewport?: { width: number; height: number };
+	};
 	/** クロップ操作の UI とライフサイクルを持つコントローラ。 */
 	private crop: CropController;
 	/** 操作成功を知らせる軽量トースト。 */
@@ -210,6 +222,16 @@ export class EditorApp {
 		stylePrefs?: StylePrefs,
 	) {
 		this.contentSize = { width: record.width, height: record.height };
+		// バグ報告用のコンテキストを record から拾う。URL・タイトルは既存の
+		// sourceUrl / sourceTitle（chrome:// 等で取れない場合は空文字）を使い、
+		// 空は欠落扱いにする。旧レコードで viewport が無い場合もそのまま欠落として
+		// 保持する（後方互換。値のある行だけテンプレートに出力される）。
+		this.captureMeta = {
+			pageUrl: record.sourceUrl || undefined,
+			pageTitle: record.sourceTitle || undefined,
+			capturedAt: record.capturedAt,
+			viewport: record.viewport,
+		};
 		this.baseImage = imageEl;
 		// 前回のスタイル設定（色・線種・フォントサイズ）を復元する。線の太さは 4px 固定。
 		// この時点で this.style に反映しておくことで、下の Toolbar 生成後の
@@ -292,6 +314,7 @@ export class EditorApp {
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
 			onCopy: () => void this.copyToClipboard(),
+			onBugReport: () => void this.copyBugReport(),
 		});
 
 		this.bindStageEvents();
@@ -1528,6 +1551,35 @@ export class EditorApp {
 			this.toast.show("コピーしました");
 		} catch {
 			this.toast.show("コピーに失敗しました", "error");
+		}
+	}
+
+	/**
+	 * バグ報告テンプレート（Markdown）をクリップボードへコピーする。
+	 * 画像は含めず本文で「コピー」ボタンへ誘導する（テキストと画像はクリップボードの
+	 * データ種別が異なり同時には持てないため役割を分ける）。Markdown 生成は純粋関数
+	 * buildBugReportMarkdown に委ね、ここでは環境値（UA・拡張バージョン・出力サイズ）と
+	 * キャプチャのコンテキストを集めて渡し、writeText とトースト表示だけを担う。
+	 * 画像サイズはクロップ適用後の出力原寸（displaySize）を渡す。
+	 */
+	async copyBugReport(): Promise<void> {
+		try {
+			const size = this.displaySize();
+			const markdown = buildBugReportMarkdown({
+				pageUrl: this.captureMeta.pageUrl,
+				pageTitle: this.captureMeta.pageTitle,
+				capturedAt: this.captureMeta.capturedAt,
+				viewport: this.captureMeta.viewport,
+				userAgent: navigator.userAgent,
+				extensionVersion: browser.runtime.getManifest().version,
+				imageSize: { width: size.width, height: size.height },
+			});
+			await navigator.clipboard.writeText(markdown);
+			this.toast.show(
+				"バグ報告テキストをコピーしました（画像は「コピー」で貼り付けできます）",
+			);
+		} catch {
+			this.toast.show("バグ報告テキストのコピーに失敗しました", "error");
 		}
 	}
 
