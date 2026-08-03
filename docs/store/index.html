@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>shotcraft — ストア掲載画像 確認用インデックス</title>
+    <style>
+      /* 確認用の一覧。撮影対象外なのでサイズ自由。各フレームは iframe で原寸レンダリングし、
+         transform: scale で縮小プレビューする（実寸レイアウトのまま確認できる）。 */
+      :root {
+        --bg: #0b0f19;
+        --surface: #161b26;
+        --border: rgba(255, 255, 255, 0.09);
+        --text: #f2f5f9;
+        --muted: #9aa6b8;
+        --accent: #34d399;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+        padding: 40px 40px 80px;
+      }
+      header { max-width: 1200px; margin: 0 auto 36px; }
+      header h1 { font-size: 26px; margin: 0 0 8px; }
+      header p { color: var(--muted); margin: 0; font-size: 15px; line-height: 1.7; }
+      .grid {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 40px;
+      }
+      .item {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .item .bar {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .item .bar .t { font-size: 16px; font-weight: 700; }
+      .item .bar .t small { color: var(--accent); font-weight: 700; margin-left: 10px; }
+      .item .bar .d { color: var(--muted); font-size: 13px; }
+      /* プレビュー窓。実寸 iframe を scale で縮める。 */
+      .frame-wrap {
+        position: relative;
+        background: #05070c;
+        overflow: hidden;
+      }
+      /* 1280x800 -> 幅 1120 相当（scale 0.875）で表示 */
+      .frame-1280 { width: 100%; height: 700px; }
+      .frame-1280 iframe {
+        width: 1280px;
+        height: 800px;
+        border: 0;
+        transform: scale(0.875);
+        transform-origin: top left;
+      }
+      /* タイル 440x280 は等倍 */
+      .frame-tile { padding: 28px; display: grid; place-items: center; }
+      .frame-tile iframe {
+        width: 440px;
+        height: 280px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>shotcraft — Chrome ウェブストア掲載画像（確認用）</h1>
+      <p>
+        スクリーンショット 4 枚（各 1280×800）＋小プロモタイル（440×280）。各プレビューは実寸 HTML を iframe でレンダリングして縮小表示しています。撮影は各 <code>shot-*.html</code> / <code>tile.html</code> を指定サイズちょうどで行ってください。
+      </p>
+    </header>
+
+    <div class="grid">
+      <div class="item">
+        <div class="bar">
+          <div class="t">shot-1<small>ヒーロー</small></div>
+          <div class="d">大見出し＋実エディタ画像をブラウザ風フレームで大きく配置 / 1280×800</div>
+        </div>
+        <div class="frame-wrap frame-1280"><iframe src="./shot-1.html" scrolling="no"></iframe></div>
+      </div>
+
+      <div class="item">
+        <div class="bar">
+          <div class="t">shot-2<small>隠す・強調</small></div>
+          <div class="d">モザイク箇所を拡大＋モザイク／ぼかし／スポットライトの 3 機能 / 1280×800</div>
+        </div>
+        <div class="frame-wrap frame-1280"><iframe src="./shot-2.html" scrolling="no"></iframe></div>
+      </div>
+
+      <div class="item">
+        <div class="bar">
+          <div class="t">shot-3<small>ツールとオプション</small></div>
+          <div class="d">14 ツールのツールバー再現＋矢印ツール直下のフライアウト / 1280×800</div>
+        </div>
+        <div class="frame-wrap frame-1280"><iframe src="./shot-3.html" scrolling="no"></iframe></div>
+      </div>
+
+      <div class="item">
+        <div class="bar">
+          <div class="t">shot-4<small>テーマ＋プライバシー</small></div>
+          <div class="d">5 テーマのカラーチップ＋外部送信なし／アカウント不要／権限 3 つ / 1280×800</div>
+        </div>
+        <div class="frame-wrap frame-1280"><iframe src="./shot-4.html" scrolling="no"></iframe></div>
+      </div>
+
+      <div class="item">
+        <div class="bar">
+          <div class="t">tile<small>小プロモタイル</small></div>
+          <div class="d">アイコン＋ロゴタイプ＋一言コピー / 440×280（等倍表示）</div>
+        </div>
+        <div class="frame-wrap frame-tile"><iframe src="./tile.html" scrolling="no"></iframe></div>
+      </div>
+    </div>
+  </body>
+</html>

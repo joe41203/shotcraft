@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>shotcraft — 隠す・強調する</title>
+    <link rel="stylesheet" href="./store.css" />
+    <style>
+      /* shot-2: 見せたくない部分は隠す／見せたい場所へ視線を導く。
+         左に見出し＋3機能カード、右にモザイク部分を拡大した実画面の一部。 */
+      .wrap {
+        display: grid;
+        grid-template-columns: 560px 1fr;
+        height: 100%;
+        align-items: center;
+        padding: 0 64px;
+        gap: 56px;
+      }
+      .lead .eyebrow { margin-bottom: 20px; }
+      .lead h1 {
+        margin: 0;
+        font-size: 42px;
+        font-weight: 800;
+        line-height: 1.32;
+      }
+      .lead h1 .hide { color: #c084fc; }
+      .lead h1 .lead-eye { color: var(--accent-hover); white-space: nowrap; }
+      .lead .sub {
+        margin: 20px 0 34px;
+        font-size: 19px;
+        color: var(--text-muted);
+        max-width: 30ch;
+      }
+
+      .feat {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 18px 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        margin-bottom: 14px;
+      }
+      .feat:last-child { margin-bottom: 0; }
+      .feat .ic {
+        flex: 0 0 auto;
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-md);
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+      .feat .ic svg { width: 26px; height: 26px; }
+      .feat.mosaic .ic svg { color: #c084fc; }
+      .feat.blur .ic svg { color: #38bdf8; }
+      .feat.spot .ic svg { color: #fbbf24; }
+      .feat .txt h3 {
+        margin: 2px 0 5px;
+        font-size: 21px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .feat .txt p {
+        margin: 0;
+        font-size: 16px;
+        color: var(--text-muted);
+        line-height: 1.6;
+      }
+
+      /* 右: 実画面のモザイク部分を拡大表示するステージ */
+      .stage {
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card-shot {
+        position: relative;
+        width: 560px;
+        border-radius: var(--radius-2xl);
+        overflow: hidden;
+        border: 1px solid var(--border-strong);
+        box-shadow: var(--shadow-xl);
+        background: var(--surface);
+        transform: rotate(1.6deg);
+      }
+      .card-shot .cap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 38px;
+        padding: 0 16px;
+        background: #10151f;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+      .card-shot .cap .d { width: 11px; height: 11px; border-radius: 50%; }
+      .card-shot .cap .d.r { background: #f87171; }
+      .card-shot .cap .d.y { background: #fbbf24; }
+      .card-shot .cap .d.g { background: #34d399; }
+      .card-shot .cap span { margin-left: 8px; }
+
+      /* editor-annotations.png(1280x800) をこの窓の中でパン＆ズームし、
+         モザイク済みの「アクティブユーザー」カード付近を拡大表示する。 */
+      .viewport {
+        position: relative;
+        width: 560px;
+        height: 430px;
+        overflow: hidden;
+      }
+      .viewport .pan {
+        position: absolute;
+        width: 2560px;   /* 1280 * 2.0 */
+        height: 1600px;
+        top: -256px;     /* カード上部を見せる */
+        left: -170px;
+        background-image: url("./editor-annotations.png");
+        background-size: 2560px 1600px;
+        background-repeat: no-repeat;
+        image-rendering: auto;
+      }
+      /* モザイク箇所を指す注釈フキダシ（丸文字） */
+      .tag {
+        position: absolute;
+        z-index: 3;
+        font-family: var(--font-round);
+        font-size: 20px;
+        color: #0b0f19;
+        background: #ff9db0;
+        padding: 8px 15px;
+        border-radius: 14px;
+        box-shadow: 0 8px 20px rgb(0 0 0 / 35%);
+        white-space: nowrap;
+      }
+      .tag::after {
+        content: "";
+        position: absolute;
+        left: 30px;
+        bottom: -9px;
+        width: 18px;
+        height: 18px;
+        background: #ff9db0;
+        transform: rotate(45deg);
+        border-radius: 3px;
+      }
+      .tag-mosaic { top: 40px; left: 40px; }
+
+      /* 拡大枠（モザイク領域を囲うルーペ風の枠） */
+      .lens {
+        position: absolute;
+        z-index: 2;
+        top: 118px;
+        left: 34px;
+        width: 214px;
+        height: 92px;
+        border: 3px solid #c084fc;
+        border-radius: 10px;
+        box-shadow: 0 0 0 4px rgba(192, 132, 252, 0.18), 0 10px 26px rgb(0 0 0 / 30%);
+      }
+      .stage::before {
+        content: "";
+        position: absolute;
+        width: 460px;
+        height: 460px;
+        left: -80px;
+        bottom: -140px;
+        background: radial-gradient(circle, rgba(192, 132, 252, 0.16), transparent 68%);
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <div class="wrap">
+        <div class="lead">
+          <span class="eyebrow">隠す・強調する</span>
+          <h1>
+            見せたくない部分は、<span class="hide">隠す</span>。<br />
+            見せたい場所へ、<span class="lead-eye">視線を導く。</span>
+          </h1>
+          <p class="sub">
+            モザイク・ぼかしで伏せ、スポットライトで周りを暗くして注目を集めます。
+          </p>
+
+          <div class="feat mosaic">
+            <div class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1" /><line x1="4" y1="9.5" x2="20" y2="9.5" /><line x1="4" y1="14.5" x2="20" y2="14.5" /><line x1="9.5" y1="4" x2="9.5" y2="20" /><line x1="14.5" y1="4" x2="14.5" y2="20" /></svg>
+            </div>
+            <div class="txt">
+              <h3>モザイク</h3>
+              <p>名前やメールなど、伏せたい範囲をドラッグでピクセル化。</p>
+            </div>
+          </div>
+
+          <div class="feat blur">
+            <div class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c3.2 4 5 6.6 5 9a5 5 0 0 1-10 0c0-2.4 1.8-5 5-9z" /></svg>
+            </div>
+            <div class="txt">
+              <h3>ぼかし</h3>
+              <p>ガウスぼかしで、角丸にやわらかく情報を伏せる。</p>
+            </div>
+          </div>
+
+          <div class="feat spot">
+            <div class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="8" height="8" rx="1.5" /><line x1="4" y1="4" x2="6.5" y2="6.5" /><line x1="20" y1="4" x2="17.5" y2="6.5" /><line x1="4" y1="20" x2="6.5" y2="17.5" /><line x1="20" y1="20" x2="17.5" y2="17.5" /></svg>
+            </div>
+            <div class="txt">
+              <h3>スポットライト</h3>
+              <p>囲んだ場所だけ明るく残し、周囲を暗幕で落とす。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="card-shot">
+            <div class="cap">
+              <span class="d r"></span><span class="d y"></span><span class="d g"></span>
+              <span>Weekly Report — モザイクで伏せる</span>
+            </div>
+            <div class="viewport">
+              <div class="pan"></div>
+              <div class="lens"></div>
+              <div class="tag tag-mosaic">ここはモザイクで伏せる</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

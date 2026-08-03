@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>shotcraft — ツールとオプション</title>
+    <link rel="stylesheet" href="./store.css" />
+    <style>
+      /* shot-3: 14種類のツール。オプションはボタンの真下に。
+         上に見出し、下に実エディタのツールバーを CSS 再現＋選択ツール直下にフライアウト。 */
+      .wrap {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 84px 76px 0;
+        gap: 44px;
+      }
+      .head { max-width: 940px; }
+      .head .eyebrow { margin-bottom: 18px; }
+      .head h1 {
+        margin: 0;
+        font-size: 44px;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+      .head h1 .n { color: var(--accent-hover); }
+      .head .sub {
+        margin: 18px 0 0;
+        font-size: 20px;
+        color: var(--text-muted);
+        max-width: 46ch;
+      }
+
+      /* --- ツールバー再現 --- */
+      .toolbar-stage {
+        position: relative;
+        display: flex;
+        justify-content: center;
+      }
+      .toolbar {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-xl);
+      }
+      .tool {
+        width: 46px;
+        height: 46px;
+        border-radius: var(--radius-md);
+        display: grid;
+        place-items: center;
+        color: var(--text-muted);
+        background: transparent;
+      }
+      .tool svg { width: 24px; height: 24px; }
+      .tool.active {
+        background: var(--accent);
+        color: var(--accent-text);
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+      }
+      .sep {
+        width: 1px;
+        height: 30px;
+        background: var(--border-strong);
+        margin: 0 6px;
+      }
+      /* 色スウォッチ */
+      .swatches { display: inline-flex; align-items: center; gap: 8px; padding: 0 4px; }
+      .sw {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.18);
+      }
+      .sw.on { border-color: var(--ring); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3); }
+
+      /* --- フライアウト（選択ツールの真下） ---
+         矢印ツール(active)の下に出す想定。矢印スタイル＋線種セクション。 */
+      .flyout-anchor {
+        position: absolute;
+        /* 矢印ツールの中心に合わせる。toolbar は中央寄せなので left で微調整。 */
+        top: 74px;
+        left: 50%;
+        transform: translateX(-386px);
+      }
+      .flyout {
+        position: relative;
+        width: 268px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        padding: 14px 16px 16px;
+      }
+      /* つまみ（三角） */
+      .flyout::before {
+        content: "";
+        position: absolute;
+        top: -9px;
+        left: 40px;
+        width: 16px;
+        height: 16px;
+        background: var(--surface);
+        border-left: 1px solid var(--border-strong);
+        border-top: 1px solid var(--border-strong);
+        transform: rotate(45deg);
+      }
+      .fly-sec + .fly-sec { margin-top: 16px; }
+      .fly-label {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        margin-bottom: 9px;
+      }
+      .fly-row { display: flex; gap: 8px; }
+      .opt {
+        flex: 1;
+        height: 46px;
+        border-radius: var(--radius-md);
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        display: grid;
+        place-items: center;
+        color: var(--text);
+      }
+      .opt.sel {
+        border-color: var(--accent);
+        background: rgba(16, 185, 129, 0.14);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .opt svg { width: 30px; height: 22px; color: var(--text); }
+      .opt.sel svg { color: var(--accent-hover); }
+
+      .toolbar-stage::after {
+        content: "";
+        position: absolute;
+        width: 520px;
+        height: 300px;
+        left: 50%;
+        top: -30px;
+        transform: translateX(-50%);
+        background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.12), transparent 70%);
+        pointer-events: none;
+        z-index: -1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <div class="wrap">
+        <div class="head">
+          <span class="eyebrow">ツールとオプション</span>
+          <h1><span class="n">14 種類</span>のツール。<br />オプションはボタンの真下に。</h1>
+          <p class="sub">
+            ツールを選ぶと、そのボタンの真下にスタイルのフライアウトが開きます。線種・矢印・サイズなど、必要な選択肢だけがその場に。
+          </p>
+        </div>
+
+        <div class="toolbar-stage">
+          <div class="toolbar">
+            <!-- 選択 -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l6.5 16 2.3-6.7L20.5 10z" fill="currentColor" stroke="none"/></svg></div>
+            <!-- 矢印（選択中） -->
+            <div class="tool active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="10 5 19 5 19 14"/></svg></div>
+            <!-- 直線 -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/></svg></div>
+            <!-- 矩形 -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="1"/></svg></div>
+            <!-- 楕円 -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg></div>
+            <!-- スポットライト -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="8" height="8" rx="1.5"/><line x1="4" y1="4" x2="6.5" y2="6.5"/><line x1="20" y1="4" x2="17.5" y2="6.5"/><line x1="4" y1="20" x2="6.5" y2="17.5"/><line x1="20" y1="20" x2="17.5" y2="17.5"/></svg></div>
+            <!-- テキスト -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 6 5 5 19 5 19 6"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="9" y1="19" x2="15" y2="19"/></svg></div>
+            <!-- ペン -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 10-10-3-3L5 16z"/><line x1="14.5" y1="6.5" x2="17.5" y2="9.5"/></svg></div>
+            <!-- マーカー -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14l-2 5 5-2 8-8-3-3z"/><line x1="14" y1="6" x2="18" y2="10"/><line x1="5" y1="21" x2="12" y2="21"/></svg></div>
+            <!-- ステップ -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M11 9.5l1.8-1.2V16"/></svg></div>
+            <!-- フキダシ -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H13l-3 4v-4H4z"/><line x1="7.5" y1="10" x2="16.5" y2="10"/></svg></div>
+            <!-- モザイク -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="9.5" x2="20" y2="9.5"/><line x1="4" y1="14.5" x2="20" y2="14.5"/><line x1="9.5" y1="4" x2="9.5" y2="20"/><line x1="14.5" y1="4" x2="14.5" y2="20"/></svg></div>
+            <!-- ぼかし -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c3.2 4 5 6.6 5 9a5 5 0 0 1-10 0c0-2.4 1.8-5 5-9z"/></svg></div>
+            <!-- クロップ -->
+            <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v16h16"/><path d="M18 22V6H2"/></svg></div>
+
+            <div class="sep"></div>
+            <div class="swatches">
+              <span class="sw" style="background:#f87171"></span>
+              <span class="sw" style="background:#fbbf24"></span>
+              <span class="sw on" style="background:#34d399"></span>
+              <span class="sw" style="background:#38bdf8"></span>
+              <span class="sw" style="background:#a78bfa"></span>
+              <span class="sw" style="background:#0b0f19"></span>
+              <span class="sw" style="background:#f2f5f9"></span>
+            </div>
+          </div>
+
+          <!-- フライアウト（矢印ツールの真下） -->
+          <div class="flyout-anchor">
+            <div class="flyout">
+              <div class="fly-sec">
+                <div class="fly-label">矢印</div>
+                <div class="fly-row">
+                  <div class="opt sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="19" y2="12"/><polyline points="14 7 19 12 14 17"/></svg></div>
+                  <div class="opt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="18" y2="12"/><polyline points="10 7 5 12 10 17"/><polyline points="14 7 19 12 14 17"/></svg></div>
+                  <div class="opt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16c5-8 11-8 15-4"/><polyline points="14 5 19 12 12 13"/></svg></div>
+                </div>
+              </div>
+              <div class="fly-sec">
+                <div class="fly-label">線種</div>
+                <div class="fly-row">
+                  <div class="opt sel"><svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="4" y1="12" x2="28" y2="12"/></svg></div>
+                  <div class="opt"><svg viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="5 5"><line x1="4" y1="12" x2="28" y2="12"/></svg></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

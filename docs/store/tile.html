@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>shotcraft — 小プロモタイル</title>
+    <link rel="stylesheet" href="./store.css" />
+    <style>
+      /* 小プロモタイル 440x280 固定。ストア一覧で目を引くシンプルさ。 */
+      .tile {
+        position: relative;
+        width: 440px;
+        height: 280px;
+        overflow: hidden;
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        padding: 0 30px;
+        gap: 18px;
+        background:
+          radial-gradient(520px 320px at 80% -20%, rgba(16, 185, 129, 0.22), transparent 60%),
+          radial-gradient(460px 300px at 6% 120%, rgba(56, 189, 248, 0.16), transparent 62%),
+          linear-gradient(155deg, #0e1424 0%, #0b0f19 55%, #090c15 100%);
+      }
+      .tile::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 34px 34px;
+        mask-image: radial-gradient(420px 280px at 50% 45%, #000 20%, transparent 82%);
+        pointer-events: none;
+      }
+      .tile .logo {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        z-index: 1;
+      }
+      .tile .logo img {
+        width: 60px;
+        height: 60px;
+        border-radius: 15px;
+        box-shadow: var(--shadow-lg);
+        display: block;
+      }
+      .tile .logo .name {
+        font-size: 40px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+      }
+      .tile .logo .name b { color: var(--accent-hover); font-weight: 800; }
+      .tile .copy {
+        z-index: 1;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+      .tile .copy .hl { color: var(--text); font-weight: 700; }
+      .tile .rule {
+        z-index: 1;
+        width: 54px;
+        height: 3px;
+        border-radius: 3px;
+        background: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="tile">
+      <div class="logo">
+        <img src="./icon-128.png" alt="shotcraft" />
+        <span class="name">shot<b>craft</b></span>
+      </div>
+      <span class="rule"></span>
+      <p class="copy"><span class="hl">撮って、その場で編集。</span></p>
+    </div>
+  </body>
+</html>

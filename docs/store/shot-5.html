@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>shotcraft — 3 つの撮り方</title>
+    <link rel="stylesheet" href="./store.css" />
+    <style>
+      /* shot-5: 撮り方は 3 つ。ぜんぶワンクリック。
+         上に中央寄せ見出し、下に 3 モードのカードを横並び。
+         余白・密度は shot-4 を、カードアイコンのトーンは shot-2 を踏襲。 */
+      .wrap {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 72px;
+        gap: 48px;
+      }
+      .head { text-align: center; }
+      .head .eyebrow { margin-bottom: 18px; }
+      .head h1 {
+        margin: 0;
+        font-size: 46px;
+        font-weight: 800;
+        line-height: 1.28;
+      }
+      .head h1 .n { color: var(--accent-hover); }
+      .head .sub {
+        margin: 18px auto 0;
+        font-size: 20px;
+        color: var(--text-muted);
+        max-width: 44ch;
+      }
+
+      /* 3 モードカード */
+      .modes {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+        align-items: stretch;
+      }
+      .mode {
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        padding: 26px 26px 28px;
+        box-shadow: var(--shadow-md);
+      }
+      .mode .top {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 20px;
+      }
+      .mode .step {
+        flex: 0 0 auto;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-family: var(--font-round);
+        font-size: 16px;
+        color: var(--accent-text);
+        background: var(--accent);
+      }
+      .mode .ic {
+        flex: 0 0 auto;
+        width: 52px;
+        height: 52px;
+        border-radius: var(--radius-md);
+        display: grid;
+        place-items: center;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+      .mode .ic svg { width: 28px; height: 28px; }
+      .mode.m1 .ic svg { color: var(--accent-hover); }
+      .mode.m2 .ic svg { color: #38bdf8; }
+      .mode.m3 .ic svg { color: #fbbf24; }
+
+      .mode h3 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .mode p {
+        margin: 0;
+        font-size: 16px;
+        color: var(--text-muted);
+        line-height: 1.65;
+      }
+
+      /* 各モードのモチーフ枠（カード下部の視覚） */
+      .motif {
+        position: relative;
+        margin-top: 22px;
+        height: 132px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        overflow: hidden;
+      }
+
+      /* ① 画面をそのまま: ミニブラウザ窓 */
+      .m1 .motif {
+        display: flex;
+        flex-direction: column;
+      }
+      .m1 .mchrome {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 24px;
+        padding: 0 10px;
+        background: #10151f;
+        border-bottom: 1px solid var(--border);
+      }
+      .m1 .mchrome .d { width: 7px; height: 7px; border-radius: 50%; }
+      .m1 .mchrome .d.r { background: #f87171; }
+      .m1 .mchrome .d.y { background: #fbbf24; }
+      .m1 .mchrome .d.g { background: #34d399; }
+      .m1 .mbody {
+        flex: 1;
+        position: relative;
+        padding: 14px 14px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+      }
+      .m1 .ln { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); }
+      .m1 .ln.w1 { width: 72%; }
+      .m1 .ln.w2 { width: 52%; }
+      .m1 .ln.w3 { width: 64%; background: rgba(16, 185, 129, 0.35); }
+      /* 表示範囲まるごとを示す囲み */
+      .m1 .capframe {
+        position: absolute;
+        inset: 8px;
+        border: 2px solid var(--accent);
+        border-radius: 8px;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.14);
+      }
+
+      /* ② 範囲を選択: 点線の選択枠＋サイズ表示 */
+      .m2 .motif {
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+          var(--surface-2);
+        background-size: 22px 22px, 22px 22px, auto;
+      }
+      .m2 .dim {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.42);
+      }
+      .m2 .sel {
+        position: absolute;
+        top: 26px;
+        left: 40px;
+        width: 168px;
+        height: 74px;
+        border: 2px dashed #38bdf8;
+        border-radius: 4px;
+        background: rgba(56, 189, 248, 0.1);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+      }
+      /* 選択枠のハンドル */
+      .m2 .sel .h {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: #38bdf8;
+        border: 1px solid #0b0f19;
+        border-radius: 2px;
+      }
+      .m2 .sel .h.tl { top: -5px; left: -5px; }
+      .m2 .sel .h.tr { top: -5px; right: -5px; }
+      .m2 .sel .h.bl { bottom: -5px; left: -5px; }
+      .m2 .sel .h.br { bottom: -5px; right: -5px; }
+      /* サイズラベル（幅 x 高さ） */
+      .m2 .size {
+        position: absolute;
+        right: -2px;
+        bottom: -26px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #0b0f19;
+        background: #38bdf8;
+        border-radius: 5px;
+        padding: 2px 8px;
+        white-space: nowrap;
+      }
+      /* Esc ヒント */
+      .m2 .esc {
+        position: absolute;
+        left: 12px;
+        bottom: 10px;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+      .m2 .esc kbd {
+        font-family: var(--font-sans);
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text);
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: 5px;
+        padding: 1px 6px;
+        margin-right: 5px;
+      }
+
+      /* ③ 縦に長いページを 1 枚に: 縦長ページ＋自動スクロール＋バッジ進捗 */
+      .m3 .motif {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+        gap: 18px;
+        padding: 14px 16px;
+      }
+      /* 縦長ページ（はみ出す長さを暗示） */
+      .m3 .page {
+        position: relative;
+        width: 78px;
+        border-radius: 6px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px 9px;
+      }
+      .m3 .page .pl {
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.1);
+        flex: 0 0 auto;
+      }
+      .m3 .page .pl.a { width: 90%; }
+      .m3 .page .pl.b { width: 66%; }
+      .m3 .page .pl.c { width: 80%; background: rgba(251, 191, 36, 0.32); }
+      /* いま撮影中のタイル位置を示す帯 */
+      .m3 .page .tile-now {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 40px;
+        height: 30px;
+        background: rgba(251, 191, 36, 0.14);
+        border-top: 1px dashed rgba(251, 191, 36, 0.7);
+        border-bottom: 1px dashed rgba(251, 191, 36, 0.7);
+      }
+      /* 自動スクロール矢印 */
+      .m3 .scroll {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: #fbbf24;
+      }
+      .m3 .scroll svg { width: 22px; height: 22px; }
+      .m3 .scroll .dots {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .m3 .scroll .dots i {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(251, 191, 36, 0.5);
+      }
+      /* 完成する 1 枚（縦長の連結結果） */
+      .m3 .stitched {
+        position: relative;
+        width: 66px;
+        border-radius: 6px;
+        background: linear-gradient(180deg, #1c2431, #141a24);
+        border: 1px solid var(--accent);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 9px 8px;
+      }
+      .m3 .stitched .sl {
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.14);
+      }
+      .m3 .stitched .sl.g { background: rgba(16, 185, 129, 0.45); }
+      /* アイコンのバッジ進捗（1/5） */
+      .m3 .badge {
+        position: absolute;
+        top: -9px;
+        right: -9px;
+        min-width: 24px;
+        height: 20px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--accent-text);
+        font-size: 12px;
+        font-weight: 800;
+        display: grid;
+        place-items: center;
+        border: 2px solid var(--surface);
+        letter-spacing: 0.02em;
+      }
+      /* 背景のアクセント発光 */
+      .modes-glow {
+        position: absolute;
+        left: 50%;
+        bottom: -120px;
+        width: 760px;
+        height: 380px;
+        transform: translateX(-50%);
+        background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.12), transparent 70%);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .wrap { position: relative; z-index: 1; }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <div class="modes-glow"></div>
+      <div class="wrap">
+        <div class="head">
+          <span class="eyebrow">3 つの撮り方</span>
+          <h1>撮り方は <span class="n">3 つ</span>。ぜんぶワンクリック。</h1>
+          <p class="sub">
+            いま見えている画面も、選んだ範囲だけも、縦に長いページ丸ごとも。目的に合わせて撮り方を選べます。
+          </p>
+        </div>
+
+        <div class="modes">
+          <!-- ① 表示範囲をキャプチャ -->
+          <div class="mode m1">
+            <div class="top">
+              <span class="step">1</span>
+              <div class="ic">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.4"/></svg>
+              </div>
+            </div>
+            <h3>いま見えている画面を<br />そのまま</h3>
+            <p>アクティブなタブの表示領域全体を、ワンクリックで丸ごと撮影。</p>
+            <div class="motif">
+              <div class="mchrome"><span class="d r"></span><span class="d y"></span><span class="d g"></span></div>
+              <div class="mbody">
+                <div class="ln w1"></div>
+                <div class="ln w3"></div>
+                <div class="ln w2"></div>
+                <div class="capframe"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ② 範囲を選択してキャプチャ -->
+          <div class="mode m2">
+            <div class="top">
+              <span class="step">2</span>
+              <div class="ic">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              </div>
+            </div>
+            <h3>ドラッグで選んだ<br />範囲だけ</h3>
+            <p>オーバーレイをドラッグして選んだ矩形を撮影。サイズを表示し、Esc で中止。</p>
+            <div class="motif">
+              <div class="dim"></div>
+              <div class="sel">
+                <span class="h tl"></span><span class="h tr"></span>
+                <span class="h bl"></span><span class="h br"></span>
+                <span class="size">640 × 280</span>
+              </div>
+              <div class="esc"><kbd>Esc</kbd>で中止</div>
+            </div>
+          </div>
+
+          <!-- ③ ページ全体をキャプチャ -->
+          <div class="mode m3">
+            <div class="top">
+              <span class="step">3</span>
+              <div class="ic">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="1.5"/><line x1="9" y1="6.5" x2="15" y2="6.5"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="13.5" x2="13" y2="13.5"/></svg>
+              </div>
+            </div>
+            <h3>縦に長いページも<br />1 枚に</h3>
+            <p>自動スクロールしながら撮り、1 枚の縦長画像に連結。撮影中はアイコンに進捗表示。</p>
+            <div class="motif">
+              <div class="page">
+                <div class="pl a"></div>
+                <div class="pl b"></div>
+                <div class="pl c"></div>
+                <div class="pl a"></div>
+                <div class="pl b"></div>
+                <div class="pl a"></div>
+                <div class="tile-now"></div>
+              </div>
+              <div class="scroll">
+                <div class="dots"><i></i><i></i><i></i></div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg>
+              </div>
+              <div class="stitched">
+                <span class="badge">2/5</span>
+                <div class="sl"></div>
+                <div class="sl g"></div>
+                <div class="sl"></div>
+                <div class="sl"></div>
+                <div class="sl"></div>
+                <div class="sl"></div>
+                <div class="sl"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
