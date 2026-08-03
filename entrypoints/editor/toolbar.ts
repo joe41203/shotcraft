@@ -123,8 +123,6 @@ export interface ToolbarCallbacks {
 	onSavePng(): void;
 	/** クリップボードへコピー。 */
 	onCopy(): void;
-	/** バグ報告ラベル（メタ情報の塗りつぶしプレート）を画像へ追加。 */
-	onBugReport(): void;
 }
 
 /**
@@ -207,16 +205,6 @@ export class Toolbar {
 		}
 		this.root.append(toolGroup, divider());
 
-		// バグ報告: ツール一覧の一番右（クロップの右隣）に置くアクションボタン。
-		// 見た目はツール群と同じ .icon-btn トーンだが、描画ツールのトグルではなく
-		// 押下即アクション（メタ情報ラベルを画像へ追加）なので、選択状態
-		// （aria-pressed・active）は持たせない。区切りは既存の divider に従う。
-		const bugGroup = group();
-		const bugBtn = iconButton(icons.bug, "バグ報告ラベルを追加");
-		bugBtn.addEventListener("click", () => this.callbacks.onBugReport());
-		bugGroup.append(bugBtn);
-		this.root.append(bugGroup, divider());
-
 		// 線種・矢印スタイルのフライアウト。DOM 上はツールボタン群の直後に置き、
 		// Tab 順が「ツール → フライアウト内のスタイルボタン」と自然に流れるようにする。
 		// 位置は固定配置でアンカー先ボタンの真下に置くため、ここでの DOM 位置は
@@ -266,7 +254,6 @@ export class Toolbar {
 
 		// 出力: コピー（通常ボタン）と PNG 保存（主要アクション）。
 		// 誤クリック防止のため、両ボタンは他グループより広い間隔で並べる。
-		// （バグ報告ボタンは左のツール一覧側＝クロップの右隣に置くのでここには無い。）
 		const exportGroup = group();
 		exportGroup.classList.add("export-group");
 		const copyBtn = textButton(

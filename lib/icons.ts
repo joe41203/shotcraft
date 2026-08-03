@@ -82,10 +82,6 @@ export const icons = {
 	copy: svg(
 		'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
 	),
-	// バグ報告（虫のアイコン）
-	bug: svg(
-		'<rect x="8" y="6" width="8" height="12" rx="4"/><line x1="12" y1="6" x2="12" y2="18"/><line x1="8" y1="4" x2="9.5" y2="6"/><line x1="16" y1="4" x2="14.5" y2="6"/><line x1="4" y1="9" x2="8" y2="11"/><line x1="20" y1="9" x2="16" y2="11"/><line x1="4" y1="16" x2="8" y2="14"/><line x1="20" y1="16" x2="16" y2="14"/>',
-	),
 	// 表示範囲キャプチャ（カメラ）
 	camera: svg(
 		'<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',

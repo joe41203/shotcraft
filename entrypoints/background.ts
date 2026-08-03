@@ -143,9 +143,6 @@ export default defineBackground(() => {
 				height,
 				sourceUrl: tab.url ?? "",
 				sourceTitle: tab.title ?? "",
-				// バグ報告用のコンテキスト。URL/タイトルは取れれば記録（chrome:// 等は空文字
-				// になり得るので undefined へ落とす）。表示範囲キャプチャは viewport を計測
-				// しない（追加注入を避ける）ため viewport は省略する。
 			});
 		} catch (error) {
 			console.warn("[shotcraft] 表示範囲のキャプチャに失敗しました", error);
@@ -233,13 +230,6 @@ export default defineBackground(() => {
 					height: stitched.height,
 					sourceUrl: tab.url ?? "",
 					sourceTitle: tab.title ?? "",
-					// バグ報告用のコンテキスト。フルページは measurePage で viewport を計測済み
-					// なので、その CSS px を記録する（撮影自体は縦長へ連結されるが、画面サイズは
-					// 撮影時のビューポートが妥当）。
-					viewport: {
-						width: metrics.viewportWidth,
-						height: metrics.viewportHeight,
-					},
 				});
 			} catch (error) {
 				console.warn("[shotcraft] ページ全体のキャプチャに失敗しました", error);
@@ -403,9 +393,6 @@ export default defineBackground(() => {
 				height: cropped.height,
 				sourceUrl: tab?.url ?? "",
 				sourceTitle: tab?.title ?? "",
-				// バグ報告用のコンテキスト。範囲選択は REGION_SELECTED の viewport（CSS px）を
-				// そのまま記録する。URL/タイトルは取れれば記録する。
-				viewport: { width: viewport.width, height: viewport.height },
 			});
 		} catch (error) {
 			console.warn("[shotcraft] 範囲キャプチャに失敗しました", error);

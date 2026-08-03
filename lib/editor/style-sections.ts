@@ -37,16 +37,8 @@ const DASH_TOOLS: ReadonlySet<string> = new Set([
 	"pen",
 ]);
 
-/**
- * サイズ（S/M/L）セクションを持つツール・図形の集合（テキスト・フキダシ・ラベル）。
- * ラベル（バグ報告ラベル）は専用ツールを持たないが、選択中は文字サイズを変えられる
- * ようフキダシと同様にサイズセクションを出す（アンカーは text ツールボタン）。
- */
-const FONT_SIZE_TYPES: ReadonlySet<string> = new Set([
-	"text",
-	"callout",
-	"label",
-]);
+/** サイズ（S/M/L）セクションを持つツール・図形の集合（テキスト・フキダシ）。 */
+const FONT_SIZE_TYPES: ReadonlySet<string> = new Set(["text", "callout"]);
 
 /** 塗り（なし/半透明）セクションを持つツール・図形の集合（矩形・楕円）。 */
 const FILL_TYPES: ReadonlySet<string> = new Set(["rect", "ellipse"]);
@@ -79,9 +71,6 @@ const SHAPE_TO_TOOL: Readonly<Record<string, string>> = {
 	pen: "pen",
 	text: "text",
 	callout: "callout",
-	// ラベルは専用ツールを持たないので、サイズセクションのアンカーは text ボタンにする
-	// （文字サイズ調整という役割がテキストと同じため）。
-	label: "text",
 	mosaic: "mosaic",
 	blur: "blur",
 	spotlight: "spotlight",
