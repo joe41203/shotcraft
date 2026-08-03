@@ -88,6 +88,8 @@ export function shapeBoundingBox(shape: Shape): BBox {
 		case "blur":
 		case "spotlight":
 		case "callout":
+		// ラベル（塗りつぶしプレート）もフキダシ本体と同じ x/y/width/height を持つ。
+		case "label":
 			return {
 				x: shape.x,
 				y: shape.y,

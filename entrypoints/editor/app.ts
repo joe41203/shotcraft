@@ -1,8 +1,13 @@
 import Konva from "konva";
-import { buildBugReportMarkdown } from "@/lib/bug-report";
+import { buildBugReportLabelText } from "@/lib/bug-report";
 import type { CaptureRecord } from "@/lib/capture-store";
 import { type ArrowStyle, normalizeArrowStyle } from "@/lib/editor/arrow";
-import { type CalloutTail, normalizeCalloutTail } from "@/lib/editor/callout";
+import {
+	CALLOUT_PADDING,
+	type CalloutTail,
+	calloutInnerWidth,
+	normalizeCalloutTail,
+} from "@/lib/editor/callout";
 import { type CropRatio, croppedSize } from "@/lib/editor/crop";
 import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
@@ -12,6 +17,7 @@ import {
 	type EditorDoc,
 	emptyDoc,
 	findShape,
+	type LabelShape,
 	type MosaicBlurIntensity,
 	moveShapeBackward,
 	moveShapeForward,
@@ -33,6 +39,7 @@ import {
 	redo,
 	undo,
 } from "@/lib/editor/history";
+import { haloColor } from "@/lib/editor/halo";
 import { shapesInBand } from "@/lib/editor/selection";
 import { resolveSpotlightAlpha } from "@/lib/editor/spotlight";
 import {
@@ -45,7 +52,8 @@ import {
 	styleAnchorToolFor,
 	styleSectionsFor,
 } from "@/lib/editor/style-sections";
-import { clampFontSize } from "@/lib/editor/text";
+import { clampFontSize, FONT_SIZE_OPTIONS } from "@/lib/editor/text";
+import { theme } from "@/lib/theme";
 import { CropController } from "./crop-controller";
 import {
 	canvasToPngBlob,
@@ -62,6 +70,7 @@ import {
 import { renderShapes, shapeFromNode } from "./render";
 import { Toast } from "./toast";
 import { Toolbar } from "./toolbar";
+import { openTextOverlay } from "./tools/text-overlay";
 import type {
 	EditorContext,
 	PointerModifiers,
@@ -114,9 +123,9 @@ export class EditorApp {
 	private baseImage: HTMLImageElement;
 	private contentSize: { width: number; height: number };
 	/**
-	 * バグ報告テンプレートに載せるキャプチャのコンテキスト（URL・タイトル・撮影時刻・
+	 * バグ報告ラベルに載せるキャプチャのコンテキスト（URL・タイトル・撮影時刻・
 	 * ビューポート）。record から取り出して保持する。取れなかった項目は欠落したまま
-	 * （後方互換。buildBugReportMarkdown 側で値のある行だけ出力する）。
+	 * （後方互換。buildBugReportLabelText 側で値のある要素だけ文言に出す）。
 	 */
 	private captureMeta: {
 		pageUrl?: string;
@@ -314,7 +323,7 @@ export class EditorApp {
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
 			onCopy: () => void this.copyToClipboard(),
-			onBugReport: () => void this.copyBugReport(),
+			onBugReport: () => this.addBugReportLabel(),
 		});
 
 		this.bindStageEvents();
@@ -815,8 +824,8 @@ export class EditorApp {
 	}
 
 	/**
-	 * 選択中がテキストまたはフキダシなら fontSize を差し替えて commit する。
-	 * 現在値と同じなら何もしない。テキスト・フキダシ以外は対象外。フキダシの本体高さは
+	 * 選択中がテキスト・フキダシ・ラベルなら fontSize を差し替えて commit する。
+	 * 現在値と同じなら何もしない。それ以外は対象外。フキダシ・ラベルの本体高さは
 	 * doc に fontSize を書けば render.ts が calloutBodyHeight で再計算するので、ここでは
 	 * fontSize だけ更新すればよい（高さフィールドは下限なので、文字が大きくなれば広がる）。
 	 */
@@ -824,7 +833,14 @@ export class EditorApp {
 		const id = this.selectedId;
 		if (!id) return;
 		const shape = findShape(this.history.present, id);
-		if (!shape || (shape.type !== "text" && shape.type !== "callout")) return;
+		if (
+			!shape ||
+			(shape.type !== "text" &&
+				shape.type !== "callout" &&
+				shape.type !== "label")
+		) {
+			return;
+		}
 		if (shape.fontSize === size) return;
 		this.commitDoc(updateShape(this.history.present, id, { fontSize: size }));
 	}
@@ -1237,10 +1253,16 @@ export class EditorApp {
 			this.tools.get(this.currentTool)?.onPointerUp?.(pos, modifiers(e));
 		});
 		this.stage.on("dblclick dbltap", (e) => {
-			const id = e.target?.id();
-			if (!id) return;
-			const shape = findShape(this.history.present, id);
+			// フキダシ・ラベルは Konva.Group で、内側の Rect/Text が e.target になり得る。
+			// その場合 id を持たないので、自身→祖先の順に doc の図形へ対応する id を探す。
+			const shape = this.shapeForNode(e.target);
 			if (!shape) return;
+			// バグ報告ラベルは専用ツールを持たないので、ここで直接テキスト再編集を開く
+			// （text/callout の onDblClick と同じテキストオーバーレイ機構を使う）。
+			if (shape.type === "label") {
+				this.editLabelText(shape);
+				return;
+			}
 			// テキスト・フキダシの再編集はどのツール中でも効くようにする。
 			if (shape.type === "text") {
 				this.setTool("text");
@@ -1555,32 +1577,127 @@ export class EditorApp {
 	}
 
 	/**
-	 * バグ報告テンプレート（Markdown）をクリップボードへコピーする。
-	 * 画像は含めず本文で「コピー」ボタンへ誘導する（テキストと画像はクリップボードの
-	 * データ種別が異なり同時には持てないため役割を分ける）。Markdown 生成は純粋関数
-	 * buildBugReportMarkdown に委ね、ここでは環境値（UA・拡張バージョン・出力サイズ）と
-	 * キャプチャのコンテキストを集めて渡し、writeText とトースト表示だけを担う。
-	 * 画像サイズはクロップ適用後の出力原寸（displaySize）を渡す。
+	 * バグ報告ラベル（メタ情報の塗りつぶしプレート）を画像へ追加する。
+	 *
+	 * 文言生成は純粋関数 buildBugReportLabelText に委ね、ここでは navigator の UA と
+	 * キャプチャのコンテキストを集めて渡し、LabelShape として doc に 1 回 commit し、
+	 * 生成直後に選択状態にする（＝そのまま移動・リサイズ・ダブルクリック再編集・削除・
+	 * undo が既存機構で動く。特別扱いはしない）。配置はクロップ適用後の表示領域の左下
+	 * （マージン 16px）。プレート色は現在の選択色（style.stroke）で、文字色は
+	 * render.ts が haloColor で白/ダーク自動判定する。初期幅は最長行が概ね収まる幅。
+	 * どの項目も取れず文言が空になるときは追加しない（失敗トーストを出す）。
 	 */
-	async copyBugReport(): Promise<void> {
-		try {
-			const size = this.displaySize();
-			const markdown = buildBugReportMarkdown({
-				pageUrl: this.captureMeta.pageUrl,
-				pageTitle: this.captureMeta.pageTitle,
-				capturedAt: this.captureMeta.capturedAt,
-				viewport: this.captureMeta.viewport,
-				userAgent: navigator.userAgent,
-				extensionVersion: browser.runtime.getManifest().version,
-				imageSize: { width: size.width, height: size.height },
-			});
-			await navigator.clipboard.writeText(markdown);
-			this.toast.show(
-				"バグ報告テキストをコピーしました（画像は「コピー」で貼り付けできます）",
-			);
-		} catch {
-			this.toast.show("バグ報告テキストのコピーに失敗しました", "error");
+	addBugReportLabel(): void {
+		const text = buildBugReportLabelText({
+			pageTitle: this.captureMeta.pageTitle,
+			pageUrl: this.captureMeta.pageUrl,
+			capturedAt: this.captureMeta.capturedAt,
+			viewport: this.captureMeta.viewport,
+			userAgent: navigator.userAgent,
+		});
+		if (text.length === 0) {
+			this.toast.show("バグ報告ラベルに載せる情報がありません", "error");
+			return;
 		}
+
+		// フォントは S（18）。クロップ適用後の表示領域の左下へ、下端・左端から 16px の
+		// マージンで置く。doc 座標系では表示領域の原点は crop の左上（無ければ原点）。
+		const MARGIN = 16;
+		const fontSize = FONT_SIZE_OPTIONS[0]?.value ?? 18;
+		const crop = this.history.present.crop;
+		const originX = crop?.x ?? 0;
+		const originY = crop?.y ?? 0;
+		const size = this.displaySize();
+
+		const { width, height } = this.labelInitialSize(text, fontSize, size);
+		const x = originX + MARGIN;
+		// ラベル下端が下マージンに収まるよう top を決める（収まらない小さい画像では上マージン）。
+		const y = originY + Math.max(MARGIN, size.height - MARGIN - height);
+
+		const shape: LabelShape = {
+			id: this.newId(),
+			type: "label",
+			x,
+			y,
+			width,
+			height,
+			text,
+			fontSize,
+			stroke: this.style.stroke,
+			strokeWidth: this.style.strokeWidth,
+			rotation: 0,
+			opacity: 1,
+		};
+		// 選択ツールへ切り替えてから追加・選択する。ラベル（Group）を即ドラッグで
+		// 動かせるのは選択ツール時なので、どのツール中に押されても確実にハンドル表示・
+		// 移動可能にする。
+		this.setTool("select");
+		this.commitDoc(addShape(this.history.present, shape));
+		this.select(shape.id);
+		this.toast.show("バグ報告ラベルを追加しました");
+	}
+
+	/**
+	 * バグ報告ラベルの初期プレート寸法を見積もる。幅は最長行が概ね収まるよう
+	 * 「最長行の文字数 × 概算文字幅 ＋ 左右パディング」で決め、表示領域の 8 割以内に
+	 * クランプする（画像幅を食い尽くさない）。高さは 1 行分＋上下パディングを下限にし、
+	 * 実際の折返し高さは render.ts の calloutBodyHeight が描画時に広げる。
+	 * 文字幅は等幅前提の概算（Mochiy Pop One は丸字でやや広めなので 0.62em で見積もる）。
+	 */
+	private labelInitialSize(
+		text: string,
+		fontSize: number,
+		display: { width: number; height: number },
+	): { width: number; height: number } {
+		const CHAR_WIDTH_EM = 0.62;
+		const lines = text.split("\n");
+		const maxChars = lines.reduce((m, line) => Math.max(m, line.length), 0);
+		const contentWidth = maxChars * fontSize * CHAR_WIDTH_EM;
+		const rawWidth = Math.ceil(contentWidth + CALLOUT_PADDING * 2);
+		// 下限は 1 行が窮屈にならない幅、上限は表示領域の 8 割（画像幅を食い尽くさない）。
+		const maxWidth = Math.max(80, Math.floor(display.width * 0.8));
+		const width = Math.min(maxWidth, Math.max(120, rawWidth));
+		// 高さの下限（1 行＋上下パディング）。折返しは描画時に calloutBodyHeight が広げる。
+		const height = Math.ceil(fontSize * 1.25 + CALLOUT_PADDING * 2);
+		return { width, height };
+	}
+
+	/**
+	 * バグ報告ラベルのテキストをダブルクリックで再編集する。text/callout の再編集と
+	 * 同じテキストオーバーレイ機構（openTextOverlay）を使う。編集中は元ノードを隠し、
+	 * 確定で updateShape、空文字確定で削除、キャンセルで元へ戻す（callout と同じ作法）。
+	 * 折返し幅はプレート内側幅（calloutInnerWidth）に合わせる。
+	 */
+	private editLabelText(shape: LabelShape): void {
+		this.setNodeVisible(shape.id, false);
+		openTextOverlay(
+			this.context(),
+			{
+				value: shape.text,
+				docPos: {
+					x: shape.x + CALLOUT_PADDING,
+					y: shape.y + CALLOUT_PADDING,
+				},
+				fontSize: shape.fontSize,
+				fontFamily: theme.fontAnnotation,
+				// プレート上の文字色（白/ダーク自動判定）に合わせて編集中も見せる。
+				color: haloColor(shape.stroke),
+				wrapWidth: calloutInnerWidth(shape.width, CALLOUT_PADDING),
+			},
+			(text) => {
+				const exists = findShape(this.history.present, shape.id);
+				if (!exists) return;
+				if (text == null) {
+					// キャンセル: 元ノードを再表示するだけ。
+					this.setNodeVisible(shape.id, true);
+				} else if (text.trim().length === 0) {
+					// 空にした確定はラベル削除。
+					this.commitDoc(removeShape(this.history.present, shape.id));
+				} else {
+					this.commitDoc(updateShape(this.history.present, shape.id, { text }));
+				}
+			},
+		);
 	}
 
 	private bindResize(container: HTMLDivElement): void {
@@ -1683,9 +1800,9 @@ export class EditorApp {
 
 	/**
 	 * サイズ（S/M/L）コントロールの表示と現在値を同期する。
-	 * テキスト/フキダシを選択中はそのシェイプの fontSize を、そうでなくテキストツール
-	 * 選択中は新規デフォルト（style.fontSize）を表示する。現在値がプリセット外（ハンドル
-	 * ドラッグで変えた連続値）ならどのボタンも active にしない（toolbar 側で判定）。
+	 * テキスト/フキダシ/ラベルを選択中はそのシェイプの fontSize を、そうでなくテキスト
+	 * ツール選択中は新規デフォルト（style.fontSize）を表示する。現在値がプリセット外
+	 * （ハンドルドラッグで変えた連続値）ならどのボタンも active にしない（toolbar 側で判定）。
 	 */
 	private syncFontSizeControls(): void {
 		const visible = this.currentStyleSections().fontSize;
@@ -1695,7 +1812,9 @@ export class EditorApp {
 			? findShape(this.history.present, this.selectedId)
 			: undefined;
 		const selectedText =
-			selected?.type === "text" || selected?.type === "callout"
+			selected?.type === "text" ||
+			selected?.type === "callout" ||
+			selected?.type === "label"
 				? selected
 				: undefined;
 		const size = selectedText ? selectedText.fontSize : this.style.fontSize;
@@ -1804,5 +1923,24 @@ export class EditorApp {
 
 	getShapeById(id: string): Shape | undefined {
 		return findShape(this.history.present, id);
+	}
+
+	/**
+	 * Konva ノード（イベントの target）から、対応する doc の図形を求める。
+	 * フキダシ・ラベルは Group で、内側の Rect/Text が target になり得るが id を持たない。
+	 * そこで自身から祖先へ辿り、id が doc の図形に一致する最初のノードの図形を返す。
+	 * 見つからなければ undefined。
+	 */
+	private shapeForNode(node: Konva.Node | undefined): Shape | undefined {
+		let cur: Konva.Node | null | undefined = node;
+		while (cur) {
+			const id = cur.id?.();
+			if (id) {
+				const shape = findShape(this.history.present, id);
+				if (shape) return shape;
+			}
+			cur = cur.getParent();
+		}
+		return undefined;
 	}
 }

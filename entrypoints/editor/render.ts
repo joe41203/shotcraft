@@ -17,6 +17,7 @@ import type {
 	BlurShape,
 	CalloutShape,
 	EditorDoc,
+	LabelShape,
 	MosaicShape,
 	Shape,
 	SpotlightShape,
@@ -160,6 +161,8 @@ export function shapeToNode(
 			return buildStepNode(shape, common);
 		case "callout":
 			return buildCalloutNode(shape, common);
+		case "label":
+			return buildLabelNode(shape, common);
 		case "mosaic":
 			return source
 				? buildMosaicNode(shape, source)
@@ -639,6 +642,60 @@ function buildCalloutNode(
 }
 
 /**
+ * バグ報告ラベルを Konva.Group（塗りつぶしプレート + 内側テキスト）として作る。
+ *
+ * フキダシ（buildCalloutNode）の本体をしっぽ無しで流用する。相違点は 2 つ:
+ *  - プレートは stroke 色の「不透明」塗り（フキダシは淡い 0.15）。枠線は付けない。
+ *  - 文字色は haloColor(stroke) で白/ダークを自動判定し、プレート上でのコントラストを
+ *    確保する。プレート自体が背景になるので、テキストのハロー（縁取り）は付けない。
+ * Group の x/y は本体左上。本体高さは shape.height を下限に、折り返したテキストが
+ * 収まるよう calloutBodyHeight で広げる（リサイズ時のテキスト追従）。
+ */
+function buildLabelNode(
+	shape: LabelShape,
+	common: { id: string; name: string; rotation: number; opacity: number },
+): Konva.Group {
+	const group = new Konva.Group({ ...common, x: shape.x, y: shape.y });
+
+	const innerWidth = calloutInnerWidth(shape.width, CALLOUT_PADDING);
+	// プレート上の可読性を確保する文字色（白/ダーク自動判定）。ハローは付けない。
+	const textColor = haloColor(shape.stroke);
+
+	const text = new Konva.Text({
+		x: CALLOUT_PADDING,
+		y: CALLOUT_PADDING,
+		width: innerWidth,
+		text: shape.text,
+		fontSize: shape.fontSize,
+		fontFamily: theme.fontAnnotation,
+		fill: textColor,
+		lineHeight: 1.25,
+		wrap: "word",
+		listening: false,
+	});
+	const bodyHeight = Math.max(
+		shape.height,
+		calloutBodyHeight(text.height(), shape.fontSize, CALLOUT_PADDING),
+	);
+
+	// プレート（角丸・不透明塗り・枠線なし）→テキストの順に重ねる。
+	group.add(
+		new Konva.Rect({
+			x: 0,
+			y: 0,
+			width: shape.width,
+			height: bodyHeight,
+			cornerRadius: CALLOUT_CORNER_RADIUS,
+			fill: shape.stroke,
+			listening: true,
+		}),
+	);
+	group.add(text);
+
+	return group;
+}
+
+/**
  * doc の全図形を Konva レイヤーへ同期描画する。
  * 差分更新は凝らず全再構築する（描画の正は常に doc 側）。
  * draggable は select ツール時のみ true にしたいので引数で受ける。
@@ -813,10 +870,12 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 				y: node.y(),
 			};
 		}
-		case "callout": {
+		case "callout":
+		case "label": {
 			// Group の移動・リサイズを焼き込む。Transformer の scale は width/height へ
 			// 反映し、fontSize は据え置く（次の renderShapes でテキストが新幅へ折り返す）。
 			// scale をリセットしたいので width/height に掛けた値を保存する。
+			// ラベル（塗りつぶしプレート）もフキダシ本体と同じ寸法計算なので同一処理でよい。
 			return {
 				...prev,
 				x: node.x(),

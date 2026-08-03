@@ -1,15 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-	type BugReportInput,
-	buildBugReportMarkdown,
+	type BugReportLabelInput,
+	buildBugReportLabelText,
 	formatCapturedAt,
+	shortenUserAgent,
+	UA_FALLBACK_MAX_LENGTH,
 } from "../lib/bug-report";
 
-/** 常に埋まるフィールドだけを持つ最小入力（各テストで省略可フィールドを足す）。 */
-const base: BugReportInput = {
-	userAgent: "Mozilla/5.0 Test",
-	extensionVersion: "0.3.0",
-	imageSize: { width: 800, height: 600 },
+// 代表的な userAgent サンプル（短縮表記の検証用）。
+const UA_CHROME_MAC =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
+const UA_EDGE_WIN =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0";
+const UA_FIREFOX_LINUX =
+	"Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0";
+const UA_SAFARI_MAC =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
+
+/** UA だけを持つ最小入力（各テストで省略可フィールドを足す）。 */
+const base: BugReportLabelInput = {
+	userAgent: UA_CHROME_MAC,
 };
 
 describe("formatCapturedAt", () => {
@@ -41,62 +51,100 @@ describe("formatCapturedAt", () => {
 	});
 });
 
-describe("buildBugReportMarkdown", () => {
-	it("各見出し（発生した問題・再現手順・期待する動作・スクリーンショット・環境）を含む", () => {
-		const md = buildBugReportMarkdown(base);
-		expect(md).toContain("## 発生した問題");
-		expect(md).toContain("## 再現手順");
-		expect(md).toContain("## 期待する動作");
-		expect(md).toContain("## スクリーンショット");
-		expect(md).toContain("## 環境");
-		// 貼り付け案内文（「コピー」ボタンへの誘導）を含む。
-		expect(md).toContain(
-			"(shotcraft の「コピー」ボタンでコピーした画像をここに貼り付けてください)",
+describe("shortenUserAgent", () => {
+	it("Chrome + macOS を短縮表記にする", () => {
+		expect(shortenUserAgent(UA_CHROME_MAC)).toBe("Chrome 150 (macOS)");
+	});
+
+	it("Edge は Chrome より優先して判定する（Windows）", () => {
+		expect(shortenUserAgent(UA_EDGE_WIN)).toBe("Edge 130 (Windows)");
+	});
+
+	it("Firefox + Linux を短縮表記にする", () => {
+		expect(shortenUserAgent(UA_FIREFOX_LINUX)).toBe("Firefox 128 (Linux)");
+	});
+
+	it("Safari は Version/x を実バージョンとして拾う（macOS）", () => {
+		expect(shortenUserAgent(UA_SAFARI_MAC)).toBe("Safari 17 (macOS)");
+	});
+
+	it("空入力は '不明'", () => {
+		expect(shortenUserAgent("")).toBe("不明");
+		expect(shortenUserAgent("   ")).toBe("不明");
+	});
+
+	it("ブラウザ名を判定できない短い UA は生のまま返す（丸めない）", () => {
+		expect(shortenUserAgent("totally-unknown-agent")).toBe(
+			"totally-unknown-agent",
 		);
 	});
 
-	it("常に埋まる行（画像サイズ・ブラウザ・shotcraft）を出力する", () => {
-		const md = buildBugReportMarkdown(base);
-		expect(md).toContain("| 画像サイズ | 800 x 600 px |");
-		expect(md).toContain("| ブラウザ | Mozilla/5.0 Test |");
-		expect(md).toContain("| shotcraft | v0.3.0 |");
+	it("ブラウザ名を判定できない長い UA は先頭 60 文字＋… に丸める", () => {
+		const long = "x".repeat(100);
+		const out = shortenUserAgent(long);
+		expect(out).toBe(`${"x".repeat(UA_FALLBACK_MAX_LENGTH)}…`);
+		// 丸め後は 60 文字 + 省略記号 1 文字。
+		expect(out.length).toBe(UA_FALLBACK_MAX_LENGTH + 1);
 	});
+});
 
-	it("省略フィールド（URL・ページ・撮影日時・画面サイズ）は行ごと出力しない", () => {
-		const md = buildBugReportMarkdown(base);
-		expect(md).not.toContain("| URL |");
-		expect(md).not.toContain("| ページ |");
-		expect(md).not.toContain("| 撮影日時 |");
-		expect(md).not.toContain("| 画面サイズ |");
-	});
-
-	it("値がある行だけを出力する（全フィールドあり）", () => {
+describe("buildBugReportLabelText", () => {
+	it("全項目あり: タイトル・URL・（撮影日時 | 画面サイズ）・ブラウザ行を順に出す", () => {
 		const d = new Date(2026, 6, 31, 9, 5, 3);
-		const md = buildBugReportMarkdown({
-			...base,
-			pageUrl: "https://example.com/page",
+		const text = buildBugReportLabelText({
 			pageTitle: "サンプルページ",
+			pageUrl: "https://example.com/page",
 			capturedAt: d.getTime(),
 			viewport: { width: 1280, height: 720 },
+			userAgent: UA_CHROME_MAC,
 		});
-		expect(md).toContain("| URL | https://example.com/page |");
-		expect(md).toContain("| ページ | サンプルページ |");
-		expect(md).toContain("| 撮影日時 | 2026-07-31 09:05 |");
-		expect(md).toContain("| 画面サイズ | 1280 x 720 (CSS px) |");
+		// ブラウザは独立した 4 行目（3 行目は撮影日時 | 画面サイズ）。
+		expect(text).toBe(
+			"サンプルページ\n" +
+				"https://example.com/page\n" +
+				"2026-07-31 09:05 | 1280x720\n" +
+				"Chrome 150 (macOS)",
+		);
 	});
 
-	it("空文字の pageUrl・pageTitle は falsy として行を出さない", () => {
-		const md = buildBugReportMarkdown({
-			...base,
-			pageUrl: "",
+	it("タイトル・URL が無ければその行を出さない（メタ行＋ブラウザ行のみ）", () => {
+		const d = new Date(2026, 0, 2, 3, 4, 5);
+		const text = buildBugReportLabelText({
+			capturedAt: d.getTime(),
+			viewport: { width: 800, height: 600 },
+			userAgent: UA_CHROME_MAC,
+		});
+		expect(text).toBe("2026-01-02 03:04 | 800x600\nChrome 150 (macOS)");
+	});
+
+	it("撮影日時・viewport が無ければメタ行を省きブラウザ行だけ残す", () => {
+		const text = buildBugReportLabelText({
+			pageTitle: "タイトルのみ",
+			userAgent: UA_EDGE_WIN,
+		});
+		expect(text).toBe("タイトルのみ\nEdge 130 (Windows)");
+	});
+
+	it("空文字の pageTitle・pageUrl は falsy として行を出さない", () => {
+		const text = buildBugReportLabelText({
 			pageTitle: "",
+			pageUrl: "",
+			userAgent: UA_CHROME_MAC,
 		});
-		expect(md).not.toContain("| URL |");
-		expect(md).not.toContain("| ページ |");
+		// ブラウザ行だけになる。
+		expect(text).toBe("Chrome 150 (macOS)");
 	});
 
-	it("環境表のヘッダ行は 1 度だけ・区切り行を伴う", () => {
-		const md = buildBugReportMarkdown(base);
-		expect(md).toContain("| 項目 | 値 |\n| --- | --- |");
+	it("非有限な撮影日時はメタ行から日時要素を落とす（画面サイズだけ残る）", () => {
+		const text = buildBugReportLabelText({
+			capturedAt: Number.NaN,
+			viewport: { width: 640, height: 480 },
+			userAgent: UA_CHROME_MAC,
+		});
+		expect(text).toBe("640x480\nChrome 150 (macOS)");
+	});
+
+	it("UA だけの最小入力でもブラウザ行が必ず出る", () => {
+		expect(buildBugReportLabelText(base)).toBe("Chrome 150 (macOS)");
 	});
 });

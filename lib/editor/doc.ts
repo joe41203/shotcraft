@@ -215,6 +215,24 @@ export interface CalloutShape extends ShapeBase {
 	fontFamily?: string;
 }
 
+/**
+ * バグ報告ラベル。角丸の塗りつぶしプレート＋内側に折り返したテキストを描く。
+ * 見た目・寸法計算はフキダシ（CalloutShape）の本体を流用する（しっぽは無い）。
+ * プレートは stroke 色の不透明塗り、文字色は haloColor(stroke) で白/ダーク自動判定。
+ * x,y は左上、width/height はプレートの寸法（テキスト折返しで height は追従する）。
+ * 「バグ報告」ボタンからのみ生成し、描画ツールとしては持たない（ツールバー非表示）。
+ * text はテキスト注釈のオーバーレイ機構で再編集する。type 追加のみで後方互換。
+ */
+export interface LabelShape extends ShapeBase {
+	type: "label";
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	text: string;
+	fontSize: number;
+}
+
 /** 全図形の判別可能ユニオン。type で分岐する。 */
 export type Shape =
 	| ArrowShape
@@ -228,7 +246,8 @@ export type Shape =
 	| BlurShape
 	| SpotlightShape
 	| StepShape
-	| CalloutShape;
+	| CalloutShape
+	| LabelShape;
 
 export type ShapeType = Shape["type"];
 
@@ -279,7 +298,8 @@ export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
 	Partial<Omit<BlurShape, "id" | "type">> &
 	Partial<Omit<SpotlightShape, "id" | "type">> &
 	Partial<Omit<StepShape, "id" | "type">> &
-	Partial<Omit<CalloutShape, "id" | "type">>;
+	Partial<Omit<CalloutShape, "id" | "type">> &
+	Partial<Omit<LabelShape, "id" | "type">>;
 
 /**
  * 次に配置するステップバッジの番号を返す純粋関数。
