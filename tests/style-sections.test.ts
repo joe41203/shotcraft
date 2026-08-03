@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ShapeType } from "../lib/editor/doc";
 import {
+	styleAnchorToolFor,
 	styleControlsVisible,
 	styleSectionsFor,
 } from "../lib/editor/style-sections";
@@ -82,5 +83,57 @@ describe("styleControlsVisible", () => {
 
 	it("両セクションとも false ならボタンを隠す", () => {
 		expect(styleControlsVisible({ dash: false, arrow: false })).toBe(false);
+	});
+});
+
+describe("styleAnchorToolFor", () => {
+	it("線系ツール選択中はそのツールボタンへアンカーする", () => {
+		for (const tool of ["arrow", "line", "rect", "ellipse", "pen"] as const) {
+			expect(styleAnchorToolFor(tool, null)).toBe(tool);
+		}
+	});
+
+	it("線種を持たないツールではアンカー無し（null）", () => {
+		for (const tool of [
+			"select",
+			"text",
+			"marker",
+			"step",
+			"callout",
+			"mosaic",
+			"blur",
+			"spotlight",
+			"crop",
+		] as const) {
+			expect(styleAnchorToolFor(tool, null)).toBeNull();
+		}
+	});
+
+	it("線系図形を選択中は（select ツールでも）その図形の型に対応するツールへアンカーする", () => {
+		for (const type of [
+			"arrow",
+			"line",
+			"rect",
+			"ellipse",
+			"pen",
+		] as ShapeType[]) {
+			expect(styleAnchorToolFor("select", type)).toBe(type);
+		}
+	});
+
+	it("図形選択はツールより優先する（矢印図形を選択中は line ツールでも矢印ボタンへ）", () => {
+		expect(styleAnchorToolFor("line", "arrow")).toBe("arrow");
+	});
+
+	it("線種を持たない図形を選択中は（線系ツールでなければ）null", () => {
+		for (const type of [
+			"text",
+			"marker",
+			"step",
+			"callout",
+			"mosaic",
+		] as ShapeType[]) {
+			expect(styleAnchorToolFor("select", type)).toBeNull();
+		}
 	});
 });

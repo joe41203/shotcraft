@@ -276,35 +276,44 @@ header {
   outline-offset: 2px;
 }
 
-/* --- スタイル（線種・矢印）ポップオーバー --- */
+/* --- 線種・矢印スタイルのフライアウト --- */
 
-/* ポップオーバーをボタン直下へ絶対配置するための相対起点。 */
-.style-group {
-  position: relative;
-}
-
-/* ポップオーバー本体。ボタン直下・左寄せの小パネル。
-   面・境界・影・角丸は tokens.css のトークンで他 UI とトーンを揃える。 */
-.style-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 30;
+/*
+ * アンカー先ツールボタンの真下に固定表示する小パネル。left/top は JS が
+ * ビューポート基準の絶対座標で与える（固定配置なのでツールバーの overflow や
+ * 折り返しに閉じ込められず、画面端クランプも素直に効く。ツールバーのレイアウトも
+ * 押し広げない）。面・境界・影・角丸は tokens.css のトークンで他 UI とトーンを揃える。
+ */
+.style-flyout {
+  position: fixed;
+  z-index: 25;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 180px;
-  padding: 12px;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-md);
-  /* 開閉の軽いフェード + せり上がり。prefers-reduced-motion で無効化する。 */
-  animation: style-panel-in 120ms ease;
+  /* 表示時の軽いフェード + せり上がり。prefers-reduced-motion で無効化する。 */
+  animation: style-flyout-in 120ms ease;
 }
 
-.style-panel[hidden] {
+.style-flyout[hidden] {
   display: none;
+}
+
+/* ボタンを指す上向きの小さな三角形。left は JS がボタン中央に合わせて与える。
+   ツールチップの caret と同じ作りで、面・境界をパネルと揃える。 */
+.style-flyout-caret {
+  position: absolute;
+  top: -5px;
+  width: 9px;
+  height: 9px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: translateX(-50%) rotate(45deg);
 }
 
 /* パネル内の 1 セクション（線種 / 矢印）。見出し + 選択肢の縦積み。 */
@@ -333,7 +342,7 @@ header {
   gap: 4px;
 }
 
-@keyframes style-panel-in {
+@keyframes style-flyout-in {
   from {
     opacity: 0;
     transform: translateY(-4px);
@@ -654,7 +663,7 @@ main {
     transition: none;
   }
 
-  .style-panel {
+  .style-flyout {
     animation: none;
   }
 }

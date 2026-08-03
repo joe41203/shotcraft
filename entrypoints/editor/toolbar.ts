@@ -1,4 +1,5 @@
 import type { ArrowStyle } from "@/lib/editor/arrow";
+import { placeTooltip } from "@/lib/editor/tooltip";
 import { icons } from "@/lib/icons";
 import type { ToolName } from "./tools/types";
 import { Tooltip } from "./tooltip";
@@ -79,31 +80,32 @@ export interface ToolbarCallbacks {
 }
 
 /**
- * 上部固定ツールバー。ツールボタン群・色スウォッチ・線種・undo/redo を持つ。
+ * 上部固定ツールバー。ツールボタン群・色スウォッチ・undo/redo を持つ。
+ * 線種・矢印スタイルは、線系ツールがアクティブな間（または線系図形を選択中）に
+ * そのツールボタンの真下へ固定表示するフライアウトで選ばせる。
  * 状態（選択中ツール・色・undo/redo の可否・ズーム率）は set* で反映する。
  */
 export class Toolbar {
 	private toolButtons = new Map<ToolName, HTMLButtonElement>();
 	private colorButtons = new Map<string, HTMLButtonElement>();
 	/**
-	 * 「スタイル」ボタン（線種・矢印スタイルをまとめたポップオーバーの入口）と
-	 * その所属グループ・区切り。線種/矢印いずれかのセクションが必要なときだけ出す。
+	 * 線種・矢印スタイルのフライアウト本体（アンカー先ツールボタンの真下に固定表示する
+	 * 小パネル）。線系ツールがアクティブな間、または線系図形を選択中に出しっぱなしにする
+	 * （クリックで開くメニューではない）。中に線種セクション・矢印セクションを持つ。
 	 */
-	private styleGroup!: HTMLDivElement;
-	private styleDivider!: HTMLSpanElement;
-	private styleButton!: HTMLButtonElement;
-	/** ポップオーバー本体（ボタン直下に開く小パネル）。 */
-	private stylePanel!: HTMLDivElement;
-	private stylePanelOpen = false;
-	/** 線種（実線/破線）セクションと各ボタン。ポップオーバー内に置く。 */
+	private styleFlyout!: HTMLDivElement;
+	private styleCaret!: HTMLSpanElement;
+	/** 線種（実線/破線）セクションと各ボタン。フライアウト内に置く。 */
 	private dashSection!: HTMLDivElement;
 	private dashButtons = new Map<boolean, HTMLButtonElement>();
-	/** 矢印スタイル（片側 / 両側 / 曲線）セクションと各ボタン。ポップオーバー内に置く。 */
+	/** 矢印スタイル（片側 / 両側 / 曲線）セクションと各ボタン。フライアウト内に置く。 */
 	private arrowStyleSection!: HTMLDivElement;
 	private arrowStyleButtons = new Map<ArrowStyle, HTMLButtonElement>();
-	/** 各セクションの表示状態（両方 false ならボタン自体を隠す）。 */
+	/** 各セクションの表示状態。 */
 	private dashSectionVisible = false;
 	private arrowSectionVisible = false;
+	/** フライアウトを真下に出すツールボタン名。null なら非表示。 */
+	private anchorTool: ToolName | null = null;
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
@@ -130,6 +132,12 @@ export class Toolbar {
 		}
 		this.root.append(toolGroup, divider());
 
+		// 線種・矢印スタイルのフライアウト。DOM 上はツールボタン群の直後に置き、
+		// Tab 順が「ツール → フライアウト内のスタイルボタン」と自然に流れるようにする。
+		// 位置は固定配置でアンカー先ボタンの真下に置くため、ここでの DOM 位置は
+		// ツールバーのレイアウトを押し広げない（setStyleAnchor が座標を与える）。
+		this.buildStyleFlyout();
+
 		// 色スウォッチ群
 		const colorGroup = group();
 		// スウォッチはヒット領域を 24px に広げているため、隣接の当たり判定が
@@ -149,13 +157,6 @@ export class Toolbar {
 			colorGroup.append(btn);
 		}
 		this.root.append(colorGroup, divider());
-
-		// 「スタイル」ボタン + ポップオーバー。線種（実線/破線）と矢印スタイル
-		// （片側/両側/曲線）を 1 つの入口にまとめる。ボタンは線種/矢印いずれかの
-		// セクションが必要なときだけ出す（setDashControlsVisible /
-		// setArrowStyleControlsVisible が各セクション表示を切り替え、その和集合で
-		// ボタン自体の表示を決める）。位置は従来トグルがあった場所（色スウォッチの次）。
-		this.buildStyleControls();
 
 		// undo/redo
 		const historyGroup = group();
@@ -199,31 +200,33 @@ export class Toolbar {
 		// Tooltip はコンストラクタで root にイベントを委譲し body 直下に要素を
 		// 生成するため、参照を保持しなくてもツールバーと同じ寿命で動き続ける。
 		new Tooltip(this.root);
+
+		// ウィンドウ幅が変わるとツールバーが折り返してアンカー先ボタンの位置がずれる。
+		// フライアウト表示中は再配置する（固定配置なので座標を計算し直す必要がある）。
+		window.addEventListener("resize", () => {
+			if (this.anchorTool) this.placeFlyout();
+		});
 	}
 
 	/**
-	 * 「スタイル」ボタンとポップオーバーパネルを組み立てる。
-	 * - ボタン: 調整系アイコン + aria-haspopup / aria-expanded。クリックで開閉。
-	 * - パネル: 線種セクション（実線/破線）と矢印セクション（片側/両側/曲線）を縦に並べる。
-	 *   各セクションの表示は setDashControlsVisible / setArrowStyleControlsVisible が制御し、
-	 *   両方非表示ならボタン自体を隠す（syncStyleButtonVisibility）。
+	 * 線種・矢印スタイルのフライアウトパネルを組み立てる。
+	 * - パネル: 線種セクション（実線/破線）と矢印セクション（片側/両側/曲線）を横に並べる。
+	 *   role="group" + aria-label。固定配置でアンカー先ツールボタンの真下に置く。
+	 * - しっぽ（caret）: 対応するボタンを指す小さな三角形。
+	 * 各セクションの表示は setDashControlsVisible / setArrowStyleControlsVisible が制御し、
+	 * アンカー先ボタンは setStyleAnchor が決める（両方非表示・アンカー無しなら隠す）。
 	 */
-	private buildStyleControls(): void {
-		this.styleGroup = group();
-		// 相対配置の起点にする（パネルをボタン直下へ絶対配置するため）。
-		this.styleGroup.classList.add("style-group");
+	private buildStyleFlyout(): void {
+		this.styleFlyout = document.createElement("div");
+		this.styleFlyout.className = "style-flyout";
+		this.styleFlyout.hidden = true;
+		this.styleFlyout.setAttribute("role", "group");
+		this.styleFlyout.setAttribute("aria-label", "線種・矢印スタイル");
 
-		this.styleButton = iconButton(icons.style, "スタイル");
-		this.styleButton.classList.add("style-btn");
-		this.styleButton.setAttribute("aria-haspopup", "true");
-		this.styleButton.setAttribute("aria-expanded", "false");
-		this.styleButton.addEventListener("click", () => this.toggleStylePanel());
-
-		this.stylePanel = document.createElement("div");
-		this.stylePanel.className = "style-panel";
-		this.stylePanel.hidden = true;
-		this.stylePanel.setAttribute("role", "group");
-		this.stylePanel.setAttribute("aria-label", "スタイル");
+		// ボタンを指すしっぽ（三角）。left は placeFlyout がボタン中央に合わせる。
+		this.styleCaret = document.createElement("span");
+		this.styleCaret.className = "style-flyout-caret";
+		this.styleFlyout.append(this.styleCaret);
 
 		// 線種セクション。ラベル + 実線/破線の 2 択トグル（従来のアイコン・ラベルを流用）。
 		const dash = this.buildStyleSection("線種");
@@ -264,17 +267,13 @@ export class Toolbar {
 			arrow.options.append(btn);
 		}
 
-		this.stylePanel.append(this.dashSection, this.arrowStyleSection);
-		this.styleGroup.append(this.styleButton, this.stylePanel);
-		this.styleDivider = divider();
-		this.root.append(this.styleGroup, this.styleDivider);
+		this.styleFlyout.append(this.dashSection, this.arrowStyleSection);
+		this.root.append(this.styleFlyout);
 
-		// 表示前でも「どちらが選択中か」を確定させておく（既定は実線・片側）。
+		// 表示前でも「どれが選択中か」を確定させておく（既定は実線・片側）。
 		// 実際の現在値・復元値は初期化直後の syncToolbar が反映する。
 		this.setDash(false);
 		this.setArrowStyle("single");
-		this.setDashControlsVisible(false);
-		this.setArrowStyleControlsVisible(false);
 	}
 
 	/**
@@ -297,100 +296,51 @@ export class Toolbar {
 	}
 
 	/**
-	 * 「スタイル」ボタン自体の表示を各セクションの表示状態の和集合で決める。
-	 * 両セクションとも非表示ならボタンと区切りを隠し、開いていれば閉じる。
+	 * フライアウトを真下に出すツールボタンを設定する（null・未知のツール名で非表示）。
+	 * app 側が styleAnchorToolFor で決めた結果（ツール名文字列 or null）を渡す。
+	 * アンカーが決まっていてかつ表示すべきセクションがあるときだけ出す（無ければ隠す）。
 	 */
-	private syncStyleButtonVisibility(): void {
-		const visible = this.dashSectionVisible || this.arrowSectionVisible;
-		this.styleGroup.hidden = !visible;
-		this.styleDivider.hidden = !visible;
-		if (!visible && this.stylePanelOpen) this.closeStylePanel(false);
-	}
-
-	/** 「スタイル」ポップオーバーの開閉をトグルする。 */
-	private toggleStylePanel(): void {
-		if (this.stylePanelOpen) this.closeStylePanel(true);
-		else this.openStylePanel();
+	setStyleAnchor(tool: string | null): void {
+		// ツールボタンが実在する名前だけをアンカーに採る（未知の名前は非表示扱い）。
+		this.anchorTool =
+			tool != null && this.toolButtons.has(tool as ToolName)
+				? (tool as ToolName)
+				: null;
+		this.syncFlyoutVisibility();
 	}
 
 	/**
-	 * ポップオーバーを開く。開いたら最初の（表示中の）選択肢へフォーカスし、
-	 * Esc・パネル外クリックで閉じられるようリスナを張る。ボタンのツールチップは
-	 * 開いている間は抑止する（data-tooltip を退避）。
+	 * フライアウトの表示可否と位置を同期する。アンカー先ボタンがあり、かつ
+	 * いずれかのセクションが表示対象のときだけ出して真下へ配置する。
 	 */
-	private openStylePanel(): void {
-		if (this.stylePanelOpen) return;
-		this.stylePanelOpen = true;
-		this.stylePanel.hidden = false;
-		this.styleButton.setAttribute("aria-expanded", "true");
-		// パネル表示中はボタンのツールチップを出さない（開閉と二重に出るのを避ける）。
-		this.suppressedTooltip = this.styleButton.dataset.tooltip;
-		delete this.styleButton.dataset.tooltip;
-
-		// 外側クリック・Esc で閉じる。開いた直後の click 伝播で即閉じないよう次フレームで張る。
-		document.addEventListener("keydown", this.onStyleKeydown, true);
-		window.setTimeout(() => {
-			if (this.stylePanelOpen) {
-				document.addEventListener(
-					"pointerdown",
-					this.onOutsidePointerDown,
-					true,
-				);
-			}
-		}, 0);
-
-		// 最初の「表示中セクションの先頭ボタン」へフォーカスする。
-		this.firstStyleOption()?.focus();
+	private syncFlyoutVisibility(): void {
+		const hasSection = this.dashSectionVisible || this.arrowSectionVisible;
+		const visible = this.anchorTool != null && hasSection;
+		this.styleFlyout.hidden = !visible;
+		if (visible) this.placeFlyout();
 	}
 
 	/**
-	 * ポップオーバーを閉じる。restoreFocus が true ならボタンへフォーカスを戻す
-	 * （Esc・パネル内での確定・トグル操作など、ユーザー起点の閉じで戻す）。
+	 * フライアウトをアンカー先ツールボタンの真下・中央揃えに固定配置する。
+	 * 画面端でのはみ出しは placeTooltip（純粋関数）でクランプし、しっぽ（caret）は
+	 * ボタン中央を指し続けるよう補正する。ツールチップと同じ配置ロジックを共有する。
 	 */
-	private closeStylePanel(restoreFocus: boolean): void {
-		if (!this.stylePanelOpen) return;
-		this.stylePanelOpen = false;
-		this.stylePanel.hidden = true;
-		this.styleButton.setAttribute("aria-expanded", "false");
-		document.removeEventListener("keydown", this.onStyleKeydown, true);
-		document.removeEventListener(
-			"pointerdown",
-			this.onOutsidePointerDown,
-			true,
-		);
-		// 抑止していたツールチップ本文を戻す。
-		if (this.suppressedTooltip !== undefined) {
-			this.styleButton.dataset.tooltip = this.suppressedTooltip;
-			this.suppressedTooltip = undefined;
-		}
-		if (restoreFocus) this.styleButton.focus();
+	private placeFlyout(): void {
+		if (!this.anchorTool) return;
+		const button = this.toolButtons.get(this.anchorTool);
+		if (!button) return;
+		const rect = button.getBoundingClientRect();
+		const { left, top, caretLeft } = placeTooltip({
+			targetLeft: rect.left,
+			targetRight: rect.right,
+			targetBottom: rect.bottom,
+			tooltipWidth: this.styleFlyout.offsetWidth,
+			viewportWidth: window.innerWidth,
+		});
+		this.styleFlyout.style.left = `${left}px`;
+		this.styleFlyout.style.top = `${top}px`;
+		this.styleCaret.style.left = `${caretLeft}px`;
 	}
-
-	/** 表示中セクションの中で最初の選択肢ボタンを返す（フォーカス初期化用）。 */
-	private firstStyleOption(): HTMLButtonElement | null {
-		return this.stylePanel.querySelector<HTMLButtonElement>(
-			".style-section:not([hidden]) button",
-		);
-	}
-
-	/** Esc でパネルを閉じる（ボタンへフォーカスを戻す）。 */
-	private onStyleKeydown = (e: KeyboardEvent): void => {
-		if (e.key === "Escape") {
-			e.preventDefault();
-			this.closeStylePanel(true);
-		}
-	};
-
-	/** パネル・ボタンの外側を押したら閉じる（フォーカスは戻さない）。 */
-	private onOutsidePointerDown = (e: PointerEvent): void => {
-		const target = e.target;
-		if (!(target instanceof Node)) return;
-		if (this.styleGroup.contains(target)) return;
-		this.closeStylePanel(false);
-	};
-
-	/** 開いている間に退避したボタンのツールチップ本文。 */
-	private suppressedTooltip: string | undefined;
 
 	setTool(tool: ToolName): void {
 		for (const [name, btn] of this.toolButtons) {
@@ -413,11 +363,11 @@ export class Toolbar {
 		}
 	}
 
-	/** 線種セクションの表示/非表示を切り替える（ポップオーバー内）。 */
+	/** 線種セクションの表示/非表示を切り替える（フライアウト内）。 */
 	setDashControlsVisible(visible: boolean): void {
 		this.dashSectionVisible = visible;
 		this.dashSection.hidden = !visible;
-		this.syncStyleButtonVisibility();
+		this.syncFlyoutVisibility();
 	}
 
 	/** 矢印スタイルの現在値を反映する（active クラスと aria-pressed の両方）。 */
@@ -429,11 +379,11 @@ export class Toolbar {
 		}
 	}
 
-	/** 矢印スタイルセクションの表示/非表示を切り替える（ポップオーバー内）。 */
+	/** 矢印スタイルセクションの表示/非表示を切り替える（フライアウト内）。 */
 	setArrowStyleControlsVisible(visible: boolean): void {
 		this.arrowSectionVisible = visible;
 		this.arrowStyleSection.hidden = !visible;
-		this.syncStyleButtonVisibility();
+		this.syncFlyoutVisibility();
 	}
 
 	setUndoRedo(canUndo: boolean, canRedo: boolean): void {

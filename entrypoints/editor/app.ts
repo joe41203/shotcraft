@@ -37,6 +37,7 @@ import {
 	type StylePrefs,
 } from "@/lib/editor/style-prefs";
 import {
+	styleAnchorToolFor,
 	type StyleSections,
 	styleSectionsFor,
 } from "@/lib/editor/style-sections";
@@ -1349,16 +1350,34 @@ export class EditorApp {
 		this.toolbar.setColor(this.style.stroke);
 		this.syncDashControls();
 		this.syncArrowStyleControls();
+		// アンカー先ボタンはセクション表示を確定させた後に渡す（表示位置を最終決定する）。
+		this.syncStyleAnchor();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
 	}
 
-	/** 現在のツールと単一選択図形から、スタイルポップオーバーに出すセクションを求める。 */
-	private currentStyleSections(): StyleSections {
+	/** 現在のツールと単一選択図形の型を求める（フライアウトの表示判定・アンカー決定に使う）。 */
+	private selectedShapeType(): Shape["type"] | null {
 		const selected = this.selectedId
 			? findShape(this.history.present, this.selectedId)
 			: undefined;
-		return styleSectionsFor(this.currentTool, selected?.type ?? null);
+		return selected?.type ?? null;
+	}
+
+	/** 現在のツールと単一選択図形から、フライアウトに出すセクションを求める。 */
+	private currentStyleSections(): StyleSections {
+		return styleSectionsFor(this.currentTool, this.selectedShapeType());
+	}
+
+	/**
+	 * フライアウトを真下に出すツールボタンを決めてツールバーへ渡す。
+	 * 線系図形を選択中はその図形のツール、そうでなく線系ツール中はそのツール、
+	 * どちらでもなければ null（非表示）。判定は純粋関数 styleAnchorToolFor に集約。
+	 */
+	private syncStyleAnchor(): void {
+		this.toolbar.setStyleAnchor(
+			styleAnchorToolFor(this.currentTool, this.selectedShapeType()),
+		);
 	}
 
 	/**
