@@ -204,6 +204,17 @@ describe("spotlightVeilIndex", () => {
 		expect(spotlightVeilIndex(shapes())).toBe(0);
 		expect(spotlightVeilIndex(shapes("spotlight"))).toBe(1);
 		expect(spotlightVeilIndex(shapes("mosaic", "blur", "spotlight"))).toBe(3);
+		// 伏せ系（mosaic/blur/erase）だけなら暗幕は最上位。
+		expect(
+			spotlightVeilIndex(shapes("mosaic", "blur", "erase", "spotlight")),
+		).toBe(4);
+	});
+
+	it("スマート消しゴム（erase）も伏せ系＝暗幕の下に入る", () => {
+		// erase → arrow。最初の注釈 arrow は index 1。暗幕は 1 に入り erase（0）は下＝暗くなる。
+		expect(spotlightVeilIndex(shapes("erase", "arrow"))).toBe(1);
+		// erase だけなら注釈系が無いので最上位（配列長）。
+		expect(spotlightVeilIndex(shapes("erase"))).toBe(1);
 	});
 
 	it("最初の注釈系図形のインデックスを返す（描き順に依らない）", () => {

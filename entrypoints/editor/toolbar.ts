@@ -48,9 +48,15 @@ const TOOLS: ToolDef[] = [
 	{ name: "marker", label: "マーカー", shortcut: "M", icon: icons.marker },
 	{ name: "step", label: "ステップ", shortcut: "S", icon: icons.step },
 	{ name: "callout", label: "フキダシ", shortcut: "B", icon: icons.callout },
-	// 伏せ系グループ: モザイク・ぼかしを隣り合わせに置く。
+	// 伏せ系グループ: モザイク・ぼかし・スマート消しゴムを隣り合わせに置く。
 	{ name: "mosaic", label: "モザイク", shortcut: "X", icon: icons.mosaic },
 	{ name: "blur", label: "ぼかし", shortcut: "U", icon: icons.blur },
+	{
+		name: "erase",
+		label: "スマート消しゴム",
+		shortcut: "D",
+		icon: icons.erase,
+	},
 	{ name: "crop", label: "クロップ", shortcut: "C", icon: icons.crop },
 ];
 

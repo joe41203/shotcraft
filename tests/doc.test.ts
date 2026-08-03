@@ -292,8 +292,13 @@ describe("shapeSupportsColor", () => {
 		}
 	});
 
-	it("色を持たない図形（モザイク・ぼかし・スポットライト）は false", () => {
-		for (const type of ["mosaic", "blur", "spotlight"] as ShapeType[]) {
+	it("色を持たない図形（モザイク・ぼかし・スマート消しゴム・スポットライト）は false", () => {
+		for (const type of [
+			"mosaic",
+			"blur",
+			"erase",
+			"spotlight",
+		] as ShapeType[]) {
 			expect(shapeSupportsColor(type)).toBe(false);
 		}
 	});

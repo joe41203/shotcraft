@@ -72,6 +72,27 @@ describe("shapeBoundingBox", () => {
 		});
 	});
 
+	it("スマート消しゴム（erase）も x/y/width/height の外接矩形をそのまま返す", () => {
+		const erase: Shape = {
+			id: "e",
+			type: "erase",
+			x: 5,
+			y: 15,
+			width: 40,
+			height: 30,
+			stroke: "#fff",
+			strokeWidth: 4,
+			rotation: 0,
+			opacity: 1,
+		};
+		expect(shapeBoundingBox(erase)).toEqual({
+			x: 5,
+			y: 15,
+			width: 40,
+			height: 30,
+		});
+	});
+
 	it("points を持つ矢印は点列の外接矩形（負方向でも正規化）", () => {
 		expect(shapeBoundingBox(arrow("a", [30, 40, 10, 5]))).toEqual({
 			x: 10,

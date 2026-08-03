@@ -81,17 +81,21 @@ export function spotlightFeather(width: number, height: number): number {
 /**
  * 暗幕を shapes 配列のどのインデックス位置へ差し込むかを決める純粋関数。
  *
- * 新ルール: 「最初に現れる注釈系図形（spotlight/mosaic/blur 以外）の直下」に暗幕を
- * 置く。注釈系が 1 つも無ければ全図形の上（＝配列長）を返す。これにより:
+ * 新ルール: 「最初に現れる注釈系図形（spotlight/mosaic/blur/erase 以外）の直下」に
+ * 暗幕を置く。注釈系が 1 つも無ければ全図形の上（＝配列長）を返す。これにより:
  * - 注釈（矢印・テキスト・フキダシ等）は描き順に関係なく常に暗幕より上＝明るいまま
- * - 注釈より前に置いた mosaic/blur は暗幕の下＝暗くなる（自然）
+ * - 注釈より前に置いた mosaic/blur/erase（伏せ系）は暗幕の下＝暗くなる（自然）
  * - 「モザイクを最前面（注釈の後）に置いて注釈を隠す」ハックは、そのモザイクが
  *   暗幕より上に来るため維持される
  * type 情報だけで判定でき、描き順（配列内の spotlight の位置）に依存しない。
  */
 export function spotlightVeilIndex(shapes: { type: ShapeType }[]): number {
 	const index = shapes.findIndex(
-		(s) => s.type !== "spotlight" && s.type !== "mosaic" && s.type !== "blur",
+		(s) =>
+			s.type !== "spotlight" &&
+			s.type !== "mosaic" &&
+			s.type !== "blur" &&
+			s.type !== "erase",
 	);
 	return index === -1 ? shapes.length : index;
 }

@@ -623,8 +623,8 @@ export class EditorApp {
 	 *   fontSize へ焼き込む運用のため、辺アンカー（片軸だけ伸ばす）を出さない。
 	 * - step: アンカー・回転とも無効（固定サイズの丸バッジ）。選択枠だけ出して
 	 *   ドラッグ移動のみを許す。
-	 * - mosaic / blur / spotlight: 全アンカーだが回転無効（加工の再計算・暗幕の穴を
-	 *   矩形に限定する）。
+	 * - mosaic / blur / erase / spotlight: 全アンカーだが回転無効（加工の再計算・
+	 *   なじませ塗り・暗幕の穴を矩形に限定する）。
 	 * - それ以外: 全アンカー・回転あり（既定）。
 	 */
 	private configureTransformerFor(type: Shape["type"] | undefined): void {
@@ -642,9 +642,12 @@ export class EditorApp {
 		}
 		this.transformer.enabledAnchors(ALL_ANCHORS);
 		this.transformer.keepRatio(false);
-		// モザイク・ぼかし・スポットライトは回転不可。他は回転可。
+		// モザイク・ぼかし・スマート消しゴム・スポットライトは回転不可。他は回転可。
 		const noRotate =
-			type === "mosaic" || type === "blur" || type === "spotlight";
+			type === "mosaic" ||
+			type === "blur" ||
+			type === "erase" ||
+			type === "spotlight";
 		this.transformer.rotateEnabled(!noRotate);
 	}
 
@@ -1329,6 +1332,10 @@ export class EditorApp {
 				case "u":
 				case "U":
 					this.setTool("blur");
+					break;
+				case "d":
+				case "D":
+					this.setTool("erase");
 					break;
 				case "o":
 				case "O":

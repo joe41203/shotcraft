@@ -151,6 +151,23 @@ export interface BlurShape extends ShapeBase {
 }
 
 /**
+ * スマート消しゴム（なじませ）矩形。x,y は左上、width/height は正の寸法（画像座標系）。
+ * モザイク・ぼかしの姉妹だが、目的は逆で「隠した痕跡を残さず消す」。領域内のベース画像を
+ * 周辺（4 辺の縁）の色を取り込んだ逆距離重み（IDW）ブレンドで塗り潰し、通知バッジ・
+ * カーソル・不要な UI 要素などを背景に溶け込ませる（macshot の smart erase 相当）。
+ * 塗りは領域サイズと周辺色だけで決まるので、stroke 等のスタイル属性は持たない
+ * （色・線種・スタイルフライアウトの対象外。オプションなし）。サンプリング元はベース画像
+ * のみ（注釈図形には影響しない）。モザイク・ぼかしと同じ扱いで回転不可。
+ */
+export interface EraseShape extends ShapeBase {
+	type: "erase";
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/**
  * スポットライト（暗幕）矩形。x,y は左上、width/height は正の寸法（画像座標系）。
  * doc 内の全 spotlight をまとめて 1 枚の暗幕として描き、各矩形の位置に角丸の穴を開けて
  * その領域だけを明るく残す（視線誘導）。穴の縁はフェザー（ぼかし）で柔らかくする。
@@ -226,6 +243,7 @@ export type Shape =
 	| MarkerShape
 	| MosaicShape
 	| BlurShape
+	| EraseShape
 	| SpotlightShape
 	| StepShape
 	| CalloutShape;
@@ -277,6 +295,7 @@ export type ShapePatch = Partial<Omit<ArrowShape, "id" | "type">> &
 	Partial<Omit<MarkerShape, "id" | "type">> &
 	Partial<Omit<MosaicShape, "id" | "type">> &
 	Partial<Omit<BlurShape, "id" | "type">> &
+	Partial<Omit<EraseShape, "id" | "type">> &
 	Partial<Omit<SpotlightShape, "id" | "type">> &
 	Partial<Omit<StepShape, "id" | "type">> &
 	Partial<Omit<CalloutShape, "id" | "type">>;
@@ -300,11 +319,16 @@ export function nextStepNumber(shapes: Shape[]): number {
 /**
  * 図形 type が「色（stroke）を持つ」か。色スウォッチの選択を選択中の図形へ即適用
  * できるかの判定に使う。矢印・直線・矩形・楕円・ペン・マーカー・テキスト・ステップ・
- * フキダシは stroke が色の正。モザイク・ぼかし・スポットライトは色を持たない
- * （stroke フィールドは ShapeBase 上にあるが描画に使わない）ので false。
+ * フキダシは stroke が色の正。モザイク・ぼかし・スマート消しゴム・スポットライトは
+ * 色を持たない（stroke フィールドは ShapeBase 上にあるが描画に使わない）ので false。
  */
 export function shapeSupportsColor(type: ShapeType): boolean {
-	return type !== "mosaic" && type !== "blur" && type !== "spotlight";
+	return (
+		type !== "mosaic" &&
+		type !== "blur" &&
+		type !== "erase" &&
+		type !== "spotlight"
+	);
 }
 
 /** 図形を末尾（最前面）に追加した新しい doc を返す。 */

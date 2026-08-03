@@ -74,8 +74,8 @@ function textBBox(x: number, y: number, text: string, fontSize: number): BBox {
 /**
  * 図形の軸並行バウンディングボックス（doc 座標系）を返す純粋関数。
  * type ごとに位置・寸法の持ち方が違うので分岐する。
- * - x/y/width/height を持つ（矩形・楕円・モザイク・ぼかし・スポットライト・フキダシ）
- *   はそのまま（フキダシはしっぽを無視して本体のみ。近似で十分）。
+ * - x/y/width/height を持つ（矩形・楕円・モザイク・ぼかし・スマート消しゴム・
+ *   スポットライト・フキダシ）はそのまま（フキダシはしっぽを無視して本体のみ。近似で十分）。
  * - points を持つ（矢印・直線・ペン・マーカー）は点列の外接矩形。
  * - text は文字数・行数から概算。
  * - step は中心 (x,y) ± 半径の正方形。
@@ -86,6 +86,7 @@ export function shapeBoundingBox(shape: Shape): BBox {
 		case "ellipse":
 		case "mosaic":
 		case "blur":
+		case "erase":
 		case "spotlight":
 		case "callout":
 			return {

@@ -2,6 +2,12 @@ import Konva from "konva";
 import { curvedArrowControl, normalizeArrowStyle } from "@/lib/editor/arrow";
 import { blurCornerRadius, blurRadius } from "@/lib/editor/blur";
 import {
+	clampEraseRect,
+	eraseBlurRadius,
+	fillErasedRegion,
+	type RgbaImage,
+} from "@/lib/editor/erase";
+import {
 	CALLOUT_CORNER_RADIUS,
 	CALLOUT_FILL_ALPHA,
 	CALLOUT_PADDING,
@@ -17,6 +23,7 @@ import type {
 	BlurShape,
 	CalloutShape,
 	EditorDoc,
+	EraseShape,
 	MosaicShape,
 	Shape,
 	SpotlightShape,
@@ -174,6 +181,17 @@ export function shapeToNode(
 		case "blur":
 			return source
 				? buildBlurNode(shape, source)
+				: new Konva.Rect({
+						...common,
+						x: shape.x,
+						y: shape.y,
+						width: shape.width,
+						height: shape.height,
+						fill: "rgba(15, 23, 42, 0.5)",
+					});
+		case "erase":
+			return source
+				? buildEraseNode(shape, source)
 				: new Konva.Rect({
 						...common,
 						x: shape.x,
@@ -391,6 +409,118 @@ export function buildBlurNode(
 		cx.beginPath();
 		roundRectPath(cx, 0, 0, w, h, corner);
 		cx.fill();
+	}
+
+	return new Konva.Image({
+		id: shape.id,
+		name: "shape",
+		image: canvas,
+		x: shape.x,
+		y: shape.y,
+		width: shape.width,
+		height: shape.height,
+		rotation: shape.rotation,
+		opacity: shape.opacity,
+	});
+}
+
+/**
+ * スマート消しゴム（なじませ）矩形を、周辺色で自然に塗り潰した Konva.Image として作る。
+ *
+ * モザイク（buildMosaicNode）・ぼかし（buildBlurNode）の姉妹だが、隠す痕跡を残さず
+ * 「消す」ことが目的。手順:
+ *   1) 領域を画像範囲へクランプ（clampEraseRect）。範囲外・寸法 0 なら透明ノードを返す。
+ *   2) 領域の 4 辺のすぐ外側 1px も含めた「パディング付き領域」をオフスクリーン canvas へ
+ *      描き、getImageData で RGBA を取り出す（fillErasedRegion の縁サンプリングに要る）。
+ *   3) fillErasedRegion（純粋関数）で、領域内を「周長（4 辺の縁）全ピクセルからの逆距離重み
+ *      （IDW）ブレンド」で埋めた RGBA を得て putImageData で書き戻す。縁色は 2 段の外れ値除去
+ *      （近傍メディアン＋周長全体の多数派色）で前処理され、IDW のべき 3 距離減衰と合わせて、
+ *      縁に写り込んだ別物体（ベル絵文字など）の色が領域へ筋にならない。画像端に接して縁が
+ *      取れない辺は自動的に除外される（純粋関数側が担う）。大領域でも粗グリッド IDW＋
+ *      バイリニア拡大で計算量は面積に依存しない。
+ *   4) 仕上げに領域内へ弱いぼかし（eraseBlurRadius・ぼかしツールより弱い）を 1 回かけて、
+ *      粗グリッド由来の微段差をならす。ぼかしが外へにじんで素の画像が透けないよう、
+ *      仕上げの矩形クリップで領域外を捨てる。
+ * サンプリング元はベース画像のみ（source）で、注釈図形には影響しない。エディタ表示と
+ * PNG 書き出しは同じこの関数で描く。
+ */
+export function buildEraseNode(
+	shape: EraseShape,
+	source: MosaicSource,
+): Konva.Image {
+	const w = Math.max(1, Math.round(shape.width));
+	const h = Math.max(1, Math.round(shape.height));
+
+	// 出力パッチ（領域と同寸）。塗りに失敗しても空の透明 canvas を返して落ちない。
+	const canvas = document.createElement("canvas");
+	canvas.width = w;
+	canvas.height = h;
+	const cx = canvas.getContext("2d");
+
+	// 領域を画像範囲へクランプ。範囲外・寸法 0 なら塗るものが無いので空パッチを返す。
+	const rect = clampEraseRect(
+		{ x: shape.x, y: shape.y, width: shape.width, height: shape.height },
+		{ width: source.width, height: source.height },
+	);
+
+	if (cx && rect) {
+		// 4 辺のすぐ外側 1px を含む「パディング付き領域」を画像範囲へクランプして取り出す。
+		// この 1px 帯が fillErasedRegion の縁サンプリング元になる（存在する辺の分だけ）。
+		const px0 = Math.max(0, rect.x - 1);
+		const py0 = Math.max(0, rect.y - 1);
+		const px1 = Math.min(source.width, rect.x + rect.width + 1);
+		const py1 = Math.min(source.height, rect.y + rect.height + 1);
+		const pw = px1 - px0;
+		const ph = py1 - py0;
+
+		// パディング付き領域をオフスクリーン canvas へ描いて RGBA を読む。
+		const pad = document.createElement("canvas");
+		pad.width = pw;
+		pad.height = ph;
+		const pctx = pad.getContext("2d");
+		if (pctx) {
+			pctx.drawImage(source, px0, py0, pw, ph, 0, 0, pw, ph);
+			const src = pctx.getImageData(0, 0, pw, ph);
+			const rgba: RgbaImage = {
+				width: pw,
+				height: ph,
+				data: src.data,
+			};
+			// パディング付き領域のローカル座標系での消す矩形（元 rect をパディング分ずらす）。
+			const localRect = {
+				x: rect.x - px0,
+				y: rect.y - py0,
+				width: rect.width,
+				height: rect.height,
+			};
+			const filled = fillErasedRegion(rgba, localRect);
+
+			// 塗り結果を出力パッチへ書き戻す。clampEraseRect は shape の左上と一致するとは
+			// 限らない（画像端で内側へ寄る）ので、shape.x/y からのオフセットへ putImageData する。
+			const patch = new ImageData(rect.width, rect.height);
+			patch.data.set(filled);
+			const dx = Math.round(rect.x - shape.x);
+			const dy = Math.round(rect.y - shape.y);
+			cx.putImageData(patch, dx, dy);
+
+			// 補間の縞をならす弱いぼかしを 1 回。ぼかしが領域外へにじんで素の画像が
+			// 透けないよう、いったん現パッチをぼかして描き直し、矩形でクリップし直す。
+			const radius = eraseBlurRadius(rect.width, rect.height);
+			if (radius > 0) {
+				const smoothed = document.createElement("canvas");
+				smoothed.width = w;
+				smoothed.height = h;
+				const sctx = smoothed.getContext("2d");
+				if (sctx) {
+					sctx.filter = `blur(${radius}px)`;
+					sctx.drawImage(canvas, 0, 0);
+					// ぼかし済みを元パッチへ「塗り領域だけ」戻す（領域外の透明は保つ）。
+					cx.clearRect(0, 0, w, h);
+					cx.filter = "none";
+					cx.drawImage(smoothed, 0, 0);
+				}
+			}
+		}
 	}
 
 	return new Konva.Image({
@@ -790,11 +920,13 @@ export function shapeFromNode(node: Konva.Node, prev: Shape): Shape {
 		}
 		case "mosaic":
 		case "blur":
+		case "erase":
 		case "spotlight": {
 			// リサイズ後の位置・寸法を焼き込む。次の renderShapes で新寸法から
-			// モザイクのピクセル化・ぼかし半径・暗幕の穴を再計算する。回転は無効
-			// なので rotation は据え置き。spotlight は透明なヒット矩形、mosaic/blur は
-			// Konva.Image だが、いずれも x/y/width/height/scale の取り方は共通。
+			// モザイクのピクセル化・ぼかし半径・なじませ塗り・暗幕の穴を再計算する。
+			// 回転は無効なので rotation は据え置き。spotlight は透明なヒット矩形、
+			// mosaic/blur/erase は Konva.Image だが、いずれも x/y/width/height/scale の
+			// 取り方は共通。
 			const rect = node as Konva.Rect;
 			return {
 				...prev,

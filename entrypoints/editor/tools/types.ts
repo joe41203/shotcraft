@@ -19,6 +19,7 @@ export type ToolName =
 	| "callout"
 	| "mosaic"
 	| "blur"
+	| "erase"
 	| "spotlight"
 	| "crop";
 
