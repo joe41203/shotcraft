@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ShapeType } from "../lib/editor/doc";
 import {
-	styleAnchorToolFor,
 	type StyleSections,
+	styleAnchorToolFor,
 	styleControlsVisible,
 	styleSectionsFor,
 } from "../lib/editor/style-sections";
@@ -15,6 +15,9 @@ const NONE: StyleSections = {
 	fill: false,
 	intensity: false,
 	dim: false,
+	calloutTail: false,
+	stepNumber: false,
+	cropRatio: false,
 };
 
 /** NONE に部分上書きして期待値の StyleSections を作る。 */
@@ -49,9 +52,21 @@ describe("styleSectionsFor", () => {
 		);
 	});
 
-	it("フキダシツールはサイズセクションを出す（線種は無し）", () => {
+	it("フキダシツールはサイズ・しっぽセクションを出す（線種は無し）", () => {
 		expect(styleSectionsFor("callout", null)).toEqual(
-			sections({ fontSize: true }),
+			sections({ fontSize: true, calloutTail: true }),
+		);
+	});
+
+	it("ステップツールは番号セクションを出す", () => {
+		expect(styleSectionsFor("step", null)).toEqual(
+			sections({ stepNumber: true }),
+		);
+	});
+
+	it("クロップツールは比率セクションを出す", () => {
+		expect(styleSectionsFor("crop", null)).toEqual(
+			sections({ cropRatio: true }),
 		);
 	});
 
@@ -70,8 +85,8 @@ describe("styleSectionsFor", () => {
 		);
 	});
 
-	it("セクションを持たないツール（選択・ステップ・クロップ等）ではどれも出さない", () => {
-		for (const tool of ["select", "marker", "step", "crop"] as const) {
+	it("セクションを持たないツール（選択・マーカー等）ではどれも出さない", () => {
+		for (const tool of ["select", "marker"] as const) {
 			expect(styleSectionsFor(tool, null)).toEqual(NONE);
 		}
 	});
@@ -97,12 +112,20 @@ describe("styleSectionsFor", () => {
 		);
 	});
 
-	it("テキスト・フキダシ図形を選択中はサイズセクションを出す", () => {
-		for (const type of ["text", "callout"] as ShapeType[]) {
-			expect(styleSectionsFor("select", type)).toEqual(
-				sections({ fontSize: true }),
-			);
-		}
+	it("テキスト図形を選択中はサイズセクションを出す", () => {
+		expect(styleSectionsFor("select", "text")).toEqual(
+			sections({ fontSize: true }),
+		);
+	});
+
+	it("フキダシ図形を選択中はサイズ・しっぽセクションを出す", () => {
+		expect(styleSectionsFor("select", "callout")).toEqual(
+			sections({ fontSize: true, calloutTail: true }),
+		);
+	});
+
+	it("ステップ図形を選択中は番号セクションを出さない（ツール選択中のみ）", () => {
+		expect(styleSectionsFor("select", "step")).toEqual(NONE);
 	});
 
 	it("モザイク・ぼかし図形を選択中は強度セクションを出す", () => {
@@ -134,6 +157,9 @@ describe("styleControlsVisible", () => {
 		expect(styleControlsVisible(sections({ fill: true }))).toBe(true);
 		expect(styleControlsVisible(sections({ intensity: true }))).toBe(true);
 		expect(styleControlsVisible(sections({ dim: true }))).toBe(true);
+		expect(styleControlsVisible(sections({ calloutTail: true }))).toBe(true);
+		expect(styleControlsVisible(sections({ stepNumber: true }))).toBe(true);
+		expect(styleControlsVisible(sections({ cropRatio: true }))).toBe(true);
 	});
 
 	it("全セクション false ならボタンを隠す", () => {
@@ -154,15 +180,22 @@ describe("styleAnchorToolFor", () => {
 			"mosaic",
 			"blur",
 			"spotlight",
+			"step",
+			"crop",
 		] as const) {
 			expect(styleAnchorToolFor(tool, null)).toBe(tool);
 		}
 	});
 
 	it("セクションを持たないツールではアンカー無し（null）", () => {
-		for (const tool of ["select", "marker", "step", "crop"] as const) {
+		for (const tool of ["select", "marker"] as const) {
 			expect(styleAnchorToolFor(tool, null)).toBeNull();
 		}
+	});
+
+	it("ステップ・クロップ図形を選択中はアンカー無し（ツール選択中のみ表示）", () => {
+		// step/crop はツール選択でしかセクションを持たないので、図形選択では出さない。
+		expect(styleAnchorToolFor("select", "step")).toBeNull();
 	});
 
 	it("セクションを持つ図形を選択中は（select ツールでも）その図形の型のツールへアンカーする", () => {

@@ -1,5 +1,7 @@
 import type Konva from "konva";
 import type { ArrowStyle } from "@/lib/editor/arrow";
+import type { CalloutTail } from "@/lib/editor/callout";
+import type { CropRatio } from "@/lib/editor/crop";
 import type { EditorDoc, MosaicBlurIntensity, Shape } from "@/lib/editor/doc";
 import type { Point } from "../geometry-view";
 
@@ -47,6 +49,10 @@ export interface EditorContext {
 		intensity: MosaicBlurIntensity;
 		/** 新規 doc のスポットライト暗幕の暗さ（不透明度 0〜1）。 */
 		spotlightAlpha: number;
+		/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右）。 */
+		calloutTail: CalloutTail;
+		/** クロップ枠のアスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）。 */
+		cropRatio: CropRatio;
 	};
 	/** ステージ（座標変換・コンテナ取得に使う）。 */
 	readonly stage: Konva.Stage;
@@ -66,6 +72,14 @@ export interface EditorContext {
 	getDoc(): EditorDoc;
 	/** 図形を選択状態にする（select ツール用）。null で選択解除。 */
 	select(id: string | null): void;
+	/**
+	 * 次に置くステップバッジの番号の明示上書き（フライアウトの「次を1に戻す」で設定）。
+	 * 無ければ null。StepTool が resolveNextStepNumber へ渡し、1 個置いたら
+	 * clearStepNumberOverride() で破棄する（以降はまた連番）。
+	 */
+	stepNumberOverride(): number | null;
+	/** ステップ番号の明示上書きを破棄する（バッジを 1 個置いた後に呼ぶ）。 */
+	clearStepNumberOverride(): void;
 	/** テキスト編集オーバーレイの表示中はキーボードショートカットを抑止する。 */
 	setTextEditing(editing: boolean): void;
 	/** 指定 id の図形ノードの表示/非表示を切り替える（編集中は元ノードを隠す）。 */

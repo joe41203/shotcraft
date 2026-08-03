@@ -4,7 +4,9 @@ import {
 	calloutBodyHeight,
 	calloutInnerWidth,
 	calloutTailPoints,
+	DEFAULT_CALLOUT_TAIL,
 	hexToRgba,
+	normalizeCalloutTail,
 } from "../lib/editor/callout";
 
 describe("calloutInnerWidth", () => {
@@ -83,5 +85,56 @@ describe("calloutTailPoints", () => {
 		expect(calloutTailPoints(10, 20, 100, 50, 20, 10)).toEqual([
 			50, 70, 70, 70, 60, 80,
 		]);
+	});
+
+	it("tail 省略時は down（下向き）と一致する（後方互換）", () => {
+		expect(calloutTailPoints(0, 0, 100, 50, 20, 10)).toEqual(
+			calloutTailPoints(0, 0, 100, 50, 20, 10, "down"),
+		);
+	});
+
+	it("up: 上辺中央から上向きの三角", () => {
+		// 本体 (0,0,100,50)、tailWidth 20、tailHeight 10。
+		// 中心 x=50、上辺 y=0。付け根 左(40,0)・右(60,0)、先端 上(50,-10)。
+		expect(calloutTailPoints(0, 0, 100, 50, 20, 10, "up")).toEqual([
+			40, 0, 60, 0, 50, -10,
+		]);
+	});
+
+	it("left: 左辺中央から左向きの三角", () => {
+		// 中心 y=25、左辺 x=0。付け根 上(0,15)・下(0,35)、先端 左(-10,25)。
+		expect(calloutTailPoints(0, 0, 100, 50, 20, 10, "left")).toEqual([
+			0, 15, 0, 35, -10, 25,
+		]);
+	});
+
+	it("right: 右辺中央から右向きの三角", () => {
+		// 中心 y=25、右辺 x=100。付け根 上(100,15)・下(100,35)、先端 右(110,25)。
+		expect(calloutTailPoints(0, 0, 100, 50, 20, 10, "right")).toEqual([
+			100, 15, 100, 35, 110, 25,
+		]);
+	});
+
+	it("向きに依らず本体オフセットに追従する", () => {
+		// 本体 (10,20,100,50) → 中心 y=45、右辺 x=110。
+		expect(calloutTailPoints(10, 20, 100, 50, 20, 10, "right")).toEqual([
+			110, 35, 110, 55, 120, 45,
+		]);
+	});
+});
+
+describe("normalizeCalloutTail", () => {
+	it("4 値はそのまま通す", () => {
+		expect(normalizeCalloutTail("down")).toBe("down");
+		expect(normalizeCalloutTail("up")).toBe("up");
+		expect(normalizeCalloutTail("left")).toBe("left");
+		expect(normalizeCalloutTail("right")).toBe("right");
+	});
+
+	it("未設定・不正値は既定（down）へ", () => {
+		expect(normalizeCalloutTail(undefined)).toBe(DEFAULT_CALLOUT_TAIL);
+		expect(normalizeCalloutTail(null)).toBe("down");
+		expect(normalizeCalloutTail("bottom")).toBe("down");
+		expect(normalizeCalloutTail(1)).toBe("down");
 	});
 });

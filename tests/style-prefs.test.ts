@@ -19,6 +19,8 @@ const FULL: StylePrefs = {
 	fill: true,
 	intensity: "strong",
 	spotlightAlpha: 0.85,
+	calloutTail: "up",
+	cropRatio: "16:9",
 };
 
 describe("normalizeStylePrefs", () => {
@@ -111,6 +113,26 @@ describe("normalizeStylePrefs", () => {
 			SPOTLIGHT_DIM_ALPHA,
 		);
 	});
+
+	it("calloutTail は 4 値のみ受け付け、それ以外は down へ", () => {
+		expect(normalizeStylePrefs({ calloutTail: "up" }).calloutTail).toBe("up");
+		expect(normalizeStylePrefs({ calloutTail: "left" }).calloutTail).toBe(
+			"left",
+		);
+		expect(normalizeStylePrefs({ calloutTail: "bottom" }).calloutTail).toBe(
+			"down",
+		);
+		expect(normalizeStylePrefs({ calloutTail: 1 }).calloutTail).toBe("down");
+		expect(normalizeStylePrefs({}).calloutTail).toBe("down");
+	});
+
+	it("cropRatio は 4 値のみ受け付け、それ以外は free へ", () => {
+		expect(normalizeStylePrefs({ cropRatio: "1:1" }).cropRatio).toBe("1:1");
+		expect(normalizeStylePrefs({ cropRatio: "16:9" }).cropRatio).toBe("16:9");
+		expect(normalizeStylePrefs({ cropRatio: "2:1" }).cropRatio).toBe("free");
+		expect(normalizeStylePrefs({ cropRatio: 1 }).cropRatio).toBe("free");
+		expect(normalizeStylePrefs({}).cropRatio).toBe("free");
+	});
 });
 
 describe("normalizeIntensity", () => {
@@ -145,6 +167,8 @@ describe("stylePrefsEqual", () => {
 		expect(stylePrefsEqual(FULL, { ...FULL, spotlightAlpha: 0.55 })).toBe(
 			false,
 		);
+		expect(stylePrefsEqual(FULL, { ...FULL, calloutTail: "down" })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, cropRatio: "free" })).toBe(false);
 	});
 });
 
@@ -177,6 +201,8 @@ describe("createStylePrefsSaver", () => {
 			fill: true,
 			intensity: "strong",
 			spotlightAlpha: 0.85,
+			calloutTail: "left",
+			cropRatio: "4:3",
 		};
 		saver.save(changed);
 		saver.save({ ...changed });
@@ -195,6 +221,8 @@ describe("createStylePrefsSaver", () => {
 			fill: false,
 			intensity: "normal",
 			spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
+			calloutTail: "down",
+			cropRatio: "free",
 		});
 		expect(set).toHaveBeenCalledWith({
 			"style-prefs": {
@@ -205,6 +233,8 @@ describe("createStylePrefsSaver", () => {
 				fill: false,
 				intensity: "normal",
 				spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
+				calloutTail: "down",
+				cropRatio: "free",
 			},
 		});
 	});

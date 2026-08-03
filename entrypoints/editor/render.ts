@@ -9,6 +9,7 @@ import {
 	calloutInnerWidth,
 	calloutTailPoints,
 	hexToRgba,
+	normalizeCalloutTail,
 } from "@/lib/editor/callout";
 import { resolveDash } from "@/lib/editor/dash";
 import type {
@@ -563,9 +564,10 @@ function buildStepNode(
  *
  * Group の x/y は本体左上。内部はローカル座標で組み、Group ごと移動する。
  * 本体高さは shape.height を下限に、折り返したテキストが収まるよう
- * calloutBodyHeight で広げる（リサイズ時のテキスト追従）。しっぽは本体下辺
- * 中央から下向きの三角で固定形状。塗りは color の淡い背景＋枠線＝color、
- * テキストは shape.stroke（注釈色）で描き、テキスト注釈と色を統一する。
+ * calloutBodyHeight で広げる（リサイズ時のテキスト追従）。しっぽは shape.tail の
+ * 向き（下 / 上 / 左 / 右。省略時は下）の辺の中央から外向きの三角で固定形状。
+ * 塗りは color の淡い背景＋枠線＝color、テキストは shape.stroke（注釈色）で描き、
+ * テキスト注釈と色を統一する。
  */
 function buildCalloutNode(
 	shape: CalloutShape,
@@ -597,10 +599,19 @@ function buildCalloutNode(
 		calloutBodyHeight(text.height(), shape.fontSize, CALLOUT_PADDING),
 	);
 
-	// しっぽ（本体より背面）→本体→テキストの順に重ねる。
+	// しっぽ（本体より背面）→本体→テキストの順に重ねる。しっぽの向きは
+	// shape.tail（省略時は下向き）に応じて頂点を計算する。
 	group.add(
 		new Konva.Line({
-			points: calloutTailPoints(0, 0, shape.width, bodyHeight),
+			points: calloutTailPoints(
+				0,
+				0,
+				shape.width,
+				bodyHeight,
+				undefined,
+				undefined,
+				normalizeCalloutTail(shape.tail),
+			),
 			closed: true,
 			fill: hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA),
 			stroke: shape.stroke,

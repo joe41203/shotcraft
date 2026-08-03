@@ -11,6 +11,12 @@
  */
 
 import { type ArrowStyle, normalizeArrowStyle } from "./arrow";
+import {
+	type CalloutTail,
+	DEFAULT_CALLOUT_TAIL,
+	normalizeCalloutTail,
+} from "./callout";
+import { type CropRatio, normalizeCropRatio } from "./crop";
 import type { MosaicBlurIntensity } from "./doc";
 import { normalizeSpotlightAlpha, SPOTLIGHT_DIM_ALPHA } from "./spotlight";
 import { clampFontSize, DEFAULT_FONT_SIZE } from "./text";
@@ -31,6 +37,10 @@ export interface StylePrefs {
 	intensity: MosaicBlurIntensity;
 	/** 新規 doc のスポットライト暗幕の暗さ（不透明度 0〜1）。既定は SPOTLIGHT_DIM_ALPHA。 */
 	spotlightAlpha: number;
+	/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右）。既定は "down"。 */
+	calloutTail: CalloutTail;
+	/** クロップ枠のアスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）。既定は "free"。 */
+	cropRatio: CropRatio;
 }
 
 /** 保存値が無い・壊れているときに使う既定スタイル（app.ts の初期値と一致させる）。 */
@@ -42,6 +52,8 @@ export const DEFAULT_STYLE_PREFS: StylePrefs = {
 	fill: false,
 	intensity: "normal",
 	spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
+	calloutTail: DEFAULT_CALLOUT_TAIL,
+	cropRatio: "free",
 };
 
 /** storage.local のキー。capture/doc（storage.session）とは名前空間を分ける。 */
@@ -68,6 +80,8 @@ export function normalizeIntensity(raw: unknown): MosaicBlurIntensity {
  * - fill: boolean ならそのまま。それ以外は false（＝塗りなし）。
  * - intensity: "weak"/"normal"/"strong" のいずれか。それ以外は "normal"。
  * - spotlightAlpha: 有限数なら [0,1] へクランプ。数値でなければ既定（SPOTLIGHT_DIM_ALPHA）。
+ * - calloutTail: "down"/"up"/"left"/"right" のいずれか。それ以外は "down"。
+ * - cropRatio: "free"/"1:1"/"4:3"/"16:9" のいずれか。それ以外は "free"。
  * 部分的に壊れていても、壊れたキーだけ既定へ落として全体は必ず有効な値を返す。
  */
 export function normalizeStylePrefs(raw: unknown): StylePrefs {
@@ -100,6 +114,9 @@ export function normalizeStylePrefs(raw: unknown): StylePrefs {
 			Number.isFinite(source.spotlightAlpha)
 				? normalizeSpotlightAlpha(source.spotlightAlpha)
 				: DEFAULT_STYLE_PREFS.spotlightAlpha,
+		// 不正値・未設定は "down" / "free" へ（各 normalize が担保）。
+		calloutTail: normalizeCalloutTail(source.calloutTail),
+		cropRatio: normalizeCropRatio(source.cropRatio),
 	};
 }
 
@@ -112,7 +129,9 @@ export function stylePrefsEqual(a: StylePrefs, b: StylePrefs): boolean {
 		a.arrowStyle === b.arrowStyle &&
 		a.fill === b.fill &&
 		a.intensity === b.intensity &&
-		a.spotlightAlpha === b.spotlightAlpha
+		a.spotlightAlpha === b.spotlightAlpha &&
+		a.calloutTail === b.calloutTail &&
+		a.cropRatio === b.cropRatio
 	);
 }
 

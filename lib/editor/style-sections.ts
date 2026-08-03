@@ -12,16 +12,21 @@
  * - 塗り（なし/半透明）: 矩形・楕円ツール選択中、または矩形/楕円図形を単一選択中。
  * - 強度（弱/標準/強）: モザイク・ぼかしツール選択中、またはモザイク/ぼかし図形を選択中。
  * - 暗さ（薄め/標準/濃いめ）: スポットライトツール選択中、またはスポットライト図形を選択中。
+ * - しっぽ（下/上/左/右）: フキダシツール選択中、またはフキダシ図形を単一選択中。
+ * - 番号（次を1に戻すアクション）: ステップツール選択中のみ（図形選択アンカーは無し）。
+ * - 比率（自由/1:1/4:3/16:9）: クロップツール選択中のみ（図形選択アンカーは無し）。
  *
  * アンカー先（真下にフライアウトを出すボタン）:
  * - スタイルを持つ図形を単一選択中は、その図形の型に対応するツールボタン
  *   （矢印図形→矢印ボタン、フキダシ図形→フキダシボタン等）。
  * - そうでなくスタイルを持つツールがアクティブなら、そのツールボタン。
  * - どちらでもなければアンカー無し（フライアウトを出さない）。
+ * step/crop はツール選択中のみ表示し、図形選択でのアンカーは持たない（対応する図形を
+ * 選んでもフライアウトは出さない。callout のしっぽだけが図形選択でも出る）。
  */
 
-import type { ShapeType } from "./doc";
 import { shapeSupportsDash } from "./dash";
+import type { ShapeType } from "./doc";
 
 /** 線種セクションを持つ（＝破線に対応する）ツールの集合。図形側は shapeSupportsDash が正。 */
 const DASH_TOOLS: ReadonlySet<string> = new Set([
@@ -43,6 +48,15 @@ const INTENSITY_TYPES: ReadonlySet<string> = new Set(["mosaic", "blur"]);
 
 /** 暗さ（薄め/標準/濃いめ）セクションを持つツール・図形（スポットライト）。 */
 const DIM_TYPE = "spotlight";
+
+/** しっぽ（下/上/左/右）セクションを持つツール・図形（フキダシ）。 */
+const TAIL_TYPE = "callout";
+
+/** 番号（次を1に戻す）セクションを持つツール（ステップ）。図形選択では出さない。 */
+const STEP_NUMBER_TOOL = "step";
+
+/** 比率（自由/1:1/4:3/16:9）セクションを持つツール（クロップ）。図形選択では出さない。 */
+const CROP_RATIO_TOOL = "crop";
 
 /**
  * スタイルを持つ図形の型 → その図形を描くツール名の対応。
@@ -76,6 +90,12 @@ export interface StyleSections {
 	intensity: boolean;
 	/** 暗さ（薄め/標準/濃いめ）セクションを出すか（スポットライト）。 */
 	dim: boolean;
+	/** しっぽ（下/上/左/右）セクションを出すか（フキダシ）。 */
+	calloutTail: boolean;
+	/** 番号（次を1に戻す）セクションを出すか（ステップツール中のみ）。 */
+	stepNumber: boolean;
+	/** 比率（自由/1:1/4:3/16:9）セクションを出すか（クロップツール中のみ）。 */
+	cropRatio: boolean;
 }
 
 /**
@@ -99,6 +119,11 @@ export function styleSectionsFor(
 		intensity:
 			INTENSITY_TYPES.has(toolName) || (t != null && INTENSITY_TYPES.has(t)),
 		dim: toolName === DIM_TYPE || t === DIM_TYPE,
+		// しっぽはフキダシツール中、またはフキダシ図形選択中に出す。
+		calloutTail: toolName === TAIL_TYPE || t === TAIL_TYPE,
+		// 番号・比率はツール選択中のみ（図形選択では出さない＝アンカーも持たない）。
+		stepNumber: toolName === STEP_NUMBER_TOOL,
+		cropRatio: toolName === CROP_RATIO_TOOL,
 	};
 }
 
@@ -113,7 +138,10 @@ export function styleControlsVisible(sections: StyleSections): boolean {
 		sections.fontSize ||
 		sections.fill ||
 		sections.intensity ||
-		sections.dim
+		sections.dim ||
+		sections.calloutTail ||
+		sections.stepNumber ||
+		sections.cropRatio
 	);
 }
 

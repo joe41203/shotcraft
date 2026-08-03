@@ -1,7 +1,8 @@
 import Konva from "konva";
 import type { CaptureRecord } from "@/lib/capture-store";
 import { type ArrowStyle, normalizeArrowStyle } from "@/lib/editor/arrow";
-import { croppedSize } from "@/lib/editor/crop";
+import { type CalloutTail, normalizeCalloutTail } from "@/lib/editor/callout";
+import { type CropRatio, croppedSize } from "@/lib/editor/crop";
 import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
 	addShape,
@@ -22,8 +23,6 @@ import {
 	translateShape,
 	updateShape,
 } from "@/lib/editor/doc";
-import { resolveSpotlightAlpha } from "@/lib/editor/spotlight";
-import { clampFontSize } from "@/lib/editor/text";
 import {
 	canRedo,
 	canUndo,
@@ -34,16 +33,18 @@ import {
 	undo,
 } from "@/lib/editor/history";
 import { shapesInBand } from "@/lib/editor/selection";
+import { resolveSpotlightAlpha } from "@/lib/editor/spotlight";
 import {
 	createStylePrefsSaver,
 	DEFAULT_STYLE_PREFS,
 	type StylePrefs,
 } from "@/lib/editor/style-prefs";
 import {
-	styleAnchorToolFor,
 	type StyleSections,
+	styleAnchorToolFor,
 	styleSectionsFor,
 } from "@/lib/editor/style-sections";
+import { clampFontSize } from "@/lib/editor/text";
 import { CropController } from "./crop-controller";
 import {
 	canvasToPngBlob,
@@ -166,7 +167,19 @@ export class EditorApp {
 		intensity: DEFAULT_STYLE_PREFS.intensity,
 		/** 新規 doc のスポットライト暗幕の暗さ（不透明度）。既定は標準（0.7）。 */
 		spotlightAlpha: DEFAULT_STYLE_PREFS.spotlightAlpha,
+		/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右）。既定は下。 */
+		calloutTail: DEFAULT_STYLE_PREFS.calloutTail,
+		/** クロップ枠のアスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）。既定は自由。 */
+		cropRatio: DEFAULT_STYLE_PREFS.cropRatio,
 	};
+
+	/**
+	 * 次に置くステップバッジの番号の明示上書き（セッション内の一時状態）。
+	 * フライアウトの「次を 1 に戻す」を押すと 1 を入れ、StepTool が 1 個置いたら
+	 * clearStepNumberOverride() で破棄する（以降はまた連番）。doc・style-prefs には
+	 * 保存しない（保存不要な一時状態）。null は上書きなし＝通常の連番採番。
+	 */
+	private stepNumberOverride: number | null = null;
 
 	/**
 	 * 色・線種・フォントサイズの変更を storage.local に保存するセーバ。
@@ -209,6 +222,8 @@ export class EditorApp {
 		this.style.fill = prefs.fill;
 		this.style.intensity = prefs.intensity;
 		this.style.spotlightAlpha = prefs.spotlightAlpha;
+		this.style.calloutTail = prefs.calloutTail;
+		this.style.cropRatio = prefs.cropRatio;
 		// 復元値を初期値としてセーバに渡し、起動直後の同値保存を抑止する。
 		this.stylePrefsSaver = createStylePrefsSaver(prefs);
 		// crop フィールドが無い旧保存データも読めるよう null で補完する。
@@ -270,6 +285,9 @@ export class EditorApp {
 			onFillChange: (f) => this.setFill(f),
 			onIntensityChange: (i) => this.setIntensity(i),
 			onSpotlightDimChange: (a) => this.setSpotlightDim(a),
+			onCalloutTailChange: (t) => this.setCalloutTail(t),
+			onStepNumberReset: () => this.resetStepNumber(),
+			onCropRatioChange: (r) => this.setCropRatio(r),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
 			onSavePng: () => this.savePng(),
@@ -304,6 +322,8 @@ export class EditorApp {
 			commitDoc: (next) => this.commitDoc(next),
 			getDoc: () => this.history.present,
 			select: (id) => this.select(id),
+			stepNumberOverride: () => this.getStepNumberOverride(),
+			clearStepNumberOverride: () => this.clearStepNumberOverride(),
 			setTextEditing: (editing) => this.setTextEditing(editing),
 			setNodeVisible: (id, visible) => this.setNodeVisible(id, visible),
 		};
@@ -690,6 +710,11 @@ export class EditorApp {
 		return this.history.present.crop;
 	}
 
+	/** 現在のクロップ枠アスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）。CropController が読む。 */
+	getCropRatio(): CropRatio {
+		return this.style.cropRatio;
+	}
+
 	/**
 	 * 新規図形の色（stroke）を設定する。色を持つ図形を選択中なら、その図形へ即時
 	 * 適用して履歴に 1 回 commit する（線種トグルの「選択中へ即適用」と同じパターン）。
@@ -853,10 +878,66 @@ export class EditorApp {
 	}
 
 	/**
-	 * 現在の新規図形用スタイル（色・線種・フォントサイズ・塗り・強度・暗さ）を
+	 * しっぽの向き（下 / 上 / 左 / 右）を新規フキダシの既定にする。フキダシを選択中は
+	 * そのシェイプへ即時適用して 1 回 commit する（線種と同じパターン・同値なら no-op）。
+	 */
+	setCalloutTail(tail: CalloutTail): void {
+		this.style.calloutTail = tail;
+		this.applyCalloutTailToSelection(tail);
+		this.toolbar.setCalloutTail(tail);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 選択中がフキダシなら tail を差し替えて commit する。未設定（レガシー）は "down"
+	 * 相当なので、現在の解決値（normalizeCalloutTail）と比較して no-op を判定する。他は対象外。
+	 */
+	private applyCalloutTailToSelection(tail: CalloutTail): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || shape.type !== "callout") return;
+		if (normalizeCalloutTail(shape.tail) === tail) return;
+		this.commitDoc(updateShape(this.history.present, id, { tail }));
+	}
+
+	/**
+	 * クロップ枠のアスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）を設定する。
+	 * 記憶（style-prefs）だけでなく、クロップ操作中なら CropController へ即時反映し、
+	 * 既存の選択枠を中心を保ってその比率に整形する。doc には保存しない
+	 * （クロップ確定値は従来どおり CropRect）。
+	 */
+	setCropRatio(ratio: CropRatio): void {
+		this.style.cropRatio = ratio;
+		this.crop.setRatio(ratio);
+		this.toolbar.setCropRatio(ratio);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * 「次を 1 に戻す」: 次に置くステップバッジの番号を 1 に明示上書きする
+	 * （セッション内の一時状態）。1 個置いたら StepTool が破棄し、以降はまた連番。
+	 * doc・style-prefs には保存しない。
+	 */
+	resetStepNumber(): void {
+		this.stepNumberOverride = 1;
+	}
+
+	/** 次に置くステップ番号の明示上書き（無ければ null）。StepTool が resolveNextStepNumber へ渡す。 */
+	getStepNumberOverride(): number | null {
+		return this.stepNumberOverride;
+	}
+
+	/** ステップ番号の明示上書きを破棄する（バッジを 1 個置いた後に StepTool が呼ぶ）。 */
+	clearStepNumberOverride(): void {
+		this.stepNumberOverride = null;
+	}
+
+	/**
+	 * 現在の新規図形用スタイル（色・線種・フォントサイズ・塗り・強度・暗さ・しっぽ・比率）を
 	 * storage.local に保存する。セーバ側で直前の保存値と同値なら書き込みをスキップ
 	 * するので、いずれかを切り替えたときだけ実際の書き込みが走る。線の太さは固定
-	 * なので保存しない。
+	 * なので保存しない。ステップの番号上書きは一時状態なので保存しない。
 	 */
 	private persistStylePrefs(): void {
 		this.stylePrefsSaver.save({
@@ -867,6 +948,8 @@ export class EditorApp {
 			fill: this.style.fill,
 			intensity: this.style.intensity,
 			spotlightAlpha: this.style.spotlightAlpha,
+			calloutTail: this.style.calloutTail,
+			cropRatio: this.style.cropRatio,
 		});
 	}
 
@@ -1473,6 +1556,9 @@ export class EditorApp {
 		this.syncFillControls();
 		this.syncIntensityControls();
 		this.syncSpotlightDimControls();
+		this.syncCalloutTailControls();
+		this.syncStepNumberControls();
+		this.syncCropRatioControls();
 		// アンカー先ボタンはセクション表示を確定させた後に渡す（表示位置を最終決定する）。
 		this.syncStyleAnchor();
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
@@ -1617,6 +1703,47 @@ export class EditorApp {
 		this.toolbar.setSpotlightDim(
 			resolveSpotlightAlpha(this.history.present.spotlightAlpha),
 		);
+	}
+
+	/**
+	 * しっぽ（下/上/左/右）コントロールの表示と現在値を同期する。
+	 * フキダシを選択中はそのシェイプのしっぽ（未設定は下）を、そうでなくフキダシツール
+	 * 選択中は新規デフォルト（style.calloutTail）を表示する。
+	 */
+	private syncCalloutTailControls(): void {
+		const visible = this.currentStyleSections().calloutTail;
+		this.toolbar.setCalloutTailControlsVisible(visible);
+		if (!visible) return;
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		const tail =
+			selected?.type === "callout"
+				? normalizeCalloutTail(selected.tail)
+				: this.style.calloutTail;
+		this.toolbar.setCalloutTail(tail);
+	}
+
+	/**
+	 * 番号（次を1に戻す）コントロールの表示を同期する。ステップツール選択中のみ出す
+	 * アクションボタンで、選択状態は持たないので表示可否だけを切り替える。
+	 */
+	private syncStepNumberControls(): void {
+		this.toolbar.setStepNumberControlsVisible(
+			this.currentStyleSections().stepNumber,
+		);
+	}
+
+	/**
+	 * 比率（自由/1:1/4:3/16:9）コントロールの表示と現在値を同期する。
+	 * クロップツール選択中のみ出し、現在の style.cropRatio を表示する
+	 * （クロップは図形選択アンカーを持たない＝ツール中だけの設定）。
+	 */
+	private syncCropRatioControls(): void {
+		const visible = this.currentStyleSections().cropRatio;
+		this.toolbar.setCropRatioControlsVisible(visible);
+		if (!visible) return;
+		this.toolbar.setCropRatio(this.style.cropRatio);
 	}
 
 	getContentSize(): { width: number; height: number } {

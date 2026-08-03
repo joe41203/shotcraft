@@ -7,7 +7,11 @@ import {
 	type Shape,
 	type StepShape,
 } from "../lib/editor/doc";
-import { STEP_RADIUS, stepFontSize } from "../lib/editor/step";
+import {
+	resolveNextStepNumber,
+	STEP_RADIUS,
+	stepFontSize,
+} from "../lib/editor/step";
 
 function step(id: string, number: number): StepShape {
 	return {
@@ -84,6 +88,41 @@ describe("nextStepNumber", () => {
 		// 既存バッジの番号は変わらない。
 		expect((doc.shapes[0] as StepShape).number).toBe(1);
 		expect((doc.shapes[1] as StepShape).number).toBe(3);
+	});
+});
+
+describe("resolveNextStepNumber", () => {
+	it("override 未指定なら nextStepNumber と同じ（連番）", () => {
+		expect(resolveNextStepNumber([])).toBe(1);
+		expect(resolveNextStepNumber([step("a", 1), step("b", 2)])).toBe(3);
+		expect(resolveNextStepNumber([step("a", 1), step("b", 2)], null)).toBe(3);
+		expect(resolveNextStepNumber([step("a", 1), step("b", 2)], undefined)).toBe(
+			3,
+		);
+	});
+
+	it("有効な正整数の override を優先する（既存最大に依らない）", () => {
+		// 既存最大が 5 でも override=1 なら 1 を返す（「次を 1 に戻す」）。
+		expect(resolveNextStepNumber([step("a", 5)], 1)).toBe(1);
+		expect(resolveNextStepNumber([step("a", 3), step("b", 7)], 2)).toBe(2);
+	});
+
+	it("非正・非整数・数値でない override は連番へフォールバックする", () => {
+		const shapes = [step("a", 1), step("b", 2)];
+		expect(resolveNextStepNumber(shapes, 0)).toBe(3);
+		expect(resolveNextStepNumber(shapes, -1)).toBe(3);
+		expect(resolveNextStepNumber(shapes, 1.5)).toBe(3);
+		expect(resolveNextStepNumber(shapes, Number.NaN)).toBe(3);
+	});
+
+	it("override=1 を置いた後は（override 破棄で）また連番に戻る", () => {
+		// 「次を 1 に戻す」で 1 を置く → doc に number 1 が入る。
+		let doc = emptyDoc();
+		const first = resolveNextStepNumber(doc.shapes, 1);
+		expect(first).toBe(1);
+		doc = addShape(doc, step("a", first));
+		// override を破棄した次は連番（最大 1 の次＝2）。
+		expect(resolveNextStepNumber(doc.shapes)).toBe(2);
 	});
 });
 

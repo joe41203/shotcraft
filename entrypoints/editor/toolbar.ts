@@ -1,4 +1,6 @@
 import type { ArrowStyle } from "@/lib/editor/arrow";
+import type { CalloutTail } from "@/lib/editor/callout";
+import { CROP_RATIO_OPTIONS, type CropRatio } from "@/lib/editor/crop";
 import type { MosaicBlurIntensity } from "@/lib/editor/doc";
 import {
 	isSpotlightDimPreset,
@@ -85,6 +87,14 @@ export const INTENSITY_OPTIONS: {
 	{ value: "strong", label: "強" },
 ];
 
+/** しっぽの向き（下 / 上 / 左 / 右）の選択肢。フキダシツール選択中（または図形選択中）に表示する。 */
+export const CALLOUT_TAIL_OPTIONS: { value: CalloutTail; label: string }[] = [
+	{ value: "down", label: "下" },
+	{ value: "up", label: "上" },
+	{ value: "left", label: "左" },
+	{ value: "right", label: "右" },
+];
+
 export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
@@ -100,6 +110,12 @@ export interface ToolbarCallbacks {
 	onIntensityChange(intensity: MosaicBlurIntensity): void;
 	/** 暗さ（薄め/標準/濃いめ）が選ばれたとき（スポットライト）。値は暗幕の不透明度。 */
 	onSpotlightDimChange(alpha: number): void;
+	/** しっぽの向き（下/上/左/右）が選ばれたとき（フキダシ）。 */
+	onCalloutTailChange(tail: CalloutTail): void;
+	/** 「次を 1 に戻す」アクションが押されたとき（ステップ）。次に置くバッジの番号を 1 にする。 */
+	onStepNumberReset(): void;
+	/** 比率（自由/1:1/4:3/16:9）が選ばれたとき（クロップ）。 */
+	onCropRatioChange(ratio: CropRatio): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
@@ -143,6 +159,14 @@ export class Toolbar {
 	/** 暗さ（薄め/標準/濃いめ）セクションと各ボタン（スポットライト）。 */
 	private dimSection!: HTMLDivElement;
 	private dimButtons = new Map<number, HTMLButtonElement>();
+	/** しっぽ（下/上/左/右）セクションと各ボタン（フキダシ）。 */
+	private calloutTailSection!: HTMLDivElement;
+	private calloutTailButtons = new Map<CalloutTail, HTMLButtonElement>();
+	/** 番号（次を1に戻す）セクション（ステップ）。トグルでなくアクションボタン 1 個。 */
+	private stepNumberSection!: HTMLDivElement;
+	/** 比率（自由/1:1/4:3/16:9）セクションと各ボタン（クロップ）。 */
+	private cropRatioSection!: HTMLDivElement;
+	private cropRatioButtons = new Map<CropRatio, HTMLButtonElement>();
 	/** 各セクションの表示状態。 */
 	private dashSectionVisible = false;
 	private arrowSectionVisible = false;
@@ -150,6 +174,9 @@ export class Toolbar {
 	private fillSectionVisible = false;
 	private intensitySectionVisible = false;
 	private dimSectionVisible = false;
+	private calloutTailSectionVisible = false;
+	private stepNumberSectionVisible = false;
+	private cropRatioSectionVisible = false;
 	/** フライアウトを真下に出すツールボタン名。null なら非表示。 */
 	private anchorTool: ToolName | null = null;
 	private undoButton!: HTMLButtonElement;
@@ -364,6 +391,43 @@ export class Toolbar {
 			},
 		);
 
+		// しっぽセクション（フキダシ）。下/上/左/右のテキストラベルトグル。
+		this.calloutTailSection = this.buildLabeledToggleSection(
+			"しっぽ",
+			CALLOUT_TAIL_OPTIONS.map((o) => ({ label: o.label, tooltip: o.label })),
+			(i) =>
+				this.callbacks.onCalloutTailChange(
+					CALLOUT_TAIL_OPTIONS[i]?.value ?? "down",
+				),
+			(btn, i) => {
+				const v = CALLOUT_TAIL_OPTIONS[i]?.value;
+				if (v != null) this.calloutTailButtons.set(v, btn);
+			},
+		);
+
+		// 番号セクション（ステップ）。トグルでなく「次を 1 に戻す」アクションボタン 1 個。
+		this.stepNumberSection = this.buildActionSection("番号", [
+			{
+				label: "次を1に戻す",
+				tooltip: "次に置くステップ番号を 1 にする",
+				onClick: () => this.callbacks.onStepNumberReset(),
+			},
+		]);
+
+		// 比率セクション（クロップ）。自由/1:1/4:3/16:9 のテキストラベルトグル。
+		this.cropRatioSection = this.buildLabeledToggleSection(
+			"比率",
+			CROP_RATIO_OPTIONS.map((o) => ({ label: o.label, tooltip: o.label })),
+			(i) =>
+				this.callbacks.onCropRatioChange(
+					CROP_RATIO_OPTIONS[i]?.value ?? "free",
+				),
+			(btn, i) => {
+				const v = CROP_RATIO_OPTIONS[i]?.value;
+				if (v != null) this.cropRatioButtons.set(v, btn);
+			},
+		);
+
 		this.styleFlyout.append(
 			this.dashSection,
 			this.arrowStyleSection,
@@ -371,6 +435,9 @@ export class Toolbar {
 			this.fillSection,
 			this.intensitySection,
 			this.dimSection,
+			this.calloutTailSection,
+			this.stepNumberSection,
+			this.cropRatioSection,
 		);
 		this.root.append(this.styleFlyout);
 
@@ -433,6 +500,30 @@ export class Toolbar {
 	}
 
 	/**
+	 * アクションボタン式のセクション（見出し + 押すたびに動作するボタン）を組み立てる。
+	 * トグル（aria-pressed）ではなく通常ボタンとして扱う（ステップの「次を1に戻す」用）。
+	 * 選択状態を持たないので active/aria-pressed は付けず、押すたびに onClick が走る。
+	 */
+	private buildActionSection(
+		label: string,
+		actions: { label: string; tooltip: string; onClick: () => void }[],
+	): HTMLDivElement {
+		const { section, options: optionsEl } = this.buildStyleSection(label);
+		for (const action of actions) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			// トグルと同じ見た目のクラスを流用しつつ、選択状態は持たせない。
+			btn.className = "style-toggle-btn";
+			btn.dataset.tooltip = action.tooltip;
+			btn.setAttribute("aria-label", `${label}: ${action.tooltip}`);
+			btn.textContent = action.label;
+			btn.addEventListener("click", action.onClick);
+			optionsEl.append(btn);
+		}
+		return section;
+	}
+
+	/**
 	 * トグルボタン群の現在値を反映する共通ヘルパ（active クラス + aria-pressed）。
 	 * value に一致するキーのボタンだけ on にする。value がどのキーとも一致しないとき
 	 * （プリセット外の連続値など）はすべて off になる。
@@ -473,7 +564,10 @@ export class Toolbar {
 			this.fontSizeSectionVisible ||
 			this.fillSectionVisible ||
 			this.intensitySectionVisible ||
-			this.dimSectionVisible;
+			this.dimSectionVisible ||
+			this.calloutTailSectionVisible ||
+			this.stepNumberSectionVisible ||
+			this.cropRatioSectionVisible;
 		const visible = this.anchorTool != null && hasSection;
 		this.styleFlyout.hidden = !visible;
 		if (visible) this.placeFlyout();
@@ -600,6 +694,40 @@ export class Toolbar {
 	setSpotlightDimControlsVisible(visible: boolean): void {
 		this.dimSectionVisible = visible;
 		this.dimSection.hidden = !visible;
+		this.syncFlyoutVisibility();
+	}
+
+	/** しっぽ（下/上/左/右）の現在値を反映する（active クラスと aria-pressed）。 */
+	setCalloutTail(tail: CalloutTail): void {
+		this.setToggleActive(this.calloutTailButtons, (v) => v === tail);
+	}
+
+	/** しっぽセクションの表示/非表示を切り替える（フライアウト内）。 */
+	setCalloutTailControlsVisible(visible: boolean): void {
+		this.calloutTailSectionVisible = visible;
+		this.calloutTailSection.hidden = !visible;
+		this.syncFlyoutVisibility();
+	}
+
+	/**
+	 * 番号（次を1に戻す）セクションの表示/非表示を切り替える（フライアウト内）。
+	 * アクションボタンなので現在値の反映（set*）は無い。
+	 */
+	setStepNumberControlsVisible(visible: boolean): void {
+		this.stepNumberSectionVisible = visible;
+		this.stepNumberSection.hidden = !visible;
+		this.syncFlyoutVisibility();
+	}
+
+	/** 比率（自由/1:1/4:3/16:9）の現在値を反映する（active クラスと aria-pressed）。 */
+	setCropRatio(ratio: CropRatio): void {
+		this.setToggleActive(this.cropRatioButtons, (v) => v === ratio);
+	}
+
+	/** 比率セクションの表示/非表示を切り替える（フライアウト内）。 */
+	setCropRatioControlsVisible(visible: boolean): void {
+		this.cropRatioSectionVisible = visible;
+		this.cropRatioSection.hidden = !visible;
 		this.syncFlyoutVisibility();
 	}
 

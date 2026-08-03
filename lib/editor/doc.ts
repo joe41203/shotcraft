@@ -181,8 +181,16 @@ export interface StepShape extends ShapeBase {
 }
 
 /**
+ * フキダシのしっぽ（三角）を出す辺の向き。省略時は "down"（下辺中央から下向き）＝
+ * 後方互換の既定。up=上辺中央から上向き / left=左辺中央から左向き /
+ * right=右辺中央から右向き。しっぽ長さ・幅は向きに依らず共通（callout.ts）。
+ */
+export type CalloutTail = "down" | "up" | "left" | "right";
+
+/**
  * コールアウト（フキダシ）注釈。x,y は本体（角丸長方形）の左上、width/height は
- * 本体の寸法。下辺中央から下向きのしっぽ（三角）を固定形状で出す。
+ * 本体の寸法。しっぽ（三角）は tail の向きの辺の中央から外向きに固定形状で出す
+ * （省略時は下辺中央から下向き）。
  * 塗りは stroke 色の淡い背景＋枠線＝stroke 色、テキストも stroke 色で本体内に
  * 折り返す（テキスト注釈と色を統一）。
  * text はテキスト注釈のオーバーレイ機構で編集する。
@@ -195,6 +203,11 @@ export interface CalloutShape extends ShapeBase {
 	height: number;
 	text: string;
 	fontSize: number;
+	/**
+	 * しっぽの向き（下 / 上 / 左 / 右）。省略時は "down"（後方互換）。
+	 * render.ts が calloutTailPoints へ渡して三角の頂点を向きに応じて計算する。
+	 */
+	tail?: CalloutTail;
 	/**
 	 * 後方互換のためだけに残す旧フィールド（TextShape.fontFamily と同じ扱い）。
 	 * 現在はフォント固定なので値は無視する。新規保存では書かない。
