@@ -87,8 +87,9 @@ export class CalloutTool implements Tool {
 			height,
 			text: "",
 			fontSize: this.ctx.style.fontSize,
-			// 新規フキダシのしっぽの向きは現在のスタイル既定（フライアウトで選んだ向き）。
-			tail: this.ctx.style.calloutTail,
+			// 新規フキダシのしっぽは現在のスタイル既定（フライアウトで選んだ値）。
+			// tails は配列をコピーして持たせる（style 側の配列と共有しない）。
+			tails: [...this.ctx.style.calloutTails],
 			stroke: this.ctx.style.stroke,
 			strokeWidth: this.ctx.style.strokeWidth,
 			rotation: 0,

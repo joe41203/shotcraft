@@ -2,12 +2,6 @@ import Konva from "konva";
 import { curvedArrowControl, normalizeArrowStyle } from "@/lib/editor/arrow";
 import { blurCornerRadius, blurRadius } from "@/lib/editor/blur";
 import {
-	clampEraseRect,
-	eraseBlurRadius,
-	fillErasedRegion,
-	type RgbaImage,
-} from "@/lib/editor/erase";
-import {
 	CALLOUT_CORNER_RADIUS,
 	CALLOUT_FILL_ALPHA,
 	CALLOUT_PADDING,
@@ -15,7 +9,7 @@ import {
 	calloutInnerWidth,
 	calloutTailPoints,
 	hexToRgba,
-	normalizeCalloutTail,
+	normalizeCalloutTails,
 } from "@/lib/editor/callout";
 import { resolveDash } from "@/lib/editor/dash";
 import type {
@@ -29,6 +23,12 @@ import type {
 	SpotlightShape,
 	StepShape,
 } from "@/lib/editor/doc";
+import {
+	clampEraseRect,
+	eraseBlurRadius,
+	fillErasedRegion,
+	type RgbaImage,
+} from "@/lib/editor/erase";
 import { haloColor, haloStrokeWidth } from "@/lib/editor/halo";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
 import {
@@ -694,8 +694,9 @@ function buildStepNode(
  *
  * Group の x/y は本体左上。内部はローカル座標で組み、Group ごと移動する。
  * 本体高さは shape.height を下限に、折り返したテキストが収まるよう
- * calloutBodyHeight で広げる（リサイズ時のテキスト追従）。しっぽは shape.tail の
- * 向き（下 / 上 / 左 / 右。省略時は下）の辺の中央から外向きの三角で固定形状。
+ * calloutBodyHeight で広げる（リサイズ時のテキスト追従）。しっぽは shape.tails の
+ * 各向き（下 / 上 / 左 / 右 の部分集合）の辺の中央から外向きの三角で出す。tails が
+ * 空配列ならしっぽなし（背景プレート付きテキスト）。本体は角丸長方形。
  * 塗りは color の淡い背景＋枠線＝color、テキストは shape.stroke（注釈色）で描き、
  * テキスト注釈と色を統一する。
  */
@@ -707,10 +708,11 @@ function buildCalloutNode(
 
 	const innerWidth = calloutInnerWidth(shape.width, CALLOUT_PADDING);
 	const fontFamily = theme.fontAnnotation;
+	const fill = hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA);
 
 	// テキストを先に組んで折返し後の高さを測り、本体高さへ反映する。
-	// フキダシ内テキストにもハロー（縁取り）を付け、淡い背景でも文字が読めるようにする
-	// （テキスト注釈と同じ扱い）。
+	// フキダシ内テキストにはハロー（縁取り）を付けない。本体の塗りが背景になるため
+	// 不要で、黒フチが悪目立ちする（テキスト注釈 TextShape のハローは維持する）。
 	const text = new Konva.Text({
 		x: CALLOUT_PADDING,
 		y: CALLOUT_PADDING,
@@ -722,34 +724,36 @@ function buildCalloutNode(
 		lineHeight: 1.25,
 		wrap: "word",
 		listening: false,
-		...textHalo(shape.stroke, shape.fontSize),
 	});
 	const bodyHeight = Math.max(
 		shape.height,
 		calloutBodyHeight(text.height(), shape.fontSize, CALLOUT_PADDING),
 	);
 
-	// しっぽ（本体より背面）→本体→テキストの順に重ねる。しっぽの向きは
-	// shape.tail（省略時は下向き）に応じて頂点を計算する。
-	group.add(
-		new Konva.Line({
-			points: calloutTailPoints(
-				0,
-				0,
-				shape.width,
-				bodyHeight,
-				undefined,
-				undefined,
-				normalizeCalloutTail(shape.tail),
-			),
-			closed: true,
-			fill: hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA),
-			stroke: shape.stroke,
-			strokeWidth: shape.strokeWidth,
-			lineJoin: "round",
-			listening: true,
-		}),
-	);
+	// しっぽ（本体より背面）→本体→テキストの順に重ねる。しっぽは tails の各向きに
+	// 1 本ずつ出す（空配列ならしっぽなし＝背景プレート付きテキスト）。旧データ
+	// （tail のみ・両欠落）は normalizeCalloutTails が変換する。
+	for (const tail of normalizeCalloutTails(shape.tails, shape.tail)) {
+		group.add(
+			new Konva.Line({
+				points: calloutTailPoints(
+					0,
+					0,
+					shape.width,
+					bodyHeight,
+					undefined,
+					undefined,
+					tail,
+				),
+				closed: true,
+				fill,
+				stroke: shape.stroke,
+				strokeWidth: shape.strokeWidth,
+				lineJoin: "round",
+				listening: true,
+			}),
+		);
+	}
 	group.add(
 		new Konva.Rect({
 			x: 0,
@@ -757,7 +761,7 @@ function buildCalloutNode(
 			width: shape.width,
 			height: bodyHeight,
 			cornerRadius: CALLOUT_CORNER_RADIUS,
-			fill: hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA),
+			fill,
 			stroke: shape.stroke,
 			strokeWidth: shape.strokeWidth,
 			listening: true,

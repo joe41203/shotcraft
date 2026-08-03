@@ -3,6 +3,11 @@ import type { CalloutTail } from "@/lib/editor/callout";
 import { CROP_RATIO_OPTIONS, type CropRatio } from "@/lib/editor/crop";
 import type { MosaicBlurIntensity } from "@/lib/editor/doc";
 import {
+	EXPORT_FORMAT_INFO,
+	type ExportFormat,
+	type ExportQuality,
+} from "@/lib/editor/export-format";
+import {
 	isSpotlightDimPreset,
 	SPOTLIGHT_DIM_OPTIONS,
 } from "@/lib/editor/spotlight";
@@ -93,12 +98,32 @@ export const INTENSITY_OPTIONS: {
 	{ value: "strong", label: "強" },
 ];
 
-/** しっぽの向き（下 / 上 / 左 / 右）の選択肢。フキダシツール選択中（または図形選択中）に表示する。 */
+/**
+ * しっぽの向き（下 / 上 / 左 / 右）の選択肢。フキダシツール選択中（または図形選択中）に
+ * 表示する。各ボタンは独立トグル（複数 ON・全 OFF＝しっぽなし が可能）。
+ */
 export const CALLOUT_TAIL_OPTIONS: { value: CalloutTail; label: string }[] = [
 	{ value: "down", label: "下" },
 	{ value: "up", label: "上" },
 	{ value: "left", label: "左" },
 	{ value: "right", label: "右" },
+];
+
+/** 書き出し形式（PNG / JPEG / WebP）の選択肢。形式フライアウトに出す。 */
+export const EXPORT_FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
+	{ value: "png", label: "PNG" },
+	{ value: "jpeg", label: "JPEG" },
+	{ value: "webp", label: "WebP" },
+];
+
+/** 書き出し品質（高 / 標準 / 低）の選択肢。JPEG / WebP 選択時のみ形式フライアウトに出す。 */
+export const EXPORT_QUALITY_OPTIONS: {
+	value: ExportQuality;
+	label: string;
+}[] = [
+	{ value: "high", label: "高" },
+	{ value: "normal", label: "標準" },
+	{ value: "low", label: "低" },
 ];
 
 export interface ToolbarCallbacks {
@@ -116,17 +141,21 @@ export interface ToolbarCallbacks {
 	onIntensityChange(intensity: MosaicBlurIntensity): void;
 	/** 暗さ（薄め/標準/濃いめ）が選ばれたとき（スポットライト）。値は暗幕の不透明度。 */
 	onSpotlightDimChange(alpha: number): void;
-	/** しっぽの向き（下/上/左/右）が選ばれたとき（フキダシ）。 */
-	onCalloutTailChange(tail: CalloutTail): void;
+	/** しっぽの向き（下/上/左/右）が 1 つトグルされたとき（フキダシ・複数選択）。 */
+	onCalloutTailToggle(tail: CalloutTail): void;
 	/** 「次を 1 に戻す」アクションが押されたとき（ステップ）。次に置くバッジの番号を 1 にする。 */
 	onStepNumberReset(): void;
 	/** 比率（自由/1:1/4:3/16:9）が選ばれたとき（クロップ）。 */
 	onCropRatioChange(ratio: CropRatio): void;
+	/** 書き出し形式（PNG/JPEG/WebP）が選ばれたとき。 */
+	onExportFormatChange(format: ExportFormat): void;
+	/** 書き出し品質（高/標準/低）が選ばれたとき（JPEG/WebP）。 */
+	onExportQualityChange(quality: ExportQuality): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
-	/** PNG 保存（ダウンロード）。 */
-	onSavePng(): void;
+	/** 保存（ダウンロード。形式は選択中の exportFormat）。 */
+	onSave(): void;
 	/** クリップボードへコピー。 */
 	onCopy(): void;
 }
@@ -165,7 +194,7 @@ export class Toolbar {
 	/** 暗さ（薄め/標準/濃いめ）セクションと各ボタン（スポットライト）。 */
 	private dimSection!: HTMLDivElement;
 	private dimButtons = new Map<number, HTMLButtonElement>();
-	/** しっぽ（下/上/左/右）セクションと各ボタン（フキダシ）。 */
+	/** しっぽ（下/上/左/右）セクションと各ボタン（フキダシ・複数トグル）。 */
 	private calloutTailSection!: HTMLDivElement;
 	private calloutTailButtons = new Map<CalloutTail, HTMLButtonElement>();
 	/** 番号（次を1に戻す）セクション（ステップ）。トグルでなくアクションボタン 1 個。 */
@@ -188,6 +217,44 @@ export class Toolbar {
 	private undoButton!: HTMLButtonElement;
 	private redoButton!: HTMLButtonElement;
 	private zoomLabel!: HTMLSpanElement;
+	/**
+	 * 形式（PNG/JPEG/WebP）ボタンと、その直下に開閉するフライアウト。
+	 * 以前の「スタイル」ポップオーバー（コミット 04ef07a）と同じ作法で、クリックで
+	 * 開閉し外側クリック / Esc で閉じる（aria-haspopup/aria-expanded・フォーカス管理）。
+	 */
+	private formatButton!: HTMLButtonElement;
+	private formatLabel!: HTMLSpanElement;
+	private formatFlyout!: HTMLDivElement;
+	private formatFlyoutOpen = false;
+	private exportFormatButtons = new Map<ExportFormat, HTMLButtonElement>();
+	private exportQualityButtons = new Map<ExportQuality, HTMLButtonElement>();
+	/** 品質セクション（JPEG/WebP 選択時のみ表示）。 */
+	private exportQualitySection!: HTMLDivElement;
+	/** 現在の書き出し形式（保存ボタンのツールチップ・形式ラベルに反映する）。 */
+	private currentExportFormat: ExportFormat = "png";
+	/** 保存ボタン（ツールチップに現在形式を出す）。 */
+	private saveButton!: HTMLButtonElement;
+	/** フライアウト表示中に退避した形式ボタンのツールチップ本文（閉じたら戻す）。 */
+	private formatSuppressedTooltip: string | undefined;
+	/**
+	 * 形式フライアウトの外側 pointerdown を検知して閉じるハンドラ（capture 相）。
+	 * ボタン・パネルのどちらの内側でもなければ閉じる。フォーカスは戻さない。
+	 */
+	private onFormatOutsidePointerDown = (e: PointerEvent): void => {
+		const target = e.target;
+		if (!(target instanceof Node)) return;
+		// ボタン・パネルのいずれかの内側なら無視（DOM 上は別コンテナに置くため両方見る）。
+		if (this.formatButton.contains(target)) return;
+		if (this.formatFlyout.contains(target)) return;
+		this.closeFormatFlyout(false);
+	};
+	/** Esc で形式フライアウトを閉じる（ボタンへフォーカスを戻す。capture 相）。 */
+	private onFormatKeydown = (e: KeyboardEvent): void => {
+		if (e.key === "Escape") {
+			e.preventDefault();
+			this.closeFormatFlyout(true);
+		}
+	};
 
 	constructor(
 		private root: HTMLElement,
@@ -258,21 +325,26 @@ export class Toolbar {
 		spacer.className = "toolbar-spacer";
 		this.root.append(spacer);
 
-		// 出力: コピー（通常ボタン）と PNG 保存（主要アクション）。
-		// 誤クリック防止のため、両ボタンは他グループより広い間隔で並べる。
+		// 出力: 形式ボタン（フライアウト）・コピー（通常ボタン）・保存（主要アクション）。
+		// 誤クリック防止のため、各ボタンは他グループより広い間隔で並べる。
 		const exportGroup = group();
 		exportGroup.classList.add("export-group");
+
+		// 形式ボタン（現在形式を短いラベルで表示）＋直下に開閉するフライアウト。
+		this.buildFormatControl(exportGroup);
+
 		const copyBtn = textButton(
 			icons.copy,
 			"コピー",
-			"クリップボードへコピー",
+			"クリップボードへコピー（PNG）",
 			"Ctrl/Cmd+C",
 		);
 		copyBtn.addEventListener("click", () => this.callbacks.onCopy());
-		const saveBtn = textButton(icons.download, "PNG保存", "PNG をダウンロード");
-		saveBtn.classList.add("primary");
-		saveBtn.addEventListener("click", () => this.callbacks.onSavePng());
-		exportGroup.append(copyBtn, saveBtn);
+		// 保存ボタン。ツールチップは現在形式を出す（setExportFormat が更新する）。
+		this.saveButton = textButton(icons.download, "保存", "PNG をダウンロード");
+		this.saveButton.classList.add("primary");
+		this.saveButton.addEventListener("click", () => this.callbacks.onSave());
+		exportGroup.append(copyBtn, this.saveButton);
 		this.root.append(exportGroup);
 
 		// data-tooltip を持つ全ボタンにホバー/フォーカスでツールチップを出す。
@@ -282,9 +354,160 @@ export class Toolbar {
 
 		// ウィンドウ幅が変わるとツールバーが折り返してアンカー先ボタンの位置がずれる。
 		// フライアウト表示中は再配置する（固定配置なので座標を計算し直す必要がある）。
+		// 形式フライアウト（開いていれば）も同様に再配置する。
+		// Esc・外側クリックによる形式フライアウトの close は openFormatFlyout が張る
+		// 専用リスナ（onFormatKeydown / onFormatOutsidePointerDown）が担う。
 		window.addEventListener("resize", () => {
 			if (this.anchorTool) this.placeFlyout();
+			if (this.formatFlyoutOpen) this.placeFormatFlyout();
 		});
+	}
+
+	/**
+	 * 形式ボタン（現在形式を短いラベルで表示）と、その直下に開閉するフライアウトを組み立てる。
+	 * ボタンは aria-haspopup/aria-expanded を持ち、クリックで開閉する。フライアウトには
+	 * 形式 3 択と（JPEG/WebP 選択時のみ）品質 3 択を縦に並べる。外側クリック / Esc で
+	 * 閉じ、開閉時にフォーカスを管理する（以前の「スタイル」ポップオーバーと同じ作法）。
+	 */
+	private buildFormatControl(parent: HTMLElement): void {
+		// 形式ボタン。ラベルは現在形式（PNG/JPEG/WebP）。setExportFormat が中身を更新する。
+		this.formatButton = document.createElement("button");
+		this.formatButton.type = "button";
+		this.formatButton.className = "text-btn format-btn";
+		this.formatButton.dataset.tooltip = "書き出し形式";
+		this.formatButton.setAttribute("aria-haspopup", "true");
+		this.formatButton.setAttribute("aria-expanded", "false");
+		this.formatLabel = document.createElement("span");
+		this.formatLabel.textContent = EXPORT_FORMAT_INFO.png.label;
+		this.formatButton.setAttribute("aria-label", "書き出し形式: PNG");
+		this.formatButton.append(this.formatLabel);
+		this.formatButton.addEventListener("click", () =>
+			this.toggleFormatFlyout(),
+		);
+		parent.append(this.formatButton);
+
+		// フライアウト本体（固定配置で形式ボタンの直下に置く）。role=menu 相当の group。
+		this.formatFlyout = document.createElement("div");
+		this.formatFlyout.className = "format-flyout";
+		this.formatFlyout.hidden = true;
+		this.formatFlyout.setAttribute("role", "group");
+		this.formatFlyout.setAttribute("aria-label", "書き出し形式と品質");
+
+		// 形式セクション（PNG/JPEG/WebP の単一選択トグル）。
+		const formatSection = this.buildStyleSection("形式");
+		this.formatFlyout.append(formatSection.section);
+		for (const opt of EXPORT_FORMAT_OPTIONS) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "style-toggle-btn";
+			btn.dataset.tooltip = opt.label;
+			btn.setAttribute("aria-label", `形式: ${opt.label}`);
+			btn.setAttribute("aria-pressed", "false");
+			btn.textContent = opt.label;
+			btn.addEventListener("click", () =>
+				this.callbacks.onExportFormatChange(opt.value),
+			);
+			this.exportFormatButtons.set(opt.value, btn);
+			formatSection.options.append(btn);
+		}
+
+		// 品質セクション（高/標準/低）。JPEG/WebP 選択時のみ表示する。
+		const qualitySection = this.buildStyleSection("品質");
+		this.exportQualitySection = qualitySection.section;
+		this.formatFlyout.append(qualitySection.section);
+		for (const opt of EXPORT_QUALITY_OPTIONS) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "style-toggle-btn";
+			btn.dataset.tooltip = opt.label;
+			btn.setAttribute("aria-label", `品質: ${opt.label}`);
+			btn.setAttribute("aria-pressed", "false");
+			btn.textContent = opt.label;
+			btn.addEventListener("click", () =>
+				this.callbacks.onExportQualityChange(opt.value),
+			);
+			this.exportQualityButtons.set(opt.value, btn);
+			qualitySection.options.append(btn);
+		}
+
+		this.root.append(this.formatFlyout);
+	}
+
+	/** 形式フライアウトを開閉する。 */
+	private toggleFormatFlyout(): void {
+		if (this.formatFlyoutOpen) this.closeFormatFlyout(true);
+		else this.openFormatFlyout();
+	}
+
+	/**
+	 * 形式フライアウトを開く。Esc・外側 pointerdown で閉じられるようリスナを張り、
+	 * 先頭の形式ボタンへフォーカスする。ボタンのツールチップは開いている間は抑止する。
+	 * 外側 pointerdown リスナは「開いたきっかけの同一クリックのイベント伝播で即閉じ」
+	 * を避けるため次フレーム（setTimeout 0）で張る（04ef07a のポップオーバーと同じ作法）。
+	 */
+	private openFormatFlyout(): void {
+		if (this.formatFlyoutOpen) return;
+		this.formatFlyoutOpen = true;
+		this.formatFlyout.hidden = false;
+		this.formatButton.setAttribute("aria-expanded", "true");
+		this.placeFormatFlyout();
+		// 開いている間はボタンのツールチップを出さない（開閉と二重に出るのを避ける）。
+		this.formatSuppressedTooltip = this.formatButton.dataset.tooltip;
+		delete this.formatButton.dataset.tooltip;
+
+		// Esc は即座に、外側 pointerdown は次フレームで張る（開いた同一クリックで即閉じない）。
+		// いずれも capture 相で拾い、内側の click より先に外側判定を通す。
+		document.addEventListener("keydown", this.onFormatKeydown, true);
+		window.setTimeout(() => {
+			if (this.formatFlyoutOpen) {
+				document.addEventListener(
+					"pointerdown",
+					this.onFormatOutsidePointerDown,
+					true,
+				);
+			}
+		}, 0);
+
+		// 先頭の形式ボタン（現在形式）へフォーカスを移す（キーボード操作の起点）。
+		this.exportFormatButtons.get(this.currentExportFormat)?.focus();
+	}
+
+	/**
+	 * 形式フライアウトを閉じる。リスナを外し、抑止したツールチップを戻す。
+	 * restoreFocus が true ならボタンへフォーカスを戻す（Esc・トグル等ユーザー起点の閉じ）。
+	 */
+	private closeFormatFlyout(restoreFocus: boolean): void {
+		if (!this.formatFlyoutOpen) return;
+		this.formatFlyoutOpen = false;
+		this.formatFlyout.hidden = true;
+		this.formatButton.setAttribute("aria-expanded", "false");
+		document.removeEventListener("keydown", this.onFormatKeydown, true);
+		document.removeEventListener(
+			"pointerdown",
+			this.onFormatOutsidePointerDown,
+			true,
+		);
+		if (this.formatSuppressedTooltip !== undefined) {
+			this.formatButton.dataset.tooltip = this.formatSuppressedTooltip;
+			this.formatSuppressedTooltip = undefined;
+		}
+		if (restoreFocus) this.formatButton.focus();
+	}
+
+	/**
+	 * 形式フライアウトを形式ボタンの直下・左揃えに固定配置する。画面右端のはみ出しは
+	 * ビューポート幅でクランプする（スタイルフライアウトの placeTooltip と同じ思想）。
+	 */
+	private placeFormatFlyout(): void {
+		const rect = this.formatButton.getBoundingClientRect();
+		const width = this.formatFlyout.offsetWidth;
+		const margin = 8;
+		let left = rect.left;
+		if (left + width > window.innerWidth - margin) {
+			left = Math.max(margin, window.innerWidth - margin - width);
+		}
+		this.formatFlyout.style.left = `${left}px`;
+		this.formatFlyout.style.top = `${rect.bottom + 6}px`;
 	}
 
 	/**
@@ -397,14 +620,16 @@ export class Toolbar {
 			},
 		);
 
-		// しっぽセクション（フキダシ）。下/上/左/右のテキストラベルトグル。
+		// しっぽセクション（フキダシ）。下/上/左/右の独立トグル（複数 ON・全 OFF 可）。
+		// 各ボタンのクリックはその向きをトグルするコールバックを呼ぶ（値の反映は
+		// setCalloutTails が複数の active を同時に立てる）。
 		this.calloutTailSection = this.buildLabeledToggleSection(
 			"しっぽ",
 			CALLOUT_TAIL_OPTIONS.map((o) => ({ label: o.label, tooltip: o.label })),
-			(i) =>
-				this.callbacks.onCalloutTailChange(
-					CALLOUT_TAIL_OPTIONS[i]?.value ?? "down",
-				),
+			(i) => {
+				const v = CALLOUT_TAIL_OPTIONS[i]?.value;
+				if (v != null) this.callbacks.onCalloutTailToggle(v);
+			},
 			(btn, i) => {
 				const v = CALLOUT_TAIL_OPTIONS[i]?.value;
 				if (v != null) this.calloutTailButtons.set(v, btn);
@@ -703,9 +928,13 @@ export class Toolbar {
 		this.syncFlyoutVisibility();
 	}
 
-	/** しっぽ（下/上/左/右）の現在値を反映する（active クラスと aria-pressed）。 */
-	setCalloutTail(tail: CalloutTail): void {
-		this.setToggleActive(this.calloutTailButtons, (v) => v === tail);
+	/**
+	 * しっぽ（下/上/左/右）の現在の集合を反映する（複数トグル）。集合に含まれる向きの
+	 * ボタンを active（aria-pressed=true）にする。空集合＝しっぽなしのときは全 OFF。
+	 */
+	setCalloutTails(tails: CalloutTail[]): void {
+		const set = new Set(tails);
+		this.setToggleActive(this.calloutTailButtons, (v) => set.has(v));
 	}
 
 	/** しっぽセクションの表示/非表示を切り替える（フライアウト内）。 */
@@ -744,6 +973,30 @@ export class Toolbar {
 
 	setZoom(scale: number): void {
 		this.zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+	}
+
+	/**
+	 * 書き出し形式（PNG/JPEG/WebP）の現在値を反映する。形式ボタンのラベル・aria-label、
+	 * フライアウト内の形式トグルの active、保存ボタンのツールチップ（「◯◯ をダウンロード」）を
+	 * 更新し、品質セクションの表示可否（JPEG/WebP のときのみ表示）を切り替える。
+	 */
+	setExportFormat(format: ExportFormat): void {
+		this.currentExportFormat = format;
+		const info = EXPORT_FORMAT_INFO[format];
+		this.formatLabel.textContent = info.label;
+		this.formatButton.setAttribute("aria-label", `書き出し形式: ${info.label}`);
+		this.setToggleActive(this.exportFormatButtons, (v) => v === format);
+		// 保存ボタンのツールチップに現在形式を出す。
+		this.saveButton.dataset.tooltip = `${info.label} をダウンロード`;
+		this.saveButton.setAttribute("aria-label", `${info.label} をダウンロード`);
+		// 品質は JPEG/WebP のみ有効（PNG は可逆圧縮なので隠す）。
+		this.exportQualitySection.hidden = format === "png";
+		if (this.formatFlyoutOpen) this.placeFormatFlyout();
+	}
+
+	/** 書き出し品質（高/標準/低）の現在値を反映する（active クラスと aria-pressed）。 */
+	setExportQuality(quality: ExportQuality): void {
+		this.setToggleActive(this.exportQualityButtons, (v) => v === quality);
 	}
 }
 

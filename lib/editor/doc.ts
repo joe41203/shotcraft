@@ -206,8 +206,8 @@ export type CalloutTail = "down" | "up" | "left" | "right";
 
 /**
  * コールアウト（フキダシ）注釈。x,y は本体（角丸長方形）の左上、width/height は
- * 本体の寸法。しっぽ（三角）は tail の向きの辺の中央から外向きに固定形状で出す
- * （省略時は下辺中央から下向き）。
+ * 本体の寸法。しっぽ（三角）は tails の各向きの辺の中央から外向きに固定形状で出す。
+ * tails が空配列のときはしっぽなし（背景プレート付きテキストとして機能する）。
  * 塗りは stroke 色の淡い背景＋枠線＝stroke 色、テキストも stroke 色で本体内に
  * 折り返す（テキスト注釈と色を統一）。
  * text はテキスト注釈のオーバーレイ機構で編集する。
@@ -221,8 +221,16 @@ export interface CalloutShape extends ShapeBase {
 	text: string;
 	fontSize: number;
 	/**
-	 * しっぽの向き（下 / 上 / 左 / 右）。省略時は "down"（後方互換）。
-	 * render.ts が calloutTailPoints へ渡して三角の頂点を向きに応じて計算する。
+	 * しっぽの向きの集合（下 / 上 / 左 / 右 の部分集合）。選択された各方向の辺中央から
+	 * 三角のしっぽを出す。**空配列 = しっぽなし**（背景プレート付きテキスト）。省略時は
+	 * 旧フィールド tail から変換し（tail も無ければ ["down"]＝後方互換）、読み込み時に
+	 * normalizeCalloutTails で正規化する（callout.ts）。
+	 */
+	tails?: CalloutTail[];
+	/**
+	 * 後方互換のためだけに残す旧フィールド（単一のしっぽ向き）。かつて 1 方向だけを
+	 * 持っていた頃の保存データ用の受け皿で、読み込み時に tails へ変換する
+	 * （normalizeCalloutTails）。新規保存では書かない（tails を書く）。
 	 */
 	tail?: CalloutTail;
 	/**

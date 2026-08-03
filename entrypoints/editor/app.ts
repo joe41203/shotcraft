@@ -1,7 +1,7 @@
 import Konva from "konva";
 import type { CaptureRecord } from "@/lib/capture-store";
 import { type ArrowStyle, normalizeArrowStyle } from "@/lib/editor/arrow";
-import { type CalloutTail, normalizeCalloutTail } from "@/lib/editor/callout";
+import { type CalloutTail, normalizeCalloutTails } from "@/lib/editor/callout";
 import { type CropRatio, croppedSize } from "@/lib/editor/crop";
 import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
@@ -23,6 +23,7 @@ import {
 	translateShape,
 	updateShape,
 } from "@/lib/editor/doc";
+import type { ExportFormat, ExportQuality } from "@/lib/editor/export-format";
 import {
 	canRedo,
 	canUndo,
@@ -47,6 +48,7 @@ import {
 import { clampFontSize } from "@/lib/editor/text";
 import { CropController } from "./crop-controller";
 import {
+	canvasToBlob,
 	canvasToPngBlob,
 	downloadBlob,
 	exportFilename,
@@ -167,10 +169,14 @@ export class EditorApp {
 		intensity: DEFAULT_STYLE_PREFS.intensity,
 		/** 新規 doc のスポットライト暗幕の暗さ（不透明度）。既定は標準（0.7）。 */
 		spotlightAlpha: DEFAULT_STYLE_PREFS.spotlightAlpha,
-		/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右）。既定は下。 */
-		calloutTail: DEFAULT_STYLE_PREFS.calloutTail,
+		/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右 の部分集合）。空配列＝しっぽなし。既定は ["down"]。 */
+		calloutTails: [...DEFAULT_STYLE_PREFS.calloutTails] as CalloutTail[],
 		/** クロップ枠のアスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）。既定は自由。 */
 		cropRatio: DEFAULT_STYLE_PREFS.cropRatio,
+		/** 書き出し形式（PNG / JPEG / WebP）。既定は PNG。 */
+		exportFormat: DEFAULT_STYLE_PREFS.exportFormat,
+		/** 書き出し品質（高 / 標準 / 低。JPEG / WebP のみ有効）。既定は標準。 */
+		exportQuality: DEFAULT_STYLE_PREFS.exportQuality,
 	};
 
 	/**
@@ -222,8 +228,10 @@ export class EditorApp {
 		this.style.fill = prefs.fill;
 		this.style.intensity = prefs.intensity;
 		this.style.spotlightAlpha = prefs.spotlightAlpha;
-		this.style.calloutTail = prefs.calloutTail;
+		this.style.calloutTails = [...prefs.calloutTails];
 		this.style.cropRatio = prefs.cropRatio;
+		this.style.exportFormat = prefs.exportFormat;
+		this.style.exportQuality = prefs.exportQuality;
 		// 復元値を初期値としてセーバに渡し、起動直後の同値保存を抑止する。
 		this.stylePrefsSaver = createStylePrefsSaver(prefs);
 		// crop フィールドが無い旧保存データも読めるよう null で補完する。
@@ -285,12 +293,14 @@ export class EditorApp {
 			onFillChange: (f) => this.setFill(f),
 			onIntensityChange: (i) => this.setIntensity(i),
 			onSpotlightDimChange: (a) => this.setSpotlightDim(a),
-			onCalloutTailChange: (t) => this.setCalloutTail(t),
+			onCalloutTailToggle: (t) => this.toggleCalloutTail(t),
 			onStepNumberReset: () => this.resetStepNumber(),
 			onCropRatioChange: (r) => this.setCropRatio(r),
+			onExportFormatChange: (f) => this.setExportFormat(f),
+			onExportQualityChange: (q) => this.setExportQuality(q),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
-			onSavePng: () => this.savePng(),
+			onSave: () => this.save(),
 			onCopy: () => void this.copyToClipboard(),
 		});
 
@@ -881,27 +891,60 @@ export class EditorApp {
 	}
 
 	/**
-	 * しっぽの向き（下 / 上 / 左 / 右）を新規フキダシの既定にする。フキダシを選択中は
-	 * そのシェイプへ即時適用して 1 回 commit する（線種と同じパターン・同値なら no-op）。
+	 * しっぽの向き（下 / 上 / 左 / 右）を 1 つトグルする（複数選択・全 OFF 可）。
+	 * 現在のしっぽ集合に含まれていれば外し、無ければ足して normalize（重複除去・並び順）
+	 * する。空集合＝しっぽなし。新規フキダシの既定にし、フキダシを選択中はそのシェイプへ
+	 * 即時適用して 1 回 commit する。
 	 */
-	setCalloutTail(tail: CalloutTail): void {
-		this.style.calloutTail = tail;
-		this.applyCalloutTailToSelection(tail);
-		this.toolbar.setCalloutTail(tail);
+	toggleCalloutTail(tail: CalloutTail): void {
+		const has = this.style.calloutTails.includes(tail);
+		const next = has
+			? this.style.calloutTails.filter((t) => t !== tail)
+			: [...this.style.calloutTails, tail];
+		// normalize で重複除去・4 方向の並び順に整える（空配列はそのまま）。
+		this.style.calloutTails = normalizeCalloutTails(next);
+		this.applyCalloutTailsToSelection(this.style.calloutTails);
+		this.toolbar.setCalloutTails(this.style.calloutTails);
 		this.persistStylePrefs();
 	}
 
 	/**
-	 * 選択中がフキダシなら tail を差し替えて commit する。未設定（レガシー）は "down"
-	 * 相当なので、現在の解決値（normalizeCalloutTail）と比較して no-op を判定する。他は対象外。
+	 * 選択中がフキダシなら tails を差し替えて commit する。現在の解決値
+	 * （normalizeCalloutTails）と同値なら何もしない。他は対象外。
 	 */
-	private applyCalloutTailToSelection(tail: CalloutTail): void {
+	private applyCalloutTailsToSelection(tails: CalloutTail[]): void {
 		const id = this.selectedId;
 		if (!id) return;
 		const shape = findShape(this.history.present, id);
 		if (!shape || shape.type !== "callout") return;
-		if (normalizeCalloutTail(shape.tail) === tail) return;
-		this.commitDoc(updateShape(this.history.present, id, { tail }));
+		const current = normalizeCalloutTails(shape.tails, shape.tail);
+		if (
+			current.length === tails.length &&
+			current.every((t, i) => t === tails[i])
+		) {
+			return;
+		}
+		// 配列はコピーして持たせる（style 側の配列と共有しない）。
+		this.commitDoc(
+			updateShape(this.history.present, id, { tails: [...tails] }),
+		);
+	}
+
+	/**
+	 * 書き出し形式（PNG / JPEG / WebP）を設定する。記憶（style-prefs）のみで doc は
+	 * 書かない（形式は画像内容でなく出力方法の設定）。保存ボタンのツールチップも更新する。
+	 */
+	setExportFormat(format: ExportFormat): void {
+		this.style.exportFormat = format;
+		this.toolbar.setExportFormat(format);
+		this.persistStylePrefs();
+	}
+
+	/** 書き出し品質（高 / 標準 / 低）を設定する。記憶のみ（doc は書かない）。 */
+	setExportQuality(quality: ExportQuality): void {
+		this.style.exportQuality = quality;
+		this.toolbar.setExportQuality(quality);
+		this.persistStylePrefs();
 	}
 
 	/**
@@ -951,8 +994,10 @@ export class EditorApp {
 			fill: this.style.fill,
 			intensity: this.style.intensity,
 			spotlightAlpha: this.style.spotlightAlpha,
-			calloutTail: this.style.calloutTail,
+			calloutTails: [...this.style.calloutTails],
 			cropRatio: this.style.cropRatio,
+			exportFormat: this.style.exportFormat,
+			exportQuality: this.style.exportQuality,
 		});
 	}
 
@@ -1511,12 +1556,16 @@ export class EditorApp {
 		});
 	}
 
-	/** クロップ適用後の原寸 PNG をダウンロードする。 */
-	savePng(): void {
+	/**
+	 * クロップ適用後の原寸画像を、選択中の形式（PNG / JPEG / WebP）・品質でダウンロードする。
+	 * JPEG は白背景合成される（canvasToBlob 内・透過安全策）。ファイル名の拡張子も形式に追従する。
+	 */
+	save(): void {
+		const format = this.style.exportFormat;
 		const canvas = this.exportCanvas();
-		canvasToPngBlob(canvas)
+		canvasToBlob(canvas, format, this.style.exportQuality)
 			.then((blob) => {
-				downloadBlob(blob, exportFilename());
+				downloadBlob(blob, exportFilename(new Date(), format));
 				this.toast.show("保存しました");
 			})
 			.catch(() => this.toast.show("保存に失敗しました", "error"));
@@ -1568,6 +1617,9 @@ export class EditorApp {
 		this.syncCropRatioControls();
 		// アンカー先ボタンはセクション表示を確定させた後に渡す（表示位置を最終決定する）。
 		this.syncStyleAnchor();
+		// 出力形式・品質は選択に依らず現在の style を反映する（ツールバー右端の形式ボタン）。
+		this.toolbar.setExportFormat(this.style.exportFormat);
+		this.toolbar.setExportQuality(this.style.exportQuality);
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
 	}
@@ -1714,8 +1766,9 @@ export class EditorApp {
 
 	/**
 	 * しっぽ（下/上/左/右）コントロールの表示と現在値を同期する。
-	 * フキダシを選択中はそのシェイプのしっぽ（未設定は下）を、そうでなくフキダシツール
-	 * 選択中は新規デフォルト（style.calloutTail）を表示する。
+	 * フキダシを選択中はそのシェイプのしっぽ集合（未設定は ["down"]）を、そうでなく
+	 * フキダシツール選択中は新規デフォルト（style.calloutTails）を表示する。各ボタンは
+	 * 独立トグル（空集合＝しっぽなしのときは全 OFF）。
 	 */
 	private syncCalloutTailControls(): void {
 		const visible = this.currentStyleSections().calloutTail;
@@ -1724,11 +1777,11 @@ export class EditorApp {
 		const selected = this.selectedId
 			? findShape(this.history.present, this.selectedId)
 			: undefined;
-		const tail =
+		const tails =
 			selected?.type === "callout"
-				? normalizeCalloutTail(selected.tail)
-				: this.style.calloutTail;
-		this.toolbar.setCalloutTail(tail);
+				? normalizeCalloutTails(selected.tails, selected.tail)
+				: this.style.calloutTails;
+		this.toolbar.setCalloutTails(tails);
 	}
 
 	/**

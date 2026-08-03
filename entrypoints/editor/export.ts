@@ -1,7 +1,24 @@
 import Konva from "konva";
 import { croppedSize } from "@/lib/editor/crop";
 import type { EditorDoc } from "@/lib/editor/doc";
+import {
+	EXPORT_FORMAT_INFO,
+	EXPORT_QUALITY_VALUES,
+	type ExportFormat,
+	type ExportQuality,
+} from "@/lib/editor/export-format";
 import { type MosaicSource, renderShapes } from "./render";
+
+// 形式・品質の型と正規化は純粋計算（lib/editor/export-format.ts）が正。利用側が
+// export.ts からも取れるよう再エクスポートする（従来 export.ts を import していた
+// 呼び出し・テストの互換のため）。
+export {
+	EXPORT_QUALITY_VALUES,
+	type ExportFormat,
+	type ExportQuality,
+	normalizeExportFormat,
+	normalizeExportQuality,
+} from "@/lib/editor/export-format";
 
 /** エクスポートに必要な入力。表示 Stage とは独立にここから作り直す。 */
 export interface ExportInput {
@@ -67,23 +84,73 @@ export function exportToCanvas(input: ExportInput): HTMLCanvasElement {
 	}
 }
 
-/** canvas を PNG Blob へ変換する Promise。ClipboardItem に Promise のまま渡せる。 */
-export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+/**
+ * JPEG は透過を持てないので、透過キャンバスをそのまま書き出すと透明部分が黒く潰れる。
+ * 白背景の上に元 canvas を重ねた不透明 canvas を作ってから書き出す（透過安全策）。
+ * PNG / WebP は透過を保持できるのでそのまま返す。
+ */
+function flattenForOpaque(canvas: HTMLCanvasElement): HTMLCanvasElement {
+	const out = document.createElement("canvas");
+	out.width = canvas.width;
+	out.height = canvas.height;
+	const ctx = out.getContext("2d");
+	if (ctx) {
+		ctx.fillStyle = "#ffffff";
+		ctx.fillRect(0, 0, out.width, out.height);
+		ctx.drawImage(canvas, 0, 0);
+	}
+	return out;
+}
+
+/**
+ * canvas を指定形式の Blob へ変換する Promise。ClipboardItem に Promise のまま渡せる。
+ * - PNG は可逆圧縮なので quality は無視される。
+ * - JPEG / WebP は quality（EXPORT_QUALITY_VALUES の 0〜1）で圧縮率を決める。
+ * - JPEG は透過を持てないため、書き出し前に白背景で合成する（透過部分の黒潰れ防止）。
+ */
+export function canvasToBlob(
+	canvas: HTMLCanvasElement,
+	format: ExportFormat = "png",
+	quality: ExportQuality = "normal",
+): Promise<Blob> {
+	const info = EXPORT_FORMAT_INFO[format];
+	// JPEG のみ白背景合成（透過安全策）。PNG / WebP は透過を保持したまま書き出す。
+	const source = format === "jpeg" ? flattenForOpaque(canvas) : canvas;
+	const q = EXPORT_QUALITY_VALUES[quality];
 	return new Promise((resolve, reject) => {
-		canvas.toBlob((blob) => {
-			if (blob) resolve(blob);
-			else reject(new Error("PNG への変換に失敗しました"));
-		}, "image/png");
+		source.toBlob(
+			(blob) => {
+				if (blob) resolve(blob);
+				else reject(new Error(`${info.mime} への変換に失敗しました`));
+			},
+			info.mime,
+			// PNG では第 3 引数は無視される。JPEG / WebP でのみ効く。
+			format === "png" ? undefined : q,
+		);
 	});
 }
 
-/** `shotcraft-YYYYMMDD-HHmmss.png` 形式のファイル名を作る（ローカル時刻）。 */
-export function exportFilename(now: Date = new Date()): string {
+/**
+ * canvas を PNG Blob へ変換する Promise。クリップボードコピーは互換性のため常に PNG を
+ * 使うので、その用途で呼ばれる（canvasToBlob(canvas, "png") へ委譲する薄いラッパ）。
+ */
+export function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+	return canvasToBlob(canvas, "png");
+}
+
+/**
+ * `shotcraft-YYYYMMDD-HHmmss.<ext>` 形式のファイル名を作る（ローカル時刻）。
+ * 拡張子は形式に対応（png / jpg / webp）。既定は PNG（従来互換）。
+ */
+export function exportFilename(
+	now: Date = new Date(),
+	format: ExportFormat = "png",
+): string {
 	const p2 = (n: number): string => String(n).padStart(2, "0");
 	const stamp =
 		`${now.getFullYear()}${p2(now.getMonth() + 1)}${p2(now.getDate())}` +
 		`-${p2(now.getHours())}${p2(now.getMinutes())}${p2(now.getSeconds())}`;
-	return `shotcraft-${stamp}.png`;
+	return `shotcraft-${stamp}.${EXPORT_FORMAT_INFO[format].ext}`;
 }
 
 /**

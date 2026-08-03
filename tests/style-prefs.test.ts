@@ -19,8 +19,10 @@ const FULL: StylePrefs = {
 	fill: true,
 	intensity: "strong",
 	spotlightAlpha: 0.85,
-	calloutTail: "up",
+	calloutTails: ["down", "up"],
 	cropRatio: "16:9",
+	exportFormat: "jpeg",
+	exportQuality: "high",
 };
 
 describe("normalizeStylePrefs", () => {
@@ -114,16 +116,61 @@ describe("normalizeStylePrefs", () => {
 		);
 	});
 
-	it("calloutTail は 4 値のみ受け付け、それ以外は down へ", () => {
-		expect(normalizeStylePrefs({ calloutTail: "up" }).calloutTail).toBe("up");
-		expect(normalizeStylePrefs({ calloutTail: "left" }).calloutTail).toBe(
-			"left",
+	it("calloutTails は 4 値の部分集合を正規化し、空配列も許容する", () => {
+		expect(
+			normalizeStylePrefs({ calloutTails: ["up", "left"] }).calloutTails,
+		).toEqual(["up", "left"]);
+		// 重複除去・不正値除去・並び順（下→上→左→右）に整える。
+		expect(
+			normalizeStylePrefs({ calloutTails: ["right", "right", "bogus", "down"] })
+				.calloutTails,
+		).toEqual(["down", "right"]);
+		// 空配列＝しっぽなしはそのまま通す（既定 ["down"] へ落とさない）。
+		expect(normalizeStylePrefs({ calloutTails: [] }).calloutTails).toEqual([]);
+	});
+
+	it("calloutTails 未設定なら旧 calloutTail（単一文字列）から変換する", () => {
+		expect(normalizeStylePrefs({ calloutTail: "up" }).calloutTails).toEqual([
+			"up",
+		]);
+		expect(normalizeStylePrefs({ calloutTail: "bottom" }).calloutTails).toEqual(
+			["down"],
 		);
-		expect(normalizeStylePrefs({ calloutTail: "bottom" }).calloutTail).toBe(
-			"down",
+		// tails・tail とも未設定なら従来互換の ["down"]。
+		expect(normalizeStylePrefs({}).calloutTails).toEqual(["down"]);
+	});
+
+	it("旧 calloutBubble キーが残っていても無視して読み込む（雲形機能は撤去済み）", () => {
+		// 旧バージョンで保存された calloutBubble は正規化結果に含めない。
+		const prefs = normalizeStylePrefs({ calloutBubble: "cloud" });
+		expect(prefs).not.toHaveProperty("calloutBubble");
+		expect(prefs).toEqual(DEFAULT_STYLE_PREFS);
+	});
+
+	it("exportFormat は 3 値のみ受け付け、それ以外は png へ", () => {
+		expect(normalizeStylePrefs({ exportFormat: "jpeg" }).exportFormat).toBe(
+			"jpeg",
 		);
-		expect(normalizeStylePrefs({ calloutTail: 1 }).calloutTail).toBe("down");
-		expect(normalizeStylePrefs({}).calloutTail).toBe("down");
+		expect(normalizeStylePrefs({ exportFormat: "webp" }).exportFormat).toBe(
+			"webp",
+		);
+		expect(normalizeStylePrefs({ exportFormat: "gif" }).exportFormat).toBe(
+			"png",
+		);
+		expect(normalizeStylePrefs({}).exportFormat).toBe("png");
+	});
+
+	it("exportQuality は 3 値のみ受け付け、それ以外は normal へ", () => {
+		expect(normalizeStylePrefs({ exportQuality: "high" }).exportQuality).toBe(
+			"high",
+		);
+		expect(normalizeStylePrefs({ exportQuality: "low" }).exportQuality).toBe(
+			"low",
+		);
+		expect(normalizeStylePrefs({ exportQuality: "ultra" }).exportQuality).toBe(
+			"normal",
+		);
+		expect(normalizeStylePrefs({}).exportQuality).toBe("normal");
 	});
 
 	it("cropRatio は 4 値のみ受け付け、それ以外は free へ", () => {
@@ -167,8 +214,25 @@ describe("stylePrefsEqual", () => {
 		expect(stylePrefsEqual(FULL, { ...FULL, spotlightAlpha: 0.55 })).toBe(
 			false,
 		);
-		expect(stylePrefsEqual(FULL, { ...FULL, calloutTail: "down" })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, calloutTails: ["down"] })).toBe(
+			false,
+		);
+		// 集合が同じでも要素数が違えば false（部分集合の変化を拾う）。
+		expect(stylePrefsEqual(FULL, { ...FULL, calloutTails: [] })).toBe(false);
 		expect(stylePrefsEqual(FULL, { ...FULL, cropRatio: "free" })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, exportFormat: "png" })).toBe(false);
+		expect(stylePrefsEqual(FULL, { ...FULL, exportQuality: "low" })).toBe(
+			false,
+		);
+	});
+
+	it("calloutTails は要素が同じなら順序が正規化済み前提で true", () => {
+		expect(
+			stylePrefsEqual(
+				{ ...FULL, calloutTails: ["down", "up"] },
+				{ ...FULL, calloutTails: ["down", "up"] },
+			),
+		).toBe(true);
 	});
 });
 
@@ -201,8 +265,10 @@ describe("createStylePrefsSaver", () => {
 			fill: true,
 			intensity: "strong",
 			spotlightAlpha: 0.85,
-			calloutTail: "left",
+			calloutTails: ["left"],
 			cropRatio: "4:3",
+			exportFormat: "webp",
+			exportQuality: "low",
 		};
 		saver.save(changed);
 		saver.save({ ...changed });
@@ -221,8 +287,10 @@ describe("createStylePrefsSaver", () => {
 			fill: false,
 			intensity: "normal",
 			spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
-			calloutTail: "down",
+			calloutTails: ["down"],
 			cropRatio: "free",
+			exportFormat: "png",
+			exportQuality: "normal",
 		});
 		expect(set).toHaveBeenCalledWith({
 			"style-prefs": {
@@ -233,8 +301,10 @@ describe("createStylePrefsSaver", () => {
 				fill: false,
 				intensity: "normal",
 				spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
-				calloutTail: "down",
+				calloutTails: ["down"],
 				cropRatio: "free",
+				exportFormat: "png",
+				exportQuality: "normal",
 			},
 		});
 	});

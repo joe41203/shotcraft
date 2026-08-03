@@ -398,6 +398,36 @@ header {
   }
 }
 
+/* --- 書き出し形式フライアウト（形式ボタンの直下に開閉するポップオーバー） --- */
+
+/* 形式ボタン（現在形式ラベル）。text-btn を土台に、開閉のアフォーダンスを持たせる。 */
+.format-btn[aria-expanded="true"] {
+  background: var(--surface-hover);
+  border-color: var(--ring);
+}
+
+/*
+ * 形式・品質の選択パネル。形式ボタンの直下に固定配置する（left/top は JS が与える）。
+ * スタイルフライアウトと面・境界・影・角丸のトークンを揃え、形式→品質を縦に積む。
+ */
+.format-flyout {
+  position: fixed;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  animation: style-flyout-in 120ms ease;
+}
+
+.format-flyout[hidden] {
+  display: none;
+}
+
 .zoom-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;

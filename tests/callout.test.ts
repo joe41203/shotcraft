@@ -7,6 +7,7 @@ import {
 	DEFAULT_CALLOUT_TAIL,
 	hexToRgba,
 	normalizeCalloutTail,
+	normalizeCalloutTails,
 } from "../lib/editor/callout";
 
 describe("calloutInnerWidth", () => {
@@ -136,5 +137,37 @@ describe("normalizeCalloutTail", () => {
 		expect(normalizeCalloutTail(null)).toBe("down");
 		expect(normalizeCalloutTail("bottom")).toBe("down");
 		expect(normalizeCalloutTail(1)).toBe("down");
+	});
+});
+
+describe("normalizeCalloutTails", () => {
+	it("配列は 4 値の部分集合へ正規化する（不正値除去・重複除去・並び順）", () => {
+		expect(normalizeCalloutTails(["up", "left"])).toEqual(["up", "left"]);
+		// 並び順は 下→上→左→右 に整える。
+		expect(normalizeCalloutTails(["right", "up", "down"])).toEqual([
+			"down",
+			"up",
+			"right",
+		]);
+		// 重複・不正値は畳む／除く。
+		expect(normalizeCalloutTails(["up", "up", "bogus", 3, "left"])).toEqual([
+			"up",
+			"left",
+		]);
+	});
+
+	it("空配列＝しっぽなしはそのまま通す（既定へ落とさない）", () => {
+		expect(normalizeCalloutTails([])).toEqual([]);
+	});
+
+	it("tails 未設定で旧 tail があればそれ 1 個の配列へ変換する", () => {
+		expect(normalizeCalloutTails(undefined, "up")).toEqual(["up"]);
+		// 旧 tail が不正なら down 1 個。
+		expect(normalizeCalloutTails(undefined, "bottom")).toEqual(["down"]);
+	});
+
+	it("tails・tail とも未設定なら従来互換の ['down']", () => {
+		expect(normalizeCalloutTails(undefined)).toEqual(["down"]);
+		expect(normalizeCalloutTails(null)).toEqual(["down"]);
 	});
 });

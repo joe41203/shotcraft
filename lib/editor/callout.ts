@@ -6,8 +6,8 @@
 
 import type { CalloutTail } from "./doc";
 
-// しっぽの向きの型は doc.ts が正（CalloutShape.tail と一致させるため）。
-// しっぽ関連のロジック（正規化・頂点計算）はここに集約するので、利用側が
+// しっぽの向きの型は doc.ts が正（CalloutShape.tails と一致させるため）。
+// しっぽ関連のロジック（正規化・頂点計算）をここに集約するので、利用側が
 // callout.ts から型も取れるよう再エクスポートする。
 export type { CalloutTail };
 
@@ -34,6 +34,43 @@ export function normalizeCalloutTail(raw: unknown): CalloutTail {
 		return raw;
 	}
 	return DEFAULT_CALLOUT_TAIL;
+}
+
+/** しっぽの 4 方向の並び順（重複除去・出力順の正）。 */
+const TAIL_ORDER: readonly CalloutTail[] = ["down", "up", "left", "right"];
+
+/**
+ * フキダシのしっぽ集合（複数選択）を正規化する純粋関数。空配列 = しっぽなし。
+ *
+ * 後方互換の読み込み正規化を兼ねる:
+ * - `tails`（配列）があればそれを採る。各要素を CalloutTail として検証し、不正値を
+ *   除き、重複を畳んで TAIL_ORDER（下→上→左→右）の順に整える。**空配列はそのまま
+ *   空配列**（しっぽなし＝背景プレート付きテキスト）として通す。
+ * - `tails` が無く `tail`（旧・単一値）があれば、それ 1 個の配列へ変換する。
+ * - どちらも無ければ従来互換の既定 ["down"]（下辺中央から下向き）。
+ *
+ * @param tails CalloutShape.tails（新）。配列でなければ「未設定」として扱う。
+ * @param legacyTail CalloutShape.tail（旧・単一値）。tails 未設定時のフォールバック元。
+ */
+export function normalizeCalloutTails(
+	tails: unknown,
+	legacyTail?: unknown,
+): CalloutTail[] {
+	if (Array.isArray(tails)) {
+		const set = new Set<CalloutTail>();
+		for (const raw of tails) {
+			if (raw === "down" || raw === "up" || raw === "left" || raw === "right") {
+				set.add(raw);
+			}
+		}
+		// 空配列はしっぽなしとしてそのまま返す（既定 ["down"] へ落とさない）。
+		return TAIL_ORDER.filter((t) => set.has(t));
+	}
+	// tails 未設定なら旧 tail（あれば）1 個、無ければ従来互換の ["down"]。
+	if (legacyTail !== undefined) {
+		return [normalizeCalloutTail(legacyTail)];
+	}
+	return [DEFAULT_CALLOUT_TAIL];
 }
 
 /** 新規フキダシの既定サイズ（ドラッグが極小だったときのフォールバックにも使う）。 */

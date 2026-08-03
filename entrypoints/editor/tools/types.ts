@@ -50,8 +50,8 @@ export interface EditorContext {
 		intensity: MosaicBlurIntensity;
 		/** 新規 doc のスポットライト暗幕の暗さ（不透明度 0〜1）。 */
 		spotlightAlpha: number;
-		/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右）。 */
-		calloutTail: CalloutTail;
+		/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右 の部分集合）。空配列＝しっぽなし。 */
+		calloutTails: CalloutTail[];
 		/** クロップ枠のアスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）。 */
 		cropRatio: CropRatio;
 	};

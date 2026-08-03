@@ -11,13 +11,17 @@
  */
 
 import { type ArrowStyle, normalizeArrowStyle } from "./arrow";
-import {
-	type CalloutTail,
-	DEFAULT_CALLOUT_TAIL,
-	normalizeCalloutTail,
-} from "./callout";
+import { type CalloutTail, normalizeCalloutTails } from "./callout";
 import { type CropRatio, normalizeCropRatio } from "./crop";
 import type { MosaicBlurIntensity } from "./doc";
+import {
+	DEFAULT_EXPORT_FORMAT,
+	DEFAULT_EXPORT_QUALITY,
+	type ExportFormat,
+	type ExportQuality,
+	normalizeExportFormat,
+	normalizeExportQuality,
+} from "./export-format";
 import { normalizeSpotlightAlpha, SPOTLIGHT_DIM_ALPHA } from "./spotlight";
 import { clampFontSize, DEFAULT_FONT_SIZE } from "./text";
 
@@ -37,10 +41,17 @@ export interface StylePrefs {
 	intensity: MosaicBlurIntensity;
 	/** 新規 doc のスポットライト暗幕の暗さ（不透明度 0〜1）。既定は SPOTLIGHT_DIM_ALPHA。 */
 	spotlightAlpha: number;
-	/** 新規フキダシのしっぽの向き（下 / 上 / 左 / 右）。既定は "down"。 */
-	calloutTail: CalloutTail;
+	/**
+	 * 新規フキダシのしっぽの向き（下 / 上 / 左 / 右 の部分集合）。空配列＝しっぽなし。
+	 * 既定は ["down"]。旧 calloutTail（単一文字列）の保存値は読み込み時に配列へ変換する。
+	 */
+	calloutTails: CalloutTail[];
 	/** クロップ枠のアスペクト比拘束（自由 / 1:1 / 4:3 / 16:9）。既定は "free"。 */
 	cropRatio: CropRatio;
+	/** 書き出し形式（PNG / JPEG / WebP）。既定は "png"。 */
+	exportFormat: ExportFormat;
+	/** 書き出し品質（高 / 標準 / 低。JPEG / WebP のみ有効）。既定は "normal"。 */
+	exportQuality: ExportQuality;
 }
 
 /** 保存値が無い・壊れているときに使う既定スタイル（app.ts の初期値と一致させる）。 */
@@ -52,8 +63,10 @@ export const DEFAULT_STYLE_PREFS: StylePrefs = {
 	fill: false,
 	intensity: "normal",
 	spotlightAlpha: SPOTLIGHT_DIM_ALPHA,
-	calloutTail: DEFAULT_CALLOUT_TAIL,
+	calloutTails: ["down"],
 	cropRatio: "free",
+	exportFormat: DEFAULT_EXPORT_FORMAT,
+	exportQuality: DEFAULT_EXPORT_QUALITY,
 };
 
 /** storage.local のキー。capture/doc（storage.session）とは名前空間を分ける。 */
@@ -80,8 +93,11 @@ export function normalizeIntensity(raw: unknown): MosaicBlurIntensity {
  * - fill: boolean ならそのまま。それ以外は false（＝塗りなし）。
  * - intensity: "weak"/"normal"/"strong" のいずれか。それ以外は "normal"。
  * - spotlightAlpha: 有限数なら [0,1] へクランプ。数値でなければ既定（SPOTLIGHT_DIM_ALPHA）。
- * - calloutTail: "down"/"up"/"left"/"right" のいずれか。それ以外は "down"。
+ * - calloutTails: 4 値の部分集合（空配列＝しっぽなしも許容）。旧 calloutTail（単一文字列）の
+ *   保存値は配列へ変換する（両欠落は ["down"]＝後方互換）。
  * - cropRatio: "free"/"1:1"/"4:3"/"16:9" のいずれか。それ以外は "free"。
+ * - exportFormat: "png"/"jpeg"/"webp" のいずれか。それ以外は "png"。
+ * - exportQuality: "high"/"normal"/"low" のいずれか。それ以外は "normal"。
  * 部分的に壊れていても、壊れたキーだけ既定へ落として全体は必ず有効な値を返す。
  */
 export function normalizeStylePrefs(raw: unknown): StylePrefs {
@@ -114,10 +130,21 @@ export function normalizeStylePrefs(raw: unknown): StylePrefs {
 			Number.isFinite(source.spotlightAlpha)
 				? normalizeSpotlightAlpha(source.spotlightAlpha)
 				: DEFAULT_STYLE_PREFS.spotlightAlpha,
-		// 不正値・未設定は "down" / "free" へ（各 normalize が担保）。
-		calloutTail: normalizeCalloutTail(source.calloutTail),
+		// tails（新）を優先し、無ければ旧 calloutTail（単一文字列）から変換する。
+		// 空配列（しっぽなし）はそのまま通す（各 normalize が担保）。
+		calloutTails: normalizeCalloutTails(
+			source.calloutTails,
+			source.calloutTail,
+		),
 		cropRatio: normalizeCropRatio(source.cropRatio),
+		exportFormat: normalizeExportFormat(source.exportFormat),
+		exportQuality: normalizeExportQuality(source.exportQuality),
 	};
+}
+
+/** しっぽ集合が（順序も含め）同値か。normalize 後は常に同じ並びなので順序比較でよい。 */
+function tailsEqual(a: CalloutTail[], b: CalloutTail[]): boolean {
+	return a.length === b.length && a.every((t, i) => t === b[i]);
 }
 
 /** 2 つのスタイル設定が同値か（過剰な書き込みを避ける同値判定用）。 */
@@ -130,8 +157,10 @@ export function stylePrefsEqual(a: StylePrefs, b: StylePrefs): boolean {
 		a.fill === b.fill &&
 		a.intensity === b.intensity &&
 		a.spotlightAlpha === b.spotlightAlpha &&
-		a.calloutTail === b.calloutTail &&
-		a.cropRatio === b.cropRatio
+		tailsEqual(a.calloutTails, b.calloutTails) &&
+		a.cropRatio === b.cropRatio &&
+		a.exportFormat === b.exportFormat &&
+		a.exportQuality === b.exportQuality
 	);
 }
 
