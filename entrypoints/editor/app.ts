@@ -36,6 +36,10 @@ import {
 	DEFAULT_STYLE_PREFS,
 	type StylePrefs,
 } from "@/lib/editor/style-prefs";
+import {
+	type StyleSections,
+	styleSectionsFor,
+} from "@/lib/editor/style-sections";
 import { CropController } from "./crop-controller";
 import {
 	canvasToPngBlob,
@@ -1349,20 +1353,28 @@ export class EditorApp {
 		this.updateCursor();
 	}
 
+	/** 現在のツールと単一選択図形から、スタイルポップオーバーに出すセクションを求める。 */
+	private currentStyleSections(): StyleSections {
+		const selected = this.selectedId
+			? findShape(this.history.present, this.selectedId)
+			: undefined;
+		return styleSectionsFor(this.currentTool, selected?.type ?? null);
+	}
+
 	/**
 	 * 矢印スタイル（片側 / 両側 / 曲線）コントロールの表示と現在値を同期する。
 	 * 矢印を選択中はそのシェイプのスタイルを、そうでなく矢印ツール選択中は新規デフォルト
 	 * （style）のスタイルを表示する。どちらでもなければ隠す（矢印以外では出さない）。
-	 * 線種トグルと同じ実装パターン。
+	 * 表示可否の判定は純粋関数 styleSectionsFor に集約している。
 	 */
 	private syncArrowStyleControls(): void {
+		const visible = this.currentStyleSections().arrow;
+		this.toolbar.setArrowStyleControlsVisible(visible);
+		if (!visible) return;
 		const selected = this.selectedId
 			? findShape(this.history.present, this.selectedId)
 			: undefined;
 		const selectedArrow = selected?.type === "arrow" ? selected : undefined;
-		const visible = selectedArrow != null || this.currentTool === "arrow";
-		this.toolbar.setArrowStyleControlsVisible(visible);
-		if (!visible) return;
 		const style = selectedArrow
 			? normalizeArrowStyle(selectedArrow.arrowStyle)
 			: this.style.arrowStyle;
@@ -1374,22 +1386,17 @@ export class EditorApp {
 	 * 線系図形（矢印・矩形・楕円・ペン）を選択中はそのシェイプの線種を、
 	 * そうでなく線系ツールを選択中は新規デフォルト（style）の線種を表示する。
 	 * どちらでもなければ隠す（線種を持たない図形・ツールでは出さない）。
+	 * 表示可否の判定は純粋関数 styleSectionsFor に集約している。
 	 */
 	private syncDashControls(): void {
+		const visible = this.currentStyleSections().dash;
+		this.toolbar.setDashControlsVisible(visible);
+		if (!visible) return;
 		const selected = this.selectedId
 			? findShape(this.history.present, this.selectedId)
 			: undefined;
 		const selectedLine =
 			selected && shapeSupportsDash(selected.type) ? selected : undefined;
-		const toolIsLine =
-			this.currentTool === "arrow" ||
-			this.currentTool === "line" ||
-			this.currentTool === "rect" ||
-			this.currentTool === "ellipse" ||
-			this.currentTool === "pen";
-		const visible = selectedLine != null || toolIsLine;
-		this.toolbar.setDashControlsVisible(visible);
-		if (!visible) return;
 		const dash = selectedLine?.dash ?? this.style.dash;
 		this.toolbar.setDash(dash);
 	}

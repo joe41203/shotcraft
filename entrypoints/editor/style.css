@@ -276,6 +276,74 @@ header {
   outline-offset: 2px;
 }
 
+/* --- スタイル（線種・矢印）ポップオーバー --- */
+
+/* ポップオーバーをボタン直下へ絶対配置するための相対起点。 */
+.style-group {
+  position: relative;
+}
+
+/* ポップオーバー本体。ボタン直下・左寄せの小パネル。
+   面・境界・影・角丸は tokens.css のトークンで他 UI とトーンを揃える。 */
+.style-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 180px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  /* 開閉の軽いフェード + せり上がり。prefers-reduced-motion で無効化する。 */
+  animation: style-panel-in 120ms ease;
+}
+
+.style-panel[hidden] {
+  display: none;
+}
+
+/* パネル内の 1 セクション（線種 / 矢印）。見出し + 選択肢の縦積み。 */
+.style-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.style-section[hidden] {
+  display: none;
+}
+
+/* セクション見出し（「線種」「矢印」）。控えめな補助色・小さめ。 */
+.style-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+/* 選択肢（実線/破線・片側/両側/曲線）を横並びにする。 */
+.style-section-options {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@keyframes style-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .zoom-label {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -584,5 +652,9 @@ main {
 
   .toast-leaving {
     transition: none;
+  }
+
+  .style-panel {
+    animation: none;
   }
 }
