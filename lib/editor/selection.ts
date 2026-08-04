@@ -9,6 +9,7 @@
  */
 
 import { STEP_RADIUS } from "./step";
+import { TEXT_LINE_HEIGHT } from "./text";
 import type { Shape } from "./doc";
 
 /** 軸並行の矩形（doc 座標系）。 */
@@ -61,13 +62,13 @@ const TEXT_CHAR_WIDTH_RATIO = 0.6;
 /**
  * テキスト（複数行対応）の外接矩形を概算する。実際の描画幅は canvas 計測が要るが、
  * ラバーバンド交差は「触れていれば選ぶ」大掴み判定なので、最長行の文字数 × 平均字幅、
- * 行数 × 行高（lineHeight 1.2）で近似する。
+ * 行数 × 行高（TEXT_LINE_HEIGHT）で近似する。
  */
 function textBBox(x: number, y: number, text: string, fontSize: number): BBox {
 	const lines = text.length > 0 ? text.split("\n") : [""];
 	const maxLen = lines.reduce((m, line) => Math.max(m, line.length), 0);
 	const width = Math.max(fontSize, maxLen * fontSize * TEXT_CHAR_WIDTH_RATIO);
-	const height = lines.length * fontSize * 1.2;
+	const height = lines.length * fontSize * TEXT_LINE_HEIGHT;
 	return { x, y, width, height };
 }
 

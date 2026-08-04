@@ -40,7 +40,11 @@ import {
 	spotlightVeilIndex,
 } from "@/lib/editor/spotlight";
 import { STEP_RADIUS, stepFontSize } from "@/lib/editor/step";
-import { clampFontSize } from "@/lib/editor/text";
+import {
+	CALLOUT_LINE_HEIGHT,
+	clampFontSize,
+	TEXT_LINE_HEIGHT,
+} from "@/lib/editor/text";
 import { theme } from "@/lib/theme";
 
 /** マーカー（蛍光ペン）の描画パラメータ。入力の太さを基準に太く半透明にする。 */
@@ -272,7 +276,7 @@ export function shapeToNode(
 				// なので、フォント読み込み完了前に描くとフォールバックされる。エディタ
 				// 初期化時に main.ts で document.fonts.load() を await してから描画に入る。
 				fontFamily: theme.fontAnnotation,
-				lineHeight: 1.2,
+				lineHeight: TEXT_LINE_HEIGHT,
 				// 縁取り（ハロー）: どんな背景でも読めるよう文字の外側に細い縁を付ける。
 				// 縁色は文字色の輝度から自動判定、縁幅はフォントサイズ連動。
 				// fillAfterStrokeEnabled=true で「文字色（fill）の外側に縁（stroke）」に
@@ -721,7 +725,7 @@ function buildCalloutNode(
 		fontSize: shape.fontSize,
 		fontFamily,
 		fill: shape.stroke,
-		lineHeight: 1.25,
+		lineHeight: CALLOUT_LINE_HEIGHT,
 		wrap: "word",
 		listening: false,
 	});

@@ -12,6 +12,20 @@ export const MAX_FONT_SIZE = 200;
 export const DEFAULT_FONT_SIZE = 24;
 
 /**
+ * テキスト注釈の行高（フォントサイズ比）。
+ * Konva.Text の lineHeight と編集用 textarea オーバーレイの CSS line-height に
+ * 同じ値を使い、編集中と確定後で改行位置がずれないようにする。
+ */
+export const TEXT_LINE_HEIGHT = 1.2;
+
+/**
+ * フキダシ内テキストの行高（フォントサイズ比）。
+ * 本体の塗りの中に収まるぶん、テキスト注釈よりわずかに広く取る。
+ * こちらも Konva.Text とオーバーレイで同じ値を使う。
+ */
+export const CALLOUT_LINE_HEIGHT = 1.25;
+
+/**
  * テキスト・フキダシのフォントサイズプリセット（S / M / L）。フライアウトの「サイズ」
  * セクションで選ぶ。M は DEFAULT_FONT_SIZE と一致させる。ハンドルドラッグでは連続値に
  * なるため、現在値がこの 3 値のどれでもないときはどのボタンも active にしない。
