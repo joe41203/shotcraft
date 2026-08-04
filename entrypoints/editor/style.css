@@ -673,8 +673,10 @@ main {
   display: none;
 }
 
-/* テキスト編集オーバーレイ（tools/text.ts が生成）。
-   キャンバス上での直接編集なので、枠は控えめな点線のみ。文字色は図形色を継承。 */
+/* テキスト編集オーバーレイ（tools/text-overlay.ts が生成）。
+   キャンバス上での直接編集なので、枠は控えめな点線のみ。文字色は図形色を継承。
+   font-family / font-size / line-height / color は確定後の Konva.Text と
+   一致させるため text-overlay.ts が個別に上書きする。 */
 .text-overlay {
   position: absolute;
   z-index: 10;
@@ -685,7 +687,6 @@ main {
   background: transparent;
   color: inherit;
   font-family: var(--font-sans);
-  line-height: 1.2;
   overflow: hidden;
   resize: none;
   white-space: pre;

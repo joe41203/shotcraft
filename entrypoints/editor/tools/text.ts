@@ -6,6 +6,7 @@ import {
 	type TextShape,
 	updateShape,
 } from "@/lib/editor/doc";
+import { TEXT_LINE_HEIGHT } from "@/lib/editor/text";
 import { theme } from "@/lib/theme";
 import type { Point } from "../geometry-view";
 import { openTextOverlay } from "./text-overlay";
@@ -16,7 +17,8 @@ import type { EditorContext, Tool, ToolName } from "./types";
  * - クリックで新規テキストを配置し即編集モードに入る。
  * - 図形の dblclick で既存テキストを再編集する。
  * 編集は body 直下に絶対配置した textarea オーバーレイ（openTextOverlay）で行い、
- * 位置・フォントサイズはズーム率に追従する。Enter 確定 / Shift+Enter 改行 / Esc キャンセル。
+ * 位置・フォントサイズはズーム率に追従する。Enter は改行、確定は Cmd/Ctrl+Enter・Esc・
+ * 入力欄外クリック（キー割り当ての理由は openTextOverlay のコメントを参照）。
  *
  * 編集中は doc を一切いじらず、確定時に 1 回だけ addShape/updateShape する
  * （空文字確定は図形化しない）。これにより空テキストが履歴に残らない。
@@ -79,6 +81,7 @@ export class TextTool implements Tool {
 				// render.ts の Konva.Text と同じ固定スタックを使い、編集中と確定後の見た目を一致させる。
 				fontFamily: theme.fontAnnotation,
 				color: shape.stroke,
+				lineHeight: TEXT_LINE_HEIGHT,
 			},
 			(text) => {
 				this.editing = false;

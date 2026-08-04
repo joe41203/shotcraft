@@ -16,6 +16,7 @@ import {
 	type Shape,
 	updateShape,
 } from "@/lib/editor/doc";
+import { CALLOUT_LINE_HEIGHT } from "@/lib/editor/text";
 import { normalizeRect } from "@/lib/geometry";
 import { theme } from "@/lib/theme";
 import type { Point } from "../geometry-view";
@@ -126,6 +127,7 @@ export class CalloutTool implements Tool {
 				fontSize: shape.fontSize,
 				fontFamily: theme.fontAnnotation,
 				color: shape.stroke,
+				lineHeight: CALLOUT_LINE_HEIGHT,
 				wrapWidth: calloutInnerWidth(shape.width, CALLOUT_PADDING),
 			},
 			(text) => {
