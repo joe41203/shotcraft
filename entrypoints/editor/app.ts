@@ -85,6 +85,18 @@ function modifiers(e: Konva.KonvaEventObject<PointerEvent>): PointerModifiers {
 }
 
 /**
+ * イベントの発生元が文字入力を受け付ける要素か判定する。
+ * ここが true の間は単キーのショートカットを通さない（打った文字が
+ * ツール切替として解釈されるのを防ぐ）。
+ */
+function isEditableTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof HTMLElement)) return false;
+	if (target.isContentEditable) return true;
+	const tag = target.tagName;
+	return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+/**
  * 矢印キーの連続 nudge を 1 つの履歴にまとめるデバウンス時間（ms）。
  * この時間だけ追加の nudge が無ければ、それまでの移動をまとめて 1 回 commit する。
  */
@@ -1441,6 +1453,12 @@ export class EditorApp {
 	private bindKeyboard(): void {
 		window.addEventListener("keydown", (e) => {
 			if (this.textEditing) return;
+			// フォーカスが入力欄にあるときは 1 文字打つたびにツールが切り替わって
+			// しまうため、ショートカットを一切通さない（textEditing の取りこぼしや
+			// 将来追加される input/select への保険）。
+			if (isEditableTarget(e.target)) return;
+			// IME 変換中のキーはショートカットとして解釈しない。
+			if (e.isComposing) return;
 
 			const mod = e.ctrlKey || e.metaKey;
 			if (mod && (e.key === "z" || e.key === "Z")) {
