@@ -694,6 +694,54 @@ function buildStepNode(
 }
 
 /**
+ * リサイズ中のフキダシの見た目を、確定後と同じ組み方へ作り直す。
+ *
+ * Transformer は Group に scaleX/scaleY を掛けるため、何もしないと文字まで
+ * 一緒に引き伸びる。確定時（shapeFromNode）は fontSize を据え置いて新しい幅で
+ * 折り返し直すので、離した瞬間に文字サイズが戻る＝ドラッグ中だけ伸びて見える。
+ *
+ * そこでドラッグ中も毎回、スケールを width/height へ移し替えた shape を作って
+ * Group の中身を組み直し、Group 自身の scale は 1 に戻す。組み直しは
+ * buildCalloutNode をそのまま使うので、確定後と同じ結果になる（本体高さの
+ * テキスト追従・しっぽの位置も含めて一致する）。
+ *
+ * doc は書き換えない（見た目の追従だけ。正は transformend の焼き込み）。
+ * 戻り値は移し替え後の寸法で、呼び出し側が次フレームの基準として持ち回る。
+ */
+export function syncCalloutDuringTransform(
+	node: Konva.Node,
+	shape: CalloutShape,
+): { width: number; height: number } | null {
+	if (!(node instanceof Konva.Group)) return null;
+
+	const sx = node.scaleX();
+	const sy = node.scaleY();
+	if (sx === 0 || sy === 0) return null;
+
+	// scale を寸法へ移し替える（確定時 shapeFromNode と同じ計算）。
+	const width = Math.max(1, shape.width * sx);
+	const height = Math.max(1, shape.height * sy);
+	const next: CalloutShape = { ...shape, width, height };
+
+	// 中身を確定後と同じ手順で組み直し、Group の scale は 1 に戻す。
+	// 位置・回転・不透明度は Transformer が触っている今の値を保つ。
+	const rebuilt = buildCalloutNode(next, {
+		id: node.id(),
+		name: node.name(),
+		rotation: node.rotation(),
+		opacity: node.opacity(),
+	});
+	node.destroyChildren();
+	for (const child of [...rebuilt.getChildren()]) {
+		child.moveTo(node);
+	}
+	rebuilt.destroy();
+	node.scale({ x: 1, y: 1 });
+
+	return { width, height };
+}
+
+/**
  * コールアウト（フキダシ）を Konva.Group（しっぽ + 本体 + テキスト）として作る。
  *
  * Group の x/y は本体左上。内部はローカル座標で組み、Group ごと移動する。

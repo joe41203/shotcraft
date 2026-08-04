@@ -7,6 +7,7 @@ import { shapeSupportsDash } from "@/lib/editor/dash";
 import {
 	addShape,
 	assignGroup,
+	type CalloutShape,
 	type CropRect,
 	duplicateShape,
 	type EditorDoc,
@@ -69,7 +70,11 @@ import {
 	type ViewTransform,
 	zoomAtTransform,
 } from "./geometry-view";
-import { renderShapes, shapeFromNode } from "./render";
+import {
+	renderShapes,
+	shapeFromNode,
+	syncCalloutDuringTransform,
+} from "./render";
 import { Toast } from "./toast";
 import { Toolbar } from "./toolbar";
 import type {
@@ -506,6 +511,14 @@ export class EditorApp {
 	} | null = null;
 
 	/**
+	 * フキダシのリサイズ中に持ち回る寸法。ドラッグ中は Transformer の scale を
+	 * width/height へ移し替えて scale を 1 に戻す（文字を引き伸ばさないため）ので、
+	 * 確定時に node の scale から寸法を復元できない。その代わりにここへ覚えておく。
+	 * リサイズ外は null。
+	 */
+	private calloutResize: { id: string; shape: CalloutShape } | null = null;
+
+	/**
 	 * 1 つの図形ノードに、変形/移動の確定コミットと pointerdown 選択を配線する。
 	 * select ツールと text ツール（テキストノードのみ）の双方から使う。
 	 */
@@ -528,6 +541,32 @@ export class EditorApp {
 			// Shift 押下中は無効（自由移動）。単一ドラッグ・グループドラッグの双方で効く。
 			this.applyDragSnap(node, e.evt.shiftKey);
 		});
+		// リサイズ中、フキダシの文字が本体と一緒に引き伸びるのを打ち消す
+		// （確定時は fontSize 据え置きで折り返し直すため、何もしないとドラッグ中
+		// だけ文字が伸びて離した瞬間に戻る）。doc は触らず見た目だけ追従させる。
+		// scale は毎回 width/height へ移し替えて 1 に戻すので、確定時に使う寸法は
+		// ここで持ち回る（transformend で calloutResize から読む）。
+		// リサイズ開始時に前回の持ち回りを捨てる（移動だけしたときに古い寸法が
+		// 適用されないよう、transform が動いた分だけを確定に使う）。
+		node.on("transformstart.callout dragstart.callout", () => {
+			this.calloutResize = null;
+		});
+		node.on("transform.callout", () => {
+			const base =
+				this.calloutResize?.id === node.id()
+					? this.calloutResize.shape
+					: findShape(this.history.present, node.id());
+			if (base?.type !== "callout") return;
+			const next = syncCalloutDuringTransform(node, base);
+			if (!next) return;
+			this.calloutResize = {
+				id: node.id(),
+				shape: { ...base, width: next.width, height: next.height },
+			};
+			// 子ノードを組み直して scale を 1 に戻したので、Transformer が持つ
+			// 枠の寸法をノードの現状から取り直させる（アンカーのずれを防ぐ）。
+			this.transformer.forceUpdate();
+		});
 		node.on("dragend.commit transformend.commit", () => {
 			// ドラッグ終了でスナップのガイド線を消す（変形終了時も無害に消える）。
 			this.clearSnapGuides();
@@ -539,7 +578,18 @@ export class EditorApp {
 			const id = node.id();
 			const prev = findShape(this.history.present, id);
 			if (!prev) return;
-			const next = shapeFromNode(node, prev);
+			// フキダシのリサイズ中は scale を寸法へ移し替えて 1 に戻しているので、
+			// node の scale からは寸法を復元できない。transform で持ち回った値を使う。
+			const resized =
+				this.calloutResize?.id === id ? this.calloutResize.shape : null;
+			this.calloutResize = null;
+			const next = resized
+				? {
+						...shapeFromNode(node, prev),
+						width: resized.width,
+						height: resized.height,
+					}
+				: shapeFromNode(node, prev);
 			if (this.altDragging) {
 				// Alt ドラッグ確定: 元図形は据え置き、ドロップ位置に新 id の複製を追加して
 				// そちらを選択する。ドロップ位置は next が持つので複製オフセットは 0。
