@@ -29,16 +29,15 @@ export interface TextOverlayOptions {
  */
 function swallowNextPointerDown(canvas: HTMLElement): void {
 	const swallow = (e: Event): void => {
-		cleanup();
+		window.removeEventListener("pointerdown", swallow, true);
 		if (e.target instanceof Node && canvas.contains(e.target)) {
 			e.stopPropagation();
 		}
 	};
-	const cleanup = (): void => {
-		window.removeEventListener("pointerdown", swallow, true);
-	};
 	window.addEventListener("pointerdown", swallow, true);
-	requestAnimationFrame(cleanup);
+	requestAnimationFrame(() => {
+		window.removeEventListener("pointerdown", swallow, true);
+	});
 }
 
 /**

@@ -1201,6 +1201,16 @@ export class EditorApp {
 	}
 
 	/**
+	 * 単一選択中の図形（選択が 1 個でなければ undefined）。
+	 * フライアウトの各コントロールが「選択中の図形の値、無ければ新規デフォルト」を
+	 * 表示するために繰り返し引くので getter にしている。
+	 */
+	private get selectedShape(): Shape | undefined {
+		const id = this.selectedId;
+		return id ? findShape(this.history.present, id) : undefined;
+	}
+
+	/**
 	 * 図形を選択状態にする（単一選択）。null で選択解除。既存 API を壊さないよう、
 	 * 内部の複数選択配列を「要素数 1（または 0）」として設定する薄いラッパ。
 	 */
@@ -1850,9 +1860,7 @@ export class EditorApp {
 
 	/** 現在のツールと単一選択図形の型を求める（フライアウトの表示判定・アンカー決定に使う）。 */
 	private selectedShapeType(): Shape["type"] | null {
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const selected = this.selectedShape;
 		return selected?.type ?? null;
 	}
 
@@ -1882,9 +1890,7 @@ export class EditorApp {
 		const visible = this.currentStyleSections().arrow;
 		this.toolbar.setArrowStyleControlsVisible(visible);
 		if (!visible) return;
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const selected = this.selectedShape;
 		const selectedArrow = selected?.type === "arrow" ? selected : undefined;
 		const style = selectedArrow
 			? normalizeArrowStyle(selectedArrow.arrowStyle)
@@ -1903,9 +1909,7 @@ export class EditorApp {
 		const visible = this.currentStyleSections().dash;
 		this.toolbar.setDashControlsVisible(visible);
 		if (!visible) return;
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const selected = this.selectedShape;
 		const selectedLine =
 			selected && shapeSupportsDash(selected.type) ? selected : undefined;
 		const dash = selectedLine?.dash ?? this.style.dash;
@@ -1922,9 +1926,7 @@ export class EditorApp {
 		const visible = this.currentStyleSections().fontSize;
 		this.toolbar.setFontSizeControlsVisible(visible);
 		if (!visible) return;
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const selected = this.selectedShape;
 		const selectedText =
 			selected?.type === "text" || selected?.type === "callout"
 				? selected
@@ -1942,9 +1944,7 @@ export class EditorApp {
 		const visible = this.currentStyleSections().fill;
 		this.toolbar.setFillControlsVisible(visible);
 		if (!visible) return;
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const selected = this.selectedShape;
 		const selectedFillable =
 			selected?.type === "rect" || selected?.type === "ellipse"
 				? selected
@@ -1962,9 +1962,7 @@ export class EditorApp {
 		const visible = this.currentStyleSections().intensity;
 		this.toolbar.setIntensityControlsVisible(visible);
 		if (!visible) return;
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const selected = this.selectedShape;
 		const selectedProc =
 			selected?.type === "mosaic" || selected?.type === "blur"
 				? selected
@@ -1998,9 +1996,7 @@ export class EditorApp {
 		const visible = this.currentStyleSections().calloutTail;
 		this.toolbar.setCalloutTailControlsVisible(visible);
 		if (!visible) return;
-		const selected = this.selectedId
-			? findShape(this.history.present, this.selectedId)
-			: undefined;
+		const selected = this.selectedShape;
 		const tails =
 			selected?.type === "callout"
 				? normalizeCalloutTails(selected.tails, selected.tail)
