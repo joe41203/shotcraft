@@ -29,7 +29,6 @@ import {
 	fillErasedRegion,
 	type RgbaImage,
 } from "@/lib/editor/erase";
-import { haloColor, haloStrokeWidth } from "@/lib/editor/halo";
 import { mosaicPixelSize } from "@/lib/editor/mosaic";
 import {
 	clampSpotlightHole,
@@ -76,27 +75,6 @@ function arrowHead(strokeWidth: number): {
 	return {
 		pointerLength: 6 + strokeWidth * 3,
 		pointerWidth: 6 + strokeWidth * 2.5,
-	};
-}
-
-/**
- * テキストのハロー（縁取り）を Konva.Text へ渡す属性を返す。
- * stroke（縁色）は文字色の輝度から自動判定、strokeWidth（縁幅）はフォントサイズ連動。
- * fillAfterStrokeEnabled=true で fill（文字色）を stroke（縁）の後に描き、文字の外側に
- * 縁が出るようにする。テキスト注釈・フキダシ内テキストで共有する。
- */
-function textHalo(
-	color: string,
-	fontSize: number,
-): {
-	stroke: string;
-	strokeWidth: number;
-	fillAfterStrokeEnabled: boolean;
-} {
-	return {
-		stroke: haloColor(color),
-		strokeWidth: haloStrokeWidth(fontSize),
-		fillAfterStrokeEnabled: true,
 	};
 }
 
@@ -277,11 +255,6 @@ export function shapeToNode(
 				// 初期化時に main.ts で document.fonts.load() を await してから描画に入る。
 				fontFamily: theme.fontAnnotation,
 				lineHeight: TEXT_LINE_HEIGHT,
-				// 縁取り（ハロー）: どんな背景でも読めるよう文字の外側に細い縁を付ける。
-				// 縁色は文字色の輝度から自動判定、縁幅はフォントサイズ連動。
-				// fillAfterStrokeEnabled=true で「文字色（fill）の外側に縁（stroke）」に
-				// なる（stroke を先に描くと文字が細って見えるため fill を後に重ねる）。
-				...textHalo(shape.stroke, shape.fontSize),
 			});
 		case "pen":
 			return new Konva.Line({
@@ -763,8 +736,6 @@ function buildCalloutNode(
 	const fill = hexToRgba(shape.stroke, CALLOUT_FILL_ALPHA);
 
 	// テキストを先に組んで折返し後の高さを測り、本体高さへ反映する。
-	// フキダシ内テキストにはハロー（縁取り）を付けない。本体の塗りが背景になるため
-	// 不要で、黒フチが悪目立ちする（テキスト注釈 TextShape のハローは維持する）。
 	const text = new Konva.Text({
 		x: CALLOUT_PADDING,
 		y: CALLOUT_PADDING,
