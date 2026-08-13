@@ -17,7 +17,6 @@ import {
 	borderStrokeRect,
 	borderTitleBarLayout,
 	displayUrl,
-	isBorderWidthPreset,
 	normalizeBorder,
 	resolveBorder,
 } from "../lib/editor/border";
@@ -184,19 +183,6 @@ describe("borderEqual", () => {
 				{ kind: "browser", url: "https://b.example" },
 			),
 		).toBe(false);
-	});
-});
-
-describe("isBorderWidthPreset", () => {
-	it("プリセットの太さ（細/標準/太）を判定する", () => {
-		expect(isBorderWidthPreset(2)).toBe(true);
-		expect(isBorderWidthPreset(6)).toBe(true);
-		expect(isBorderWidthPreset(12)).toBe(true);
-	});
-
-	it("プリセット外の太さは false", () => {
-		expect(isBorderWidthPreset(5)).toBe(false);
-		expect(isBorderWidthPreset(0)).toBe(false);
 	});
 });
 

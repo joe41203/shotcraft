@@ -532,7 +532,7 @@ export class EditorApp {
 		this.uiLayer.position(offset);
 		this.crop.setOffset(offset.x, offset.y);
 
-		// 角丸のフレーム（ブラウザ・ダーク・カード）ではコンテンツも同じ曲率で丸める。
+		// 角丸のフレーム（ブラウザ・ダーク）ではコンテンツも同じ曲率で丸める。
 		applyContentClip(this.bgLayer, needsClip ? clip : null, doc.border);
 		applyContentClip(this.shapeLayer, needsClip ? clip : null, doc.border);
 
@@ -1066,6 +1066,22 @@ export class EditorApp {
 	}
 
 	/**
+	 * 選択中が線種を持つ図形（矢印・矩形・楕円・ペン）なら dash を適用して commit する。
+	 * 現在値と同じなら何もしない（連続選択で履歴が荒れないように）。
+	 * マーカー・テキスト・モザイク・ステップ・フキダシは線種を持たないので対象外。
+	 */
+	private applyDashToSelection(dash: boolean): void {
+		const id = this.selectedId;
+		if (!id) return;
+		const shape = findShape(this.history.present, id);
+		if (!shape || !shapeSupportsDash(shape.type)) return;
+		// 未設定（レガシー）は実線相当。false を指定したときも実質同値なので
+		// 現在の解決値（?? false）と比較して no-op を判定する。
+		if ((shape.dash ?? false) === dash) return;
+		this.commitDoc(updateShape(this.history.present, id, { dash }));
+	}
+
+	/**
 	 * 矢印スタイル（片側 / 両側 / 曲線）を新規矢印の既定にする。矢印を選択中は
 	 * そのシェイプへ即時適用して履歴に 1 回 commit する（線種と同じパターン・同値なら no-op）。
 	 */
@@ -1367,21 +1383,6 @@ export class EditorApp {
 		});
 	}
 
-	/**
-	 * 選択中が線種を持つ図形（矢印・矩形・楕円・ペン）なら dash を適用して commit する。
-	 * 現在値と同じなら何もしない（連続選択で履歴が荒れないように）。
-	 * マーカー・テキスト・モザイク・ステップ・フキダシは線種を持たないので対象外。
-	 */
-	private applyDashToSelection(dash: boolean): void {
-		const id = this.selectedId;
-		if (!id) return;
-		const shape = findShape(this.history.present, id);
-		if (!shape || !shapeSupportsDash(shape.type)) return;
-		// 未設定（レガシー）は実線相当。false を指定したときも実質同値なので
-		// 現在の解決値（?? false）と比較して no-op を判定する。
-		if ((shape.dash ?? false) === dash) return;
-		this.commitDoc(updateShape(this.history.present, id, { dash }));
-	}
 
 	private updateCursor(): void {
 		const container = this.stage.container();

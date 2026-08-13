@@ -1253,7 +1253,7 @@ function buildChromeText(
 /**
  * コンテンツ用レイヤーへクリップを適用する。
  *
- * フレームの外側が角丸の種類（ブラウザ・ダーク・カード）では、コンテンツも同じ曲率で
+ * フレームの外側が角丸の種類（ブラウザ・ダーク）では、コンテンツも同じ曲率で
  * 丸めないと角がはみ出て見えるため、clipFunc で角丸パスを描く。角丸が不要なときは
  * 通常の矩形 clip を使う（軽いので）。クリップ自体が不要なら解除する。
  *
@@ -1267,8 +1267,8 @@ export function applyContentClip(
 	border?: BorderStyle | null,
 ): void {
 	if (!rect) {
-		layer.clipFunc(undefined as never);
-		layer.clip(null as never);
+		layer.clipFunc(undefined);
+		layer.clip(null);
 		return;
 	}
 
@@ -1276,13 +1276,13 @@ export function applyContentClip(
 	const hasRadius = radii.some((r) => r > 0);
 	if (!hasRadius) {
 		// 角丸不要: 通常の矩形クリップ（clipFunc は解除しておく）。
-		layer.clipFunc(undefined as never);
+		layer.clipFunc(undefined);
 		layer.clip(rect);
 		return;
 	}
 
 	// 角丸あり: clipFunc で角丸矩形のパスを描く（clip は解除して二重掛けを避ける）。
-	layer.clip(null as never);
+	layer.clip(null);
 	layer.clipFunc((ctx) => {
 		roundedRectPath(ctx, rect, radii);
 	});

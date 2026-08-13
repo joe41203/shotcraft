@@ -64,16 +64,6 @@ export const BORDER_MAX_WIDTH = 200;
 /** アドレスバー・タイトルに入れる文字列の上限（極端に長い URL で描画が壊れないように）。 */
 export const BORDER_TEXT_MAX_LENGTH = 300;
 
-/** BORDER_WIDTH_OPTIONS の値の集合（プリセット一致判定に使う）。 */
-const BORDER_WIDTH_VALUES: ReadonlySet<number> = new Set(
-	BORDER_WIDTH_OPTIONS.map((o) => o.value),
-);
-
-/** 与えられた太さがプリセット（細/標準/太）のいずれかか。 */
-export function isBorderWidthPreset(width: number): boolean {
-	return BORDER_WIDTH_VALUES.has(width);
-}
-
 /**
  * 装飾フレームの寸法トークン（元画像座標系の px）。デザインの正はここ。
  * 色などの見た目トークンは描画側（render.ts の BORDER_THEME）が持つ。
@@ -320,7 +310,7 @@ export function borderClipRect(
  * では、中のコンテンツも同じ曲率で丸めないと角がはみ出て見える。
  *
  * ブラウザ・ダークは**下側 2 隅だけ**丸める（上辺はタイトルバーと接するので直角のまま）。
- * カードは 4 隅とも丸める。角丸のない種類（枠線・テープ）と フチなしは全隅 0。
+ * 角丸のない種類（枠線）と フチなしは全隅 0。
  * 戻り値は Konva の cornerRadius と同じ [左上, 右上, 右下, 左下] の順。
  */
 export function borderContentCornerRadii(
@@ -351,7 +341,7 @@ export function borderContentCornerRadii(
 
 /**
  * コンテンツ領域（フレームの内側）のステージ座標での矩形。
- * フレーム描画（角丸のクリップ・カードの影・テープの位置決め）が基準にする。
+ * フレーム描画（角丸のクリップ・上部バーの配置）が基準にする。
  */
 export function borderContentRect(
 	crop: CropRect | null,
