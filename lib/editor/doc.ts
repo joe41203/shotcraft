@@ -265,6 +265,48 @@ export type Shape =
 
 export type ShapeType = Shape["type"];
 
+/**
+ * 画像全体を囲むフチ（外枠）のスタイル。種類ごとの判別可能ユニオン。
+ * いずれもコンテンツの**外側**に足すため、出力寸法は種類ごとの余白分だけ広がる
+ * （余白の計算・正規化・描画寸法は border.ts が持つ）。
+ *
+ * kind を持たない旧データ（`{ width, color }` のみ）は "simple" として読む
+ * （後方互換。normalizeBorder が担保する）。
+ */
+export type BorderStyle = SimpleBorder | BrowserBorder | DarkWindowBorder;
+
+/** 単色の枠線。従来のフチ（太さと色を選ぶ）。 */
+export interface SimpleBorder {
+	kind: "simple";
+	/** コンテンツの外側に足す各辺の太さ（元画像座標系の px）。 */
+	width: number;
+	/** 枠の色（CSS カラー）。 */
+	color: string;
+}
+
+/**
+ * ブラウザ風のウィンドウ枠。上部に信号機ボタンとアドレスバーを持つ。
+ * url は表示するアドレス文字列（空文字ならバーだけ描く）。撮影元 URL を初期値に
+ * するが、**style-prefs には保存しない**（前のページの URL が次の画像に写り込むのを
+ * 避けるため。doc にだけ持たせて undo 対象にする）。
+ */
+export interface BrowserBorder {
+	kind: "browser";
+	url: string;
+}
+
+
+/** 暗いタイトルバー付きのウィンドウ風（ターミナル／コードエディタ調）。 */
+export interface DarkWindowBorder {
+	kind: "dark";
+	/** タイトルバーに出す文字列（空文字ならバーだけ描く）。 */
+	title: string;
+}
+
+
+/** フチの種類（判別子）。 */
+export type BorderKind = BorderStyle["kind"];
+
 /** クロップ矩形。常に元画像座標系で保持する（表示ズームや過去のクロップに依らない）。 */
 export interface CropRect {
 	x: number;
@@ -289,6 +331,13 @@ export interface EditorDoc {
 	 * 薄め=0.55 / 標準=0.7 / 濃いめ=0.85（spotlight.ts の SPOTLIGHT_DIM_OPTIONS）。
 	 */
 	spotlightAlpha?: number;
+	/**
+	 * 画像全体を囲むフチ（外枠）。図形ではなく画像単位の設定なのでここに持つ。
+	 * 未設定・null は「フチなし」＝従来どおりの出力（後方互換）。
+	 * フチはコンテンツの**外側**に足すため、有効時は出力寸法が各辺 width 分だけ
+	 * 広がる（border.ts の borderedSize 参照）。
+	 */
+	border?: BorderStyle | null;
 }
 
 /** 空のドキュメント。 */

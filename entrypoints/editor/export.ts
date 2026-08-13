@@ -1,5 +1,9 @@
 import Konva from "konva";
-import { croppedSize } from "@/lib/editor/crop";
+import {
+	borderClipRect,
+	borderContentOffset,
+	borderedSize,
+} from "@/lib/editor/border";
 import type { EditorDoc } from "@/lib/editor/doc";
 import {
 	EXPORT_FORMAT_INFO,
@@ -7,7 +11,12 @@ import {
 	type ExportFormat,
 	type ExportQuality,
 } from "@/lib/editor/export-format";
-import { type MosaicSource, renderShapes } from "./render";
+import {
+	applyContentClip,
+	buildBorderFrame,
+	type MosaicSource,
+	renderShapes,
+} from "./render";
 
 // 形式・品質の型と正規化は純粋計算（lib/editor/export-format.ts）が正。利用側が
 // export.ts からも取れるよう再エクスポートする（従来 export.ts を import していた
@@ -35,13 +44,17 @@ export interface ExportInput {
  * 表示用 Stage とは別に、画面外コンテナへ新しい Stage を都度生成する。
  * これにより表示ズーム・パン・選択枠・Transformer の影響を一切受けず、
  * 常に「ベース画像 + モザイク + 注釈、クロップ適用後、キャプチャ原寸」で描ける。
- * crop はレイヤーのオフセット＋Stage 寸法（＝クロップ寸法）で表現する。
+ * crop はレイヤーのオフセット＋クリップで表現する。フチ（doc.border）が有効なときは
+ * Stage 寸法がクロップ寸法＋フチの太さ分だけ外側へ広がり、コンテンツはその内側へ
+ * オフセットされる。フチなしなら従来どおり Stage 寸法＝クロップ寸法。
  * 呼び出し後は Stage と一時コンテナを destroy して後始末する。
  */
 export function exportToCanvas(input: ExportInput): HTMLCanvasElement {
 	const { doc, image, imageSize } = input;
-	const size = croppedSize(doc.crop, imageSize);
-	const offset = { x: -(doc.crop?.x ?? 0), y: -(doc.crop?.y ?? 0) };
+	const size = borderedSize(doc.crop, imageSize, doc.border);
+	const offset = borderContentOffset(doc.crop, doc.border);
+	// フチの内側だけにコンテンツを収めるクリップ（レイヤーローカル座標＝crop 左上原点）。
+	const clip = borderClipRect(doc.crop, imageSize);
 
 	// 画面に出さない一時コンテナ（Konva.Stage は DOM コンテナを要求する）。
 	const container = document.createElement("div");
@@ -67,13 +80,26 @@ export function exportToCanvas(input: ExportInput): HTMLCanvasElement {
 			}),
 		);
 		bgLayer.position(offset);
+		// 角丸のフレームではコンテンツも同じ曲率で丸める（表示側と同じ関数）。
+		applyContentClip(bgLayer, clip, doc.border);
 
 		const shapeLayer = new Konva.Layer({ listening: false });
 		// 出力なのでドラッグ不可。モザイクのサンプリング元に image を渡す。
 		renderShapes(shapeLayer, doc, false, image);
 		shapeLayer.position(offset);
+		applyContentClip(shapeLayer, clip, doc.border);
 
 		stage.add(bgLayer, shapeLayer);
+
+		// フチ（フレーム）は最前面の専用レイヤーに描く（暗幕や注釈に隠されない）。
+		// 描画は表示側（app.ts）と同じ buildBorderFrame を使う。
+		const frame = buildBorderFrame(doc.crop, imageSize, doc.border);
+		if (frame) {
+			const borderLayer = new Konva.Layer({ listening: false });
+			borderLayer.add(frame);
+			stage.add(borderLayer);
+		}
+
 		stage.draw();
 
 		// pixelRatio=1 で表示ズームに依らずキャプチャ原寸の 1:1 canvas を得る。

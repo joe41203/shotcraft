@@ -23,6 +23,7 @@ const FULL: StylePrefs = {
 	cropRatio: "16:9",
 	exportFormat: "jpeg",
 	exportQuality: "high",
+	border: { kind: "simple", width: 6, color: "#71717a" },
 };
 
 describe("normalizeStylePrefs", () => {
@@ -180,6 +181,32 @@ describe("normalizeStylePrefs", () => {
 		expect(normalizeStylePrefs({ cropRatio: 1 }).cropRatio).toBe("free");
 		expect(normalizeStylePrefs({}).cropRatio).toBe("free");
 	});
+
+	it("border は有効なフレーム設定のみ受け付け、それ以外は null（フチなし）へ", () => {
+		expect(
+			normalizeStylePrefs({
+				border: { kind: "simple", width: 6, color: "#fb7185" },
+			}).border,
+		).toEqual({ kind: "simple", width: 6, color: "#fb7185" });
+		expect(
+			normalizeStylePrefs({ border: { kind: "browser", url: "" } }).border,
+		).toEqual({ kind: "browser", url: "" });
+		// 太さ 0 以下・不正値・未知や廃止された種類・未設定はすべてフチなし。
+		expect(
+			normalizeStylePrefs({ border: { kind: "simple", width: 0 } }).border,
+		).toBeNull();
+		expect(normalizeStylePrefs({ border: { kind: "neon" } }).border).toBeNull();
+		expect(normalizeStylePrefs({ border: { kind: "card" } }).border).toBeNull();
+		expect(normalizeStylePrefs({ border: "thick" }).border).toBeNull();
+		expect(normalizeStylePrefs({}).border).toBeNull();
+	});
+
+	// 0.6.x で storage.local に保存された値は kind を持たない `{width, color}` 形式。
+	it("kind の無い旧保存値は simple として読む（後方互換）", () => {
+		expect(
+			normalizeStylePrefs({ border: { width: 6, color: "#fb7185" } }).border,
+		).toEqual({ kind: "simple", width: 6, color: "#fb7185" });
+	});
 });
 
 describe("normalizeIntensity", () => {
@@ -224,6 +251,25 @@ describe("stylePrefsEqual", () => {
 		expect(stylePrefsEqual(FULL, { ...FULL, exportQuality: "low" })).toBe(
 			false,
 		);
+		expect(stylePrefsEqual(FULL, { ...FULL, border: null })).toBe(false);
+		expect(
+			stylePrefsEqual(FULL, {
+				...FULL,
+				border: { kind: "simple", width: 12, color: "#71717a" },
+			}),
+		).toBe(false);
+	});
+
+	it("border は null 同士・同値の組を同値と見なす", () => {
+		expect(
+			stylePrefsEqual({ ...FULL, border: null }, { ...FULL, border: null }),
+		).toBe(true);
+		expect(
+			stylePrefsEqual(
+				{ ...FULL, border: { kind: "simple", width: 6, color: "#71717a" } },
+				{ ...FULL, border: { kind: "simple", width: 6, color: "#71717a" } },
+			),
+		).toBe(true);
 	});
 
 	it("calloutTails は要素が同じなら順序が正規化済み前提で true", () => {
@@ -269,6 +315,7 @@ describe("createStylePrefsSaver", () => {
 			cropRatio: "4:3",
 			exportFormat: "webp",
 			exportQuality: "low",
+			border: { kind: "simple", width: 12, color: "#18181b" },
 		};
 		saver.save(changed);
 		saver.save({ ...changed });
@@ -291,6 +338,7 @@ describe("createStylePrefsSaver", () => {
 			cropRatio: "free",
 			exportFormat: "png",
 			exportQuality: "normal",
+			border: null,
 		});
 		expect(set).toHaveBeenCalledWith({
 			"style-prefs": {
@@ -305,6 +353,7 @@ describe("createStylePrefsSaver", () => {
 				cropRatio: "free",
 				exportFormat: "png",
 				exportQuality: "normal",
+				border: null,
 			},
 		});
 	});

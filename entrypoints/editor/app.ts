@@ -1,9 +1,21 @@
 import Konva from "konva";
 import type { CaptureRecord } from "@/lib/capture-store";
 import { type ArrowStyle, normalizeArrowStyle } from "@/lib/editor/arrow";
+import {
+	type BorderStyle,
+	borderClipRect,
+	borderContentOffset,
+	borderedSize,
+	borderEqual,
+	borderForPrefs,
+	borderInsets,
+	borderOfKind,
+	resolveBorder,
+} from "@/lib/editor/border";
 import { type CalloutTail, normalizeCalloutTails } from "@/lib/editor/callout";
-import { type CropRatio, croppedSize } from "@/lib/editor/crop";
+import type { CropRatio } from "@/lib/editor/crop";
 import { shapeSupportsDash } from "@/lib/editor/dash";
+import type { BorderKind } from "@/lib/editor/doc";
 import {
 	addShape,
 	assignGroup,
@@ -71,6 +83,8 @@ import {
 	zoomAtTransform,
 } from "./geometry-view";
 import {
+	applyContentClip,
+	buildBorderFrame,
 	renderShapes,
 	shapeFromNode,
 	syncCalloutDuringTransform,
@@ -143,6 +157,12 @@ export class EditorApp {
 	private bgLayer: Konva.Layer;
 	private shapeLayer: Konva.Layer;
 	readonly previewLayer: Konva.Layer;
+	/**
+	 * フチ（doc.border）専用レイヤー。注釈・暗幕より上に置き、暗幕に暗くされたり
+	 * 図形に隠されたりしないようにする。crop オフセットの影響を受けないよう
+	 * ステージ座標系のまま（position を動かさない）扱う。
+	 */
+	private borderLayer: Konva.Layer;
 	/** Transformer など操作用 UI を載せるレイヤー（shapeLayer 再構築の影響を受けない）。 */
 	private uiLayer: Konva.Layer;
 	private transformer: Konva.Transformer;
@@ -150,6 +170,13 @@ export class EditorApp {
 	/** モザイクのサンプリング元（キャプチャ原寸のベース画像）。 */
 	private baseImage: HTMLImageElement;
 	private contentSize: { width: number; height: number };
+	/**
+	 * 撮影元のページ URL / タイトル。ブラウザ風・ダークウィンドウ風のフレームを
+	 * 選んだときの表示テキストの初期値に使う（doc に入るのは選んだ時点の値だけで、
+	 * 設定〈storage.local〉には保存しない）。
+	 */
+	private sourceUrl: string;
+	private sourceTitle: string;
 	/** クロップ操作の UI とライフサイクルを持つコントローラ。 */
 	private crop: CropController;
 	/** 操作成功を知らせる軽量トースト。 */
@@ -213,6 +240,8 @@ export class EditorApp {
 		exportFormat: DEFAULT_STYLE_PREFS.exportFormat,
 		/** 書き出し品質（高 / 標準 / 低。JPEG / WebP のみ有効）。既定は標準。 */
 		exportQuality: DEFAULT_STYLE_PREFS.exportQuality,
+		/** 画像全体を囲むフチ（外枠）。null＝フチなし。既定はフチなし。 */
+		border: DEFAULT_STYLE_PREFS.border,
 	};
 
 	/**
@@ -252,6 +281,8 @@ export class EditorApp {
 		stylePrefs?: StylePrefs,
 	) {
 		this.contentSize = { width: record.width, height: record.height };
+		this.sourceUrl = record.sourceUrl;
+		this.sourceTitle = record.sourceTitle;
 		this.baseImage = imageEl;
 		// 前回のスタイル設定（色・線種・フォントサイズ）を復元する。線の太さは 4px 固定。
 		// この時点で this.style に反映しておくことで、下の Toolbar 生成後の
@@ -268,12 +299,16 @@ export class EditorApp {
 		this.style.cropRatio = prefs.cropRatio;
 		this.style.exportFormat = prefs.exportFormat;
 		this.style.exportQuality = prefs.exportQuality;
+		this.style.border = prefs.border;
 		// 復元値を初期値としてセーバに渡し、起動直後の同値保存を抑止する。
 		this.stylePrefsSaver = createStylePrefsSaver(prefs);
 		// crop フィールドが無い旧保存データも読めるよう null で補完する。
+		// 新規 doc（編集内容の復元が無い場合）は前回のフチ設定を引き継いで始める
+		// （「途切れ目が分からない」対策なので、毎回付け直さずに済むようにする）。
+		// 復元 doc はその doc 自身の border を尊重する（undo で戻せる状態を壊さない）。
 		const startDoc: EditorDoc = initialDoc
 			? { ...initialDoc, crop: initialDoc.crop ?? null }
-			: emptyDoc();
+			: { ...emptyDoc(), border: prefs.border };
 		this.history = initHistory(startDoc);
 
 		this.stage = new Konva.Stage({
@@ -285,6 +320,7 @@ export class EditorApp {
 		this.bgLayer = new Konva.Layer({ listening: false });
 		this.shapeLayer = new Konva.Layer();
 		this.previewLayer = new Konva.Layer({ listening: false });
+		this.borderLayer = new Konva.Layer({ listening: false });
 		this.uiLayer = new Konva.Layer();
 
 		this.image = new Konva.Image({
@@ -311,6 +347,7 @@ export class EditorApp {
 			this.bgLayer,
 			this.shapeLayer,
 			this.previewLayer,
+			this.borderLayer,
 			this.uiLayer,
 		);
 
@@ -334,6 +371,9 @@ export class EditorApp {
 			onCropRatioChange: (r) => this.setCropRatio(r),
 			onExportFormatChange: (f) => this.setExportFormat(f),
 			onExportQualityChange: (q) => this.setExportQuality(q),
+			onBorderChange: (b) => this.setBorder(b),
+			onBorderKindChange: (k) => this.setBorderKind(k),
+			onBorderTextChange: (t) => this.setBorderText(t),
 			onUndo: () => this.undo(),
 			onRedo: () => this.redo(),
 			onSave: () => this.save(),
@@ -410,10 +450,12 @@ export class EditorApp {
 		// 進行中の nudge を先に確定し、その 1 手をまるごと戻せるようにする。
 		this.flushNudge();
 		if (!canUndo(this.history)) return;
+		const before = this.displaySize();
 		this.history = undo(this.history);
 		this.selectedIds = [];
 		this.render();
 		this.syncToolbar();
+		this.refitIfSizeChanged(before);
 		this.onSelectionChanged?.(null);
 		this.onDocCommitted?.(this.history.present);
 	}
@@ -421,12 +463,27 @@ export class EditorApp {
 	redo(): void {
 		this.flushNudge();
 		if (!canRedo(this.history)) return;
+		const before = this.displaySize();
 		this.history = redo(this.history);
 		this.selectedIds = [];
 		this.render();
 		this.syncToolbar();
+		this.refitIfSizeChanged(before);
 		this.onSelectionChanged?.(null);
 		this.onDocCommitted?.(this.history.present);
+	}
+
+	/**
+	 * undo/redo でコンテンツ寸法（クロップ・フチ）が変わったとき、再フィットして
+	 * 全体が画面に収まるようにする。手動ズーム中でも再フィットするのは、寸法が
+	 * 変わるとコンテンツの位置がずれ、そのままだと端（フレームの上部バーなど）が
+	 * 画面外に隠れてしまうため。倍率だけの変更（ズーム）では呼ばれない。
+	 */
+	private refitIfSizeChanged(before: { width: number; height: number }): void {
+		const after = this.displaySize();
+		if (before.width !== after.width || before.height !== after.height) {
+			this.fitView();
+		}
 	}
 
 	// --- 描画 ---
@@ -450,15 +507,24 @@ export class EditorApp {
 	}
 
 	/**
-	 * doc.crop に応じて各レイヤーを原点合わせ（-crop.x,-crop.y のオフセット）し、
-	 * 表示を crop 寸法で clip する。クロップ座標は焼き込まず、render のたびに
-	 * ここで張り直す（undo でそのまま戻る）。crop が null なら原点・clip 解除。
+	 * doc.crop / doc.border に応じて各レイヤーを原点合わせし、表示をコンテンツ寸法で
+	 * clip する。クロップ座標は焼き込まず、render のたびにここで張り直す（undo で
+	 * そのまま戻る）。フチが有効なときはオフセットに太さ分を足して内側へ寄せ、
+	 * 外側にできた余白へ枠を描く。クロップ・フチとも無ければ原点・clip 解除。
 	 */
 	private applyCropView(): void {
-		const crop = this.history.present.crop;
-		const offset = { x: -(crop?.x ?? 0), y: -(crop?.y ?? 0) };
-		const size = this.displaySize();
-		const clip = { x: 0, y: 0, width: size.width, height: size.height };
+		const doc = this.history.present;
+		const crop = doc.crop;
+		const offset = borderContentOffset(crop, doc.border);
+		const clip = borderClipRect(crop, this.contentSize);
+		// フチがあるとクロップ無しでもコンテンツを枠内へ収める必要があるので clip する。
+		const insets = borderInsets(doc.border);
+		const needsClip =
+			crop != null ||
+			insets.top > 0 ||
+			insets.left > 0 ||
+			insets.right > 0 ||
+			insets.bottom > 0;
 
 		this.bgLayer.position(offset);
 		this.shapeLayer.position(offset);
@@ -466,13 +532,33 @@ export class EditorApp {
 		this.uiLayer.position(offset);
 		this.crop.setOffset(offset.x, offset.y);
 
-		this.bgLayer.clip(crop ? clip : null);
-		this.shapeLayer.clip(crop ? clip : null);
+		// 角丸のフレーム（ブラウザ・ダーク・カード）ではコンテンツも同じ曲率で丸める。
+		applyContentClip(this.bgLayer, needsClip ? clip : null, doc.border);
+		applyContentClip(this.shapeLayer, needsClip ? clip : null, doc.border);
+
+		this.renderBorder();
 	}
 
-	/** 表示・エクスポートの基準サイズ（crop があれば crop 寸法、無ければ画像原寸）。 */
+	/**
+	 * フチ（doc.border）を専用レイヤーへ描き直す。ステージ座標系（オフセットなし）。
+	 * 描画そのものは render.ts の buildBorderFrame が持ち、書き出し（export.ts）と
+	 * 同じ関数を使う（見た目が二重管理にならないように）。フチなしなら空にする。
+	 */
+	private renderBorder(): void {
+		this.borderLayer.destroyChildren();
+		const doc = this.history.present;
+		const frame = buildBorderFrame(doc.crop, this.contentSize, doc.border);
+		if (frame) this.borderLayer.add(frame);
+		this.borderLayer.batchDraw();
+	}
+
+	/**
+	 * 表示・エクスポートの基準サイズ。crop があれば crop 寸法、無ければ画像原寸に、
+	 * フチが有効ならその太さを各辺の外側へ足したもの（出力寸法と一致する）。
+	 */
 	private displaySize(): { width: number; height: number } {
-		return croppedSize(this.history.present.crop, this.contentSize);
+		const doc = this.history.present;
+		return borderedSize(doc.crop, this.contentSize, doc.border);
 	}
 
 	/**
@@ -1105,6 +1191,71 @@ export class EditorApp {
 	}
 
 	/**
+	 * 画像全体を囲むフチ（外枠）を設定する。フチは画像単位の設定なので doc レベルの
+	 * border フィールドへ commit する（undo 対象）。spotlight の暗さと違い、フチは
+	 * 対象となる図形の有無に関係なく常に意味を持つので、無条件に doc へ書く。
+	 *
+	 * フレームの種類・太さは出力寸法（displaySize）を変えるため、変更後にビューを
+	 * 再フィットして全体が画面に収まるようにする（手動ズーム中も同様。そうしないと
+	 * 上部バーのぶんコンテンツが押し下がり、画像の上が画面外に隠れる）。
+	 * 同時に style.border を新規 doc の既定として記憶する（次のキャプチャに引き継ぐ）。
+	 */
+	setBorder(border: BorderStyle | null): void {
+		const next = resolveBorder(border);
+		// URL・タイトルはその画像固有の内容なので設定には残さない（前の画像の URL が
+		// 次のキャプチャに写り込むのを防ぐ）。種類と枠線の見た目だけを記憶する。
+		this.style.border = borderForPrefs(next);
+		const doc = this.history.present;
+		const current = resolveBorder(doc.border);
+		// 中身まで同じなら doc を書かない（無変化の undo を積まない）。
+		if (!borderEqual(current, next)) {
+			const before = this.displaySize();
+			this.commitDoc({ ...doc, border: next });
+			// 出力寸法が変わったなら、手動ズーム中（autoFit=false）でも再フィットする。
+			// フレームはコンテンツを内側へ押し込むので、そのままだと上部バーや余白が
+			// 画面外に出て「画像の上が見えない」状態になるため。
+			const after = this.displaySize();
+			if (before.width !== after.width || before.height !== after.height) {
+				this.fitView();
+			}
+		}
+		this.toolbar.setBorder(next);
+		this.persistStylePrefs();
+	}
+
+	/**
+	 * フレームの種類を切り替える（"none" はフチなし）。
+	 * ブラウザ風を選んだときは撮影元の URL を初期値として入れる（クエリ・ハッシュは
+	 * 描画時に落とす）。ダークのタイトルは撮影元のページタイトルを初期値にする。
+	 * 枠線は現在の太さ・色（無ければ既定）を引き継ぐ。
+	 */
+	setBorderKind(kind: BorderKind | "none"): void {
+		const current = resolveBorder(this.history.present.border);
+		const simple = current?.kind === "simple" ? current : null;
+		this.setBorder(
+			borderOfKind(kind, {
+				width: simple?.width,
+				color: simple?.color,
+				url: this.sourceUrl,
+				title: this.sourceTitle,
+			}),
+		);
+	}
+
+	/**
+	 * フレームの表示テキスト（ブラウザの URL / ダークのタイトル）を書き換える。
+	 * 対象の種類でないときは何もしない。寸法は変わらないので再フィットは不要。
+	 */
+	setBorderText(text: string): void {
+		const current = resolveBorder(this.history.present.border);
+		if (current?.kind === "browser") {
+			this.setBorder({ kind: "browser", url: text });
+		} else if (current?.kind === "dark") {
+			this.setBorder({ kind: "dark", title: text });
+		}
+	}
+
+	/**
 	 * しっぽの向き（下 / 上 / 左 / 右）を 1 つトグルする（複数選択・全 OFF 可）。
 	 * 現在のしっぽ集合に含まれていれば外し、無ければ足して normalize（重複除去・並び順）
 	 * する。空集合＝しっぽなし。新規フキダシの既定にし、フキダシを選択中はそのシェイプへ
@@ -1212,6 +1363,7 @@ export class EditorApp {
 			cropRatio: this.style.cropRatio,
 			exportFormat: this.style.exportFormat,
 			exportQuality: this.style.exportQuality,
+			border: this.style.border,
 		});
 	}
 
@@ -1904,6 +2056,8 @@ export class EditorApp {
 		// 出力形式・品質は選択に依らず現在の style を反映する（ツールバー右端の形式ボタン）。
 		this.toolbar.setExportFormat(this.style.exportFormat);
 		this.toolbar.setExportQuality(this.style.exportQuality);
+		// フチは doc 側の値（undo で戻る実際の見た目）を反映する。style ではない。
+		this.toolbar.setBorder(resolveBorder(this.history.present.border));
 		this.toolbar.setUndoRedo(canUndo(this.history), canRedo(this.history));
 		this.updateCursor();
 	}

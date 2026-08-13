@@ -1,7 +1,18 @@
 import type { ArrowStyle } from "@/lib/editor/arrow";
+import {
+	BORDER_DEFAULT_COLOR,
+	BORDER_DEFAULT_WIDTH,
+	BORDER_KIND_OPTIONS,
+	BORDER_WIDTH_OPTIONS,
+	borderKindOf,
+} from "@/lib/editor/border";
 import type { CalloutTail } from "@/lib/editor/callout";
 import { CROP_RATIO_OPTIONS, type CropRatio } from "@/lib/editor/crop";
-import type { MosaicBlurIntensity } from "@/lib/editor/doc";
+import type {
+	BorderKind,
+	BorderStyle,
+	MosaicBlurIntensity,
+} from "@/lib/editor/doc";
 import {
 	EXPORT_FORMAT_INFO,
 	type ExportFormat,
@@ -151,6 +162,12 @@ export interface ToolbarCallbacks {
 	onExportFormatChange(format: ExportFormat): void;
 	/** 書き出し品質（高/標準/低）が選ばれたとき（JPEG/WebP）。 */
 	onExportQualityChange(quality: ExportQuality): void;
+	/** フチ（フレーム）の設定が変わったとき。null はフチなし。 */
+	onBorderChange(border: BorderStyle | null): void;
+	/** フレームの種類が選ばれたとき（"none" はフチなし）。URL 等の初期値は app 側が決める。 */
+	onBorderKindChange(kind: BorderKind | "none"): void;
+	/** フレームの表示テキスト（ブラウザの URL / ダークのタイトル）が編集されたとき。 */
+	onBorderTextChange(text: string): void;
 	onUndo(): void;
 	onRedo(): void;
 	onZoomChange?(scale: number): void;
@@ -221,11 +238,10 @@ export class Toolbar {
 	 * 形式（PNG/JPEG/WebP）ボタンと、その直下に開閉するフライアウト。
 	 * 以前の「スタイル」ポップオーバー（コミット 04ef07a）と同じ作法で、クリックで
 	 * 開閉し外側クリック / Esc で閉じる（aria-haspopup/aria-expanded・フォーカス管理）。
+	 * 開閉・配置・フォーカスの作法は FlyoutPopover が持ち、フチのフライアウトと共有する。
 	 */
-	private formatButton!: HTMLButtonElement;
+	private formatPopover!: FlyoutPopover;
 	private formatLabel!: HTMLSpanElement;
-	private formatFlyout!: HTMLDivElement;
-	private formatFlyoutOpen = false;
 	private exportFormatButtons = new Map<ExportFormat, HTMLButtonElement>();
 	private exportQualityButtons = new Map<ExportQuality, HTMLButtonElement>();
 	/** 品質セクション（JPEG/WebP 選択時のみ表示）。 */
@@ -234,27 +250,25 @@ export class Toolbar {
 	private currentExportFormat: ExportFormat = "png";
 	/** 保存ボタン（ツールチップに現在形式を出す）。 */
 	private saveButton!: HTMLButtonElement;
-	/** フライアウト表示中に退避した形式ボタンのツールチップ本文（閉じたら戻す）。 */
-	private formatSuppressedTooltip: string | undefined;
+
 	/**
-	 * 形式フライアウトの外側 pointerdown を検知して閉じるハンドラ（capture 相）。
-	 * ボタン・パネルのどちらの内側でもなければ閉じる。フォーカスは戻さない。
+	 * フチ（外枠）ボタンと、その直下に開閉するフライアウト。太さ 4 択（なし/細/標準/太）
+	 * と色スウォッチを並べる。フチは書き出し形式と同じく「ツールに紐づかない画像単位の
+	 * 設定」なので、スタイルフライアウト（ツールアンカー方式）ではなく独立ボタンに置く。
 	 */
-	private onFormatOutsidePointerDown = (e: PointerEvent): void => {
-		const target = e.target;
-		if (!(target instanceof Node)) return;
-		// ボタン・パネルのいずれかの内側なら無視（DOM 上は別コンテナに置くため両方見る）。
-		if (this.formatButton.contains(target)) return;
-		if (this.formatFlyout.contains(target)) return;
-		this.closeFormatFlyout(false);
-	};
-	/** Esc で形式フライアウトを閉じる（ボタンへフォーカスを戻す。capture 相）。 */
-	private onFormatKeydown = (e: KeyboardEvent): void => {
-		if (e.key === "Escape") {
-			e.preventDefault();
-			this.closeFormatFlyout(true);
-		}
-	};
+	private borderPopover!: FlyoutPopover;
+	private borderKindButtons = new Map<BorderKind | "none", HTMLButtonElement>();
+	private borderWidthButtons = new Map<number, HTMLButtonElement>();
+	private borderColorButtons = new Map<string, HTMLButtonElement>();
+	/** 太さ・色セクション（枠線を選んだときだけ出す）。 */
+	private borderWidthSection!: HTMLDivElement;
+	private borderColorSection!: HTMLDivElement;
+	/** 表示テキスト欄（ブラウザの URL / ダークのタイトルのときだけ出す）。 */
+	private borderTextSection!: HTMLDivElement;
+	private borderTextLabel!: HTMLSpanElement;
+	private borderTextInput!: HTMLInputElement;
+	/** 現在のフチ設定（フライアウトの選択状態・ボタンの見た目に反映する）。 */
+	private currentBorder: BorderStyle | null = null;
 
 	constructor(
 		private root: HTMLElement,
@@ -303,6 +317,12 @@ export class Toolbar {
 			colorGroup.append(btn);
 		}
 		this.root.append(colorGroup, divider());
+
+		// フチ（外枠）: どのツールにも属さない画像単位の設定なので、スタイルフライアウト
+		// （ツールアンカー方式）ではなく独立したボタン＋フライアウトで出す。
+		const borderGroup = group();
+		this.buildBorderControl(borderGroup);
+		this.root.append(borderGroup, divider());
 
 		// undo/redo
 		const historyGroup = group();
@@ -354,12 +374,12 @@ export class Toolbar {
 
 		// ウィンドウ幅が変わるとツールバーが折り返してアンカー先ボタンの位置がずれる。
 		// フライアウト表示中は再配置する（固定配置なので座標を計算し直す必要がある）。
-		// 形式フライアウト（開いていれば）も同様に再配置する。
-		// Esc・外側クリックによる形式フライアウトの close は openFormatFlyout が張る
-		// 専用リスナ（onFormatKeydown / onFormatOutsidePointerDown）が担う。
+		// 形式・フチのフライアウト（開いていれば）も同様に再配置する。
+		// Esc・外側クリックによるこれらの close は FlyoutPopover 側のリスナが担う。
 		window.addEventListener("resize", () => {
 			if (this.anchorTool) this.placeFlyout();
-			if (this.formatFlyoutOpen) this.placeFormatFlyout();
+			if (this.formatPopover.isOpen()) this.formatPopover.place();
+			if (this.borderPopover.isOpen()) this.borderPopover.place();
 		});
 	}
 
@@ -371,31 +391,31 @@ export class Toolbar {
 	 */
 	private buildFormatControl(parent: HTMLElement): void {
 		// 形式ボタン。ラベルは現在形式（PNG/JPEG/WebP）。setExportFormat が中身を更新する。
-		this.formatButton = document.createElement("button");
-		this.formatButton.type = "button";
-		this.formatButton.className = "text-btn format-btn";
-		this.formatButton.dataset.tooltip = "書き出し形式";
-		this.formatButton.setAttribute("aria-haspopup", "true");
-		this.formatButton.setAttribute("aria-expanded", "false");
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = "text-btn format-btn";
+		button.dataset.tooltip = "書き出し形式";
 		this.formatLabel = document.createElement("span");
 		this.formatLabel.textContent = EXPORT_FORMAT_INFO.png.label;
-		this.formatButton.setAttribute("aria-label", "書き出し形式: PNG");
-		this.formatButton.append(this.formatLabel);
-		this.formatButton.addEventListener("click", () =>
-			this.toggleFormatFlyout(),
-		);
-		parent.append(this.formatButton);
+		button.setAttribute("aria-label", "書き出し形式: PNG");
+		button.append(this.formatLabel);
+		parent.append(button);
 
 		// フライアウト本体（固定配置で形式ボタンの直下に置く）。role=menu 相当の group。
-		this.formatFlyout = document.createElement("div");
-		this.formatFlyout.className = "format-flyout";
-		this.formatFlyout.hidden = true;
-		this.formatFlyout.setAttribute("role", "group");
-		this.formatFlyout.setAttribute("aria-label", "書き出し形式と品質");
+		const flyout = document.createElement("div");
+		flyout.className = "format-flyout";
+		flyout.setAttribute("role", "group");
+		flyout.setAttribute("aria-label", "書き出し形式と品質");
+
+		// 開閉・配置・フォーカス管理は共通のポップオーバーへ委ねる。
+		// 開いたら現在形式のボタンへフォーカスする（キーボード操作の起点）。
+		this.formatPopover = new FlyoutPopover(button, flyout, () =>
+			this.exportFormatButtons.get(this.currentExportFormat),
+		);
 
 		// 形式セクション（PNG/JPEG/WebP の単一選択トグル）。
 		const formatSection = this.buildStyleSection("形式");
-		this.formatFlyout.append(formatSection.section);
+		flyout.append(formatSection.section);
 		for (const opt of EXPORT_FORMAT_OPTIONS) {
 			const btn = document.createElement("button");
 			btn.type = "button";
@@ -414,7 +434,7 @@ export class Toolbar {
 		// 品質セクション（高/標準/低）。JPEG/WebP 選択時のみ表示する。
 		const qualitySection = this.buildStyleSection("品質");
 		this.exportQualitySection = qualitySection.section;
-		this.formatFlyout.append(qualitySection.section);
+		flyout.append(qualitySection.section);
 		for (const opt of EXPORT_QUALITY_OPTIONS) {
 			const btn = document.createElement("button");
 			btn.type = "button";
@@ -430,84 +450,117 @@ export class Toolbar {
 			qualitySection.options.append(btn);
 		}
 
-		this.root.append(this.formatFlyout);
-	}
-
-	/** 形式フライアウトを開閉する。 */
-	private toggleFormatFlyout(): void {
-		if (this.formatFlyoutOpen) this.closeFormatFlyout(true);
-		else this.openFormatFlyout();
+		this.root.append(flyout);
 	}
 
 	/**
-	 * 形式フライアウトを開く。Esc・外側 pointerdown で閉じられるようリスナを張り、
-	 * 先頭の形式ボタンへフォーカスする。ボタンのツールチップは開いている間は抑止する。
-	 * 外側 pointerdown リスナは「開いたきっかけの同一クリックのイベント伝播で即閉じ」
-	 * を避けるため次フレーム（setTimeout 0）で張る（04ef07a のポップオーバーと同じ作法）。
+	 * フチ（フレーム）ボタンと、その直下に開閉するフライアウトを組み立てる。
+	 *
+	 * セクションは「フレーム種類（なし / 枠線 / ブラウザ / カード / ダーク / テープ）」が
+	 * 常に出て、選んだ種類に応じて追加セクションを出し分ける:
+	 *   - 枠線: 太さ（細 / 標準 / 太）と色スウォッチ
+	 *   - ブラウザ: アドレスバーに出す URL の入力欄
+	 *   - ダーク: タイトルバーに出す文字の入力欄
+	 *   - カード / テープ: 追加設定なし（デザインは固定）
 	 */
-	private openFormatFlyout(): void {
-		if (this.formatFlyoutOpen) return;
-		this.formatFlyoutOpen = true;
-		this.formatFlyout.hidden = false;
-		this.formatButton.setAttribute("aria-expanded", "true");
-		this.placeFormatFlyout();
-		// 開いている間はボタンのツールチップを出さない（開閉と二重に出るのを避ける）。
-		this.formatSuppressedTooltip = this.formatButton.dataset.tooltip;
-		delete this.formatButton.dataset.tooltip;
+	private buildBorderControl(parent: HTMLElement): void {
+		const button = iconButton(icons.border, "フチ（フレーム）");
+		button.classList.add("border-btn");
+		parent.append(button);
 
-		// Esc は即座に、外側 pointerdown は次フレームで張る（開いた同一クリックで即閉じない）。
-		// いずれも capture 相で拾い、内側の click より先に外側判定を通す。
-		document.addEventListener("keydown", this.onFormatKeydown, true);
-		window.setTimeout(() => {
-			if (this.formatFlyoutOpen) {
-				document.addEventListener(
-					"pointerdown",
-					this.onFormatOutsidePointerDown,
-					true,
-				);
-			}
-		}, 0);
+		const flyout = document.createElement("div");
+		flyout.className = "format-flyout";
+		flyout.setAttribute("role", "group");
+		flyout.setAttribute("aria-label", "フチ（フレーム）の設定");
 
-		// 先頭の形式ボタン（現在形式）へフォーカスを移す（キーボード操作の起点）。
-		this.exportFormatButtons.get(this.currentExportFormat)?.focus();
-	}
-
-	/**
-	 * 形式フライアウトを閉じる。リスナを外し、抑止したツールチップを戻す。
-	 * restoreFocus が true ならボタンへフォーカスを戻す（Esc・トグル等ユーザー起点の閉じ）。
-	 */
-	private closeFormatFlyout(restoreFocus: boolean): void {
-		if (!this.formatFlyoutOpen) return;
-		this.formatFlyoutOpen = false;
-		this.formatFlyout.hidden = true;
-		this.formatButton.setAttribute("aria-expanded", "false");
-		document.removeEventListener("keydown", this.onFormatKeydown, true);
-		document.removeEventListener(
-			"pointerdown",
-			this.onFormatOutsidePointerDown,
-			true,
+		// 開いたら現在の種類のボタンへフォーカスする（フチなしなら「なし」）。
+		this.borderPopover = new FlyoutPopover(button, flyout, () =>
+			this.borderKindButtons.get(borderKindOf(this.currentBorder)),
 		);
-		if (this.formatSuppressedTooltip !== undefined) {
-			this.formatButton.dataset.tooltip = this.formatSuppressedTooltip;
-			this.formatSuppressedTooltip = undefined;
-		}
-		if (restoreFocus) this.formatButton.focus();
-	}
 
-	/**
-	 * 形式フライアウトを形式ボタンの直下・左揃えに固定配置する。画面右端のはみ出しは
-	 * ビューポート幅でクランプする（スタイルフライアウトの placeTooltip と同じ思想）。
-	 */
-	private placeFormatFlyout(): void {
-		const rect = this.formatButton.getBoundingClientRect();
-		const width = this.formatFlyout.offsetWidth;
-		const margin = 8;
-		let left = rect.left;
-		if (left + width > window.innerWidth - margin) {
-			left = Math.max(margin, window.innerWidth - margin - width);
+		// 種類セクション（単一選択トグル）。
+		const kindSection = this.buildStyleSection("フレーム");
+		flyout.append(kindSection.section);
+		for (const opt of BORDER_KIND_OPTIONS) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "style-toggle-btn";
+			btn.dataset.tooltip = opt.label;
+			btn.setAttribute("aria-label", `フレーム: ${opt.label}`);
+			btn.setAttribute("aria-pressed", "false");
+			btn.textContent = opt.label;
+			btn.addEventListener("click", () =>
+				this.callbacks.onBorderKindChange(opt.value),
+			);
+			this.borderKindButtons.set(opt.value, btn);
+			kindSection.options.append(btn);
 		}
-		this.formatFlyout.style.left = `${left}px`;
-		this.formatFlyout.style.top = `${rect.bottom + 6}px`;
+
+		// 太さセクション（枠線を選んだときだけ出す）。
+		const widthSection = this.buildStyleSection("太さ");
+		this.borderWidthSection = widthSection.section;
+		flyout.append(widthSection.section);
+		for (const opt of BORDER_WIDTH_OPTIONS) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "style-toggle-btn";
+			btn.dataset.tooltip = opt.label;
+			btn.setAttribute("aria-label", `フチの太さ: ${opt.label}`);
+			btn.setAttribute("aria-pressed", "false");
+			btn.textContent = opt.label;
+			btn.addEventListener("click", () => {
+				const current = this.currentBorder;
+				this.callbacks.onBorderChange({
+					kind: "simple",
+					width: opt.value,
+					color:
+						current?.kind === "simple" ? current.color : BORDER_DEFAULT_COLOR,
+				});
+			});
+			this.borderWidthButtons.set(opt.value, btn);
+			widthSection.options.append(btn);
+		}
+
+		// 色セクション（本体の色スウォッチと同じパレット）。枠線のときだけ出す。
+		const colorSection = this.buildStyleSection("色");
+		this.borderColorSection = colorSection.section;
+		flyout.append(colorSection.section);
+		for (const color of COLORS) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "swatch";
+			btn.dataset.tooltip = color.label;
+			btn.setAttribute("aria-label", `フチの色: ${color.label}`);
+			btn.setAttribute("aria-pressed", "false");
+			btn.style.setProperty("--swatch", color.value);
+			btn.addEventListener("click", () => {
+				const current = this.currentBorder;
+				this.callbacks.onBorderChange({
+					kind: "simple",
+					width:
+						current?.kind === "simple" ? current.width : BORDER_DEFAULT_WIDTH,
+					color: color.value,
+				});
+			});
+			this.borderColorButtons.set(color.value, btn);
+			colorSection.options.append(btn);
+		}
+
+		// テキストセクション（ブラウザの URL / ダークのタイトル）。入力のたびに反映する。
+		const textSection = this.buildStyleSection("表示テキスト");
+		this.borderTextSection = textSection.section;
+		this.borderTextLabel = textSection.label;
+		flyout.append(textSection.section);
+		this.borderTextInput = document.createElement("input");
+		this.borderTextInput.type = "text";
+		this.borderTextInput.className = "border-text-input";
+		this.borderTextInput.setAttribute("aria-label", "フレームに表示する文字");
+		this.borderTextInput.addEventListener("input", () => {
+			this.callbacks.onBorderTextChange(this.borderTextInput.value);
+		});
+		textSection.options.append(this.borderTextInput);
+
+		this.root.append(flyout);
 	}
 
 	/**
@@ -685,6 +738,7 @@ export class Toolbar {
 	private buildStyleSection(label: string): {
 		section: HTMLDivElement;
 		options: HTMLDivElement;
+		label: HTMLSpanElement;
 	} {
 		const section = document.createElement("div");
 		section.className = "style-section";
@@ -694,7 +748,7 @@ export class Toolbar {
 		const options = document.createElement("div");
 		options.className = "style-section-options";
 		section.append(heading, options);
-		return { section, options };
+		return { section, options, label: heading };
 	}
 
 	/**
@@ -984,14 +1038,63 @@ export class Toolbar {
 		this.currentExportFormat = format;
 		const info = EXPORT_FORMAT_INFO[format];
 		this.formatLabel.textContent = info.label;
-		this.formatButton.setAttribute("aria-label", `書き出し形式: ${info.label}`);
+		this.formatPopover.button.setAttribute(
+			"aria-label",
+			`書き出し形式: ${info.label}`,
+		);
 		this.setToggleActive(this.exportFormatButtons, (v) => v === format);
 		// 保存ボタンのツールチップに現在形式を出す。
 		this.saveButton.dataset.tooltip = `${info.label} をダウンロード`;
 		this.saveButton.setAttribute("aria-label", `${info.label} をダウンロード`);
 		// 品質は JPEG/WebP のみ有効（PNG は可逆圧縮なので隠す）。
 		this.exportQualitySection.hidden = format === "png";
-		if (this.formatFlyoutOpen) this.placeFormatFlyout();
+		// 品質セクションの出現でパネルの高さが変わるので、開いていれば置き直す。
+		if (this.formatPopover.isOpen()) this.formatPopover.place();
+	}
+
+	/**
+	 * フチ（フレーム）の現在値を反映する。種類トグルの選択状態を更新し、
+	 * 選んだ種類に関係のないセクション（太さ・色・表示テキスト）を隠す。
+	 */
+	setBorder(border: BorderStyle | null): void {
+		this.currentBorder = border;
+		const kind = borderKindOf(border);
+		this.setToggleActive(this.borderKindButtons, (v) => v === kind);
+
+		// 太さ・色は枠線（simple）のときだけ意味を持つ。
+		const isSimple = border?.kind === "simple";
+		this.borderWidthSection.hidden = !isSimple;
+		this.borderColorSection.hidden = !isSimple;
+		this.setToggleActive(
+			this.borderWidthButtons,
+			(v) => isSimple && v === border.width,
+		);
+		this.setToggleActive(
+			this.borderColorButtons,
+			(v) => isSimple && v === border.color,
+		);
+
+		// 表示テキストはブラウザ（URL）・ダーク（タイトル）のときだけ出す。
+		const text =
+			border?.kind === "browser"
+				? border.url
+				: border?.kind === "dark"
+					? border.title
+					: null;
+		this.borderTextSection.hidden = text == null;
+		if (text != null) {
+			this.borderTextLabel.textContent =
+				border?.kind === "browser" ? "URL" : "タイトル";
+			this.borderTextInput.placeholder =
+				border?.kind === "browser" ? "https://example.com" : "（空欄可）";
+			// 入力中のカーソル位置を壊さないよう、値が変わったときだけ書き戻す。
+			if (this.borderTextInput.value !== text) {
+				this.borderTextInput.value = text;
+			}
+		}
+
+		// セクションの出し入れでパネルの高さが変わるので、開いていれば置き直す。
+		if (this.borderPopover.isOpen()) this.borderPopover.place();
 	}
 
 	/** 書き出し品質（高/標準/低）の現在値を反映する（active クラスと aria-pressed）。 */
@@ -1058,4 +1161,120 @@ function textButton(
 /** ツールチップ本文とショートカットを 1 本の aria-label 文にまとめる。 */
 function ariaLabel(tooltip: string, shortcut?: string): string {
 	return shortcut ? `${tooltip} (${shortcut})` : tooltip;
+}
+
+/**
+ * 「ボタン + その直下に開閉するパネル」1 組の開閉・配置・フォーカス管理をまとめた
+ * 小さなポップオーバー。書き出し形式とフチのフライアウトが同じ作法を共有する
+ * （クリックで開閉、外側 pointerdown / Esc で閉じ、aria-haspopup / aria-expanded、
+ * 開いている間はボタンのツールチップを抑止、閉じるときフォーカスをボタンへ戻す）。
+ *
+ * パネルは固定配置でボタンの直下・左揃えに置き、画面右端はビューポート幅でクランプ
+ * する。外側 pointerdown リスナは「開いたきっかけの同一クリックで即閉じ」を避けるため
+ * 次フレーム（setTimeout 0）で張る。いずれも capture 相で拾い、内側の click より先に
+ * 外側判定を通す。
+ */
+class FlyoutPopover {
+	private open = false;
+	/** 表示中に退避したボタンのツールチップ本文（閉じたら戻す）。 */
+	private suppressedTooltip: string | undefined;
+	/** 開いた直後にフォーカスする要素を返す（省略時はフォーカス移動しない）。 */
+	private initialFocus?: () => HTMLElement | undefined;
+
+	private onOutsidePointerDown = (e: PointerEvent): void => {
+		const target = e.target;
+		if (!(target instanceof Node)) return;
+		// ボタン・パネルのいずれかの内側なら無視（DOM 上は別コンテナに置くため両方見る）。
+		if (this.button.contains(target)) return;
+		if (this.panel.contains(target)) return;
+		this.close(false);
+	};
+
+	private onKeydown = (e: KeyboardEvent): void => {
+		if (e.key === "Escape") {
+			e.preventDefault();
+			this.close(true);
+		}
+	};
+
+	constructor(
+		readonly button: HTMLButtonElement,
+		readonly panel: HTMLDivElement,
+		initialFocus?: () => HTMLElement | undefined,
+	) {
+		this.initialFocus = initialFocus;
+		this.panel.hidden = true;
+		this.button.setAttribute("aria-haspopup", "true");
+		this.button.setAttribute("aria-expanded", "false");
+		this.button.addEventListener("click", () => this.toggle());
+	}
+
+	/** 開いているか（resize での再配置判定に使う）。 */
+	isOpen(): boolean {
+		return this.open;
+	}
+
+	toggle(): void {
+		if (this.open) this.close(true);
+		else this.show();
+	}
+
+	show(): void {
+		if (this.open) return;
+		this.open = true;
+		this.panel.hidden = false;
+		this.button.setAttribute("aria-expanded", "true");
+		this.place();
+		// 開いている間はボタンのツールチップを出さない（開閉と二重に出るのを避ける）。
+		this.suppressedTooltip = this.button.dataset.tooltip;
+		delete this.button.dataset.tooltip;
+
+		document.addEventListener("keydown", this.onKeydown, true);
+		window.setTimeout(() => {
+			if (this.open) {
+				document.addEventListener(
+					"pointerdown",
+					this.onOutsidePointerDown,
+					true,
+				);
+			}
+		}, 0);
+
+		this.initialFocus?.()?.focus();
+	}
+
+	/**
+	 * 閉じる。restoreFocus が true ならボタンへフォーカスを戻す
+	 * （Esc・トグル等ユーザー起点の閉じ）。
+	 */
+	close(restoreFocus: boolean): void {
+		if (!this.open) return;
+		this.open = false;
+		this.panel.hidden = true;
+		this.button.setAttribute("aria-expanded", "false");
+		document.removeEventListener("keydown", this.onKeydown, true);
+		document.removeEventListener(
+			"pointerdown",
+			this.onOutsidePointerDown,
+			true,
+		);
+		if (this.suppressedTooltip !== undefined) {
+			this.button.dataset.tooltip = this.suppressedTooltip;
+			this.suppressedTooltip = undefined;
+		}
+		if (restoreFocus) this.button.focus();
+	}
+
+	/** ボタンの直下・左揃えに固定配置する（右端はビューポート幅でクランプ）。 */
+	place(): void {
+		const rect = this.button.getBoundingClientRect();
+		const width = this.panel.offsetWidth;
+		const margin = 8;
+		let left = rect.left;
+		if (left + width > window.innerWidth - margin) {
+			left = Math.max(margin, window.innerWidth - margin - width);
+		}
+		this.panel.style.left = `${left}px`;
+		this.panel.style.top = `${rect.bottom + 6}px`;
+	}
 }

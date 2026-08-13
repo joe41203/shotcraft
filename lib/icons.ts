@@ -92,6 +92,10 @@ export const icons = {
 	),
 	// 範囲選択キャプチャ（クロップ枠）
 	crop: svg('<path d="M6 2v16h16"/><path d="M18 22V6H2"/>'),
+	// フチ（外枠）: 太い外枠の内側にコンテンツを表す薄い矩形
+	border: svg(
+		'<rect x="2.5" y="4.5" width="19" height="15" rx="1.5" stroke-width="2.5"/><rect x="7" y="9" width="10" height="6" rx="1" opacity="0.5"/>',
+	),
 	// ページ全体キャプチャ（縦長ページ＋下向きスクロール矢印）
 	fullPage: svg(
 		'<rect x="6" y="3" width="12" height="18" rx="1.5"/><line x1="12" y1="7" x2="12" y2="17"/><polyline points="9 14 12 17 15 14"/>',

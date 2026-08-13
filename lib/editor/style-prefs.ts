@@ -11,9 +11,10 @@
  */
 
 import { type ArrowStyle, normalizeArrowStyle } from "./arrow";
+import { borderEqual, normalizeBorder } from "./border";
 import { type CalloutTail, normalizeCalloutTails } from "./callout";
 import { type CropRatio, normalizeCropRatio } from "./crop";
-import type { MosaicBlurIntensity } from "./doc";
+import type { BorderStyle, MosaicBlurIntensity } from "./doc";
 import {
 	DEFAULT_EXPORT_FORMAT,
 	DEFAULT_EXPORT_QUALITY,
@@ -52,6 +53,11 @@ export interface StylePrefs {
 	exportFormat: ExportFormat;
 	/** 書き出し品質（高 / 標準 / 低。JPEG / WebP のみ有効）。既定は "normal"。 */
 	exportQuality: ExportQuality;
+	/**
+	 * 画像全体を囲むフチ（外枠）。null＝フチなし（既定）。ここに記憶した設定は
+	 * 次に開いた画像の初期値になる（前回フチを付けたなら次も付いた状態で始まる）。
+	 */
+	border: BorderStyle | null;
 }
 
 /** 保存値が無い・壊れているときに使う既定スタイル（app.ts の初期値と一致させる）。 */
@@ -67,6 +73,7 @@ export const DEFAULT_STYLE_PREFS: StylePrefs = {
 	cropRatio: "free",
 	exportFormat: DEFAULT_EXPORT_FORMAT,
 	exportQuality: DEFAULT_EXPORT_QUALITY,
+	border: null,
 };
 
 /** storage.local のキー。capture/doc（storage.session）とは名前空間を分ける。 */
@@ -98,6 +105,8 @@ export function normalizeIntensity(raw: unknown): MosaicBlurIntensity {
  * - cropRatio: "free"/"1:1"/"4:3"/"16:9" のいずれか。それ以外は "free"。
  * - exportFormat: "png"/"jpeg"/"webp" のいずれか。それ以外は "png"。
  * - exportQuality: "high"/"normal"/"low" のいずれか。それ以外は "normal"。
+ * - border: 太さ（正の数）と色を持つオブジェクトのみ有効。未設定・不正値・太さ 0 以下は
+ *   null（フチなし＝既定）。
  * 部分的に壊れていても、壊れたキーだけ既定へ落として全体は必ず有効な値を返す。
  */
 export function normalizeStylePrefs(raw: unknown): StylePrefs {
@@ -139,6 +148,8 @@ export function normalizeStylePrefs(raw: unknown): StylePrefs {
 		cropRatio: normalizeCropRatio(source.cropRatio),
 		exportFormat: normalizeExportFormat(source.exportFormat),
 		exportQuality: normalizeExportQuality(source.exportQuality),
+		// 未設定・不正値・太さ 0 以下はすべて null（フチなし＝後方互換の既定）。
+		border: normalizeBorder(source.border),
 	};
 }
 
@@ -160,7 +171,8 @@ export function stylePrefsEqual(a: StylePrefs, b: StylePrefs): boolean {
 		tailsEqual(a.calloutTails, b.calloutTails) &&
 		a.cropRatio === b.cropRatio &&
 		a.exportFormat === b.exportFormat &&
-		a.exportQuality === b.exportQuality
+		a.exportQuality === b.exportQuality &&
+		borderEqual(a.border, b.border)
 	);
 }
 

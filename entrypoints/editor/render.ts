@@ -2,6 +2,16 @@ import Konva from "konva";
 import { curvedArrowControl, normalizeArrowStyle } from "@/lib/editor/arrow";
 import { blurCornerRadius, blurRadius } from "@/lib/editor/blur";
 import {
+	BORDER_METRICS,
+	borderContentCornerRadii,
+	borderContentRect,
+	borderedSize,
+	borderStrokeRect,
+	borderTitleBarLayout,
+	displayUrl,
+	resolveBorder,
+} from "@/lib/editor/border";
+import {
 	CALLOUT_CORNER_RADIUS,
 	CALLOUT_FILL_ALPHA,
 	CALLOUT_PADDING,
@@ -15,7 +25,9 @@ import { resolveDash } from "@/lib/editor/dash";
 import type {
 	ArrowShape,
 	BlurShape,
+	BorderStyle,
 	CalloutShape,
+	CropRect,
 	EditorDoc,
 	EraseShape,
 	MosaicShape,
@@ -1006,4 +1018,301 @@ function scalePoints(
 		out.push(offsetY + (points[i + 1] ?? 0) * scaleY);
 	}
 	return out;
+}
+
+// --- フチ（外枠・装飾フレーム）---
+
+/**
+ * フレームの見た目トークン（色）。寸法の正は lib/editor/border.ts の BORDER_METRICS で、
+ * ここは Konva 描画に必要な色だけを持つ。外部リソースは使わない（同梱フォント・単色のみ）。
+ */
+const BORDER_THEME = {
+	/** ブラウザ風: 明るいクロム・アドレスバーのプレート・文字色。 */
+	browser: {
+		chrome: "#e9e9ed",
+		chromeBorder: "#d3d3d8",
+		plate: "#ffffff",
+		plateBorder: "#dcdce1",
+		text: "#52525b",
+	},
+	/** ダークウィンドウ風: 暗いタイトルバーと本体の縁。 */
+	dark: {
+		chrome: "#27272a",
+		chromeBorder: "#3f3f46",
+		text: "#d4d4d8",
+	},
+	/** 信号機ボタン（macOS 風の 3 色）。 */
+	trafficLights: ["#ff5f57", "#febc2e", "#28c840"],
+} as const;
+
+/**
+ * doc.border から、フレームを描く Konva ノード群（1 つの Group）を組み立てる。
+ *
+ * エディタ表示（app.ts の borderLayer）と書き出し（export.ts）の**両方がこれを使う**
+ * ため、見た目が二重管理にならない（buildSpotlightVeil と同じ役割分担）。
+ * 座標はすべてステージ座標系（レイヤーのオフセットを掛けない前提）。
+ * フチなし・未知の種類のときは null を返す（呼び出し側は何も追加しない）。
+ *
+ * コンテンツ自体のクリップ（角丸を含む）は呼び出し側のレイヤー clip が担い、
+ * ここではコンテンツの外側に乗る装飾だけを描く。
+ */
+export function buildBorderFrame(
+	crop: CropRect | null,
+	imageSize: { width: number; height: number },
+	border?: BorderStyle | null,
+): Konva.Group | null {
+	const resolved = resolveBorder(border);
+	if (!resolved) return null;
+
+	const outer = borderedSize(crop, imageSize, resolved);
+	const content = borderContentRect(crop, imageSize, resolved);
+	const group = new Konva.Group({ listening: false });
+
+	switch (resolved.kind) {
+		case "simple": {
+			const stroke = borderStrokeRect(crop, imageSize, resolved);
+			if (stroke) {
+				group.add(
+					new Konva.Rect({
+						x: stroke.x,
+						y: stroke.y,
+						width: stroke.width,
+						height: stroke.height,
+						stroke: stroke.color,
+						strokeWidth: stroke.strokeWidth,
+					}),
+				);
+			}
+			break;
+		}
+		case "browser":
+		case "dark":
+			addWindowChrome(group, crop, imageSize, resolved, outer, content);
+			break;
+	}
+
+	return group;
+}
+
+/** 角丸のうち上側だけ丸める半径指定（Konva の cornerRadius は [TL, TR, BR, BL]）。 */
+function topRoundedCorners(radius: number): number[] {
+	return [radius, radius, 0, 0];
+}
+
+/**
+ * ブラウザ風・ダークウィンドウ風の上部バーを描く。
+ * 背景（角丸の外枠）→ 上部バー → 信号機ボタン → テキスト（URL / タイトル）の順。
+ * コンテンツ領域には何も重ねない（下のレイヤーがそのまま見える）。
+ */
+function addWindowChrome(
+	group: Konva.Group,
+	crop: CropRect | null,
+	imageSize: { width: number; height: number },
+	border: BorderStyle & { kind: "browser" | "dark" },
+	outer: { width: number; height: number },
+	content: { x: number; y: number; width: number; height: number },
+): void {
+	const isDark = border.kind === "dark";
+	const theme = isDark ? BORDER_THEME.dark : BORDER_THEME.browser;
+	const radius = isDark
+		? BORDER_METRICS.dark.radius
+		: BORDER_METRICS.browser.radius;
+
+	// ウィンドウ全体の縁（角丸）。左右下の細い縁もこれで表現する。
+	group.add(
+		new Konva.Rect({
+			x: 0,
+			y: 0,
+			width: outer.width,
+			height: outer.height,
+			cornerRadius: radius,
+			stroke: theme.chromeBorder,
+			strokeWidth: 1,
+			// 縁の内側はコンテンツが載るので塗らない（下のレイヤーを隠さない）。
+			fill: undefined,
+		}),
+	);
+
+	const layout = borderTitleBarLayout(crop, imageSize, border);
+	if (!layout) return;
+
+	// 上部バー（上側だけ角丸）。
+	group.add(
+		new Konva.Rect({
+			x: layout.bar.x,
+			y: layout.bar.y,
+			width: layout.bar.width,
+			height: layout.bar.height,
+			cornerRadius: topRoundedCorners(radius),
+			fill: theme.chrome,
+		}),
+	);
+	// バーとコンテンツの境界線。
+	group.add(
+		new Konva.Line({
+			points: [0, content.y, outer.width, content.y],
+			stroke: theme.chromeBorder,
+			strokeWidth: 1,
+		}),
+	);
+
+	// 信号機ボタン（macOS 風の 3 色）。
+	layout.dots.forEach((dot, i) => {
+		group.add(
+			new Konva.Circle({
+				x: dot.x,
+				y: dot.y,
+				radius: dot.radius,
+				fill: BORDER_THEME.trafficLights[i] ?? BORDER_THEME.trafficLights[0],
+			}),
+		);
+	});
+
+	if (layout.text.width <= 0) return;
+
+	if (isDark) {
+		// ダークはタイトルを中央寄せで置く（プレートなし）。
+		const title = border.kind === "dark" ? border.title : "";
+		if (!title) return;
+		group.add(
+			buildChromeText(title, {
+				x: layout.text.x,
+				y: layout.text.y,
+				width: layout.text.width,
+				height: layout.text.height,
+				color: theme.text,
+				align: "center",
+			}),
+		);
+		return;
+	}
+
+	// ブラウザはアドレスバーのプレート（角丸）を敷いてから URL を左寄せで置く。
+	const plateRadius = layout.text.height / 2;
+	group.add(
+		new Konva.Rect({
+			x: layout.text.x,
+			y: layout.text.y,
+			width: layout.text.width,
+			height: layout.text.height,
+			cornerRadius: plateRadius,
+			fill: BORDER_THEME.browser.plate,
+			stroke: BORDER_THEME.browser.plateBorder,
+			strokeWidth: 1,
+		}),
+	);
+	const url = border.kind === "browser" ? displayUrl(border.url) : "";
+	if (!url) return;
+	const padding = Math.round(plateRadius);
+	group.add(
+		buildChromeText(url, {
+			x: layout.text.x + padding,
+			y: layout.text.y,
+			width: Math.max(0, layout.text.width - padding * 2),
+			height: layout.text.height,
+			color: BORDER_THEME.browser.text,
+			align: "left",
+		}),
+	);
+}
+
+/**
+ * クロム内のテキスト（URL / タイトル）を、指定矩形に縦中央で収める Konva.Text を作る。
+ * 幅に入らない分は折り返さず末尾を省略記号にする（wrap:none + ellipsis）。
+ * フォントは UI と同じシステムスタック（同梱・外部フェッチなし）。
+ */
+function buildChromeText(
+	text: string,
+	box: {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+		color: string;
+		align: "left" | "center";
+	},
+): Konva.Text {
+	const fontSize = Math.max(9, Math.round(box.height * 0.52));
+	return new Konva.Text({
+		x: box.x,
+		y: box.y,
+		width: box.width,
+		height: box.height,
+		text,
+		fontFamily: theme.fontSans,
+		fontSize,
+		fill: box.color,
+		align: box.align,
+		// 縦中央寄せ。wrap:none + ellipsis で 1 行に収めて末尾を省略する。
+		verticalAlign: "middle",
+		wrap: "none",
+		ellipsis: true,
+	});
+}
+
+/**
+ * コンテンツ用レイヤーへクリップを適用する。
+ *
+ * フレームの外側が角丸の種類（ブラウザ・ダーク・カード）では、コンテンツも同じ曲率で
+ * 丸めないと角がはみ出て見えるため、clipFunc で角丸パスを描く。角丸が不要なときは
+ * 通常の矩形 clip を使う（軽いので）。クリップ自体が不要なら解除する。
+ *
+ * Konva の clip / clipFunc はレイヤーの position を適用する**前**（レイヤーローカル
+ * 座標）で効くので、渡す矩形は crop 座標そのもの（borderClipRect の値）でよい。
+ * 表示（app.ts）と書き出し（export.ts）が同じ関数を使う。
+ */
+export function applyContentClip(
+	layer: Konva.Layer,
+	rect: { x: number; y: number; width: number; height: number } | null,
+	border?: BorderStyle | null,
+): void {
+	if (!rect) {
+		layer.clipFunc(undefined as never);
+		layer.clip(null as never);
+		return;
+	}
+
+	const radii = borderContentCornerRadii(border);
+	const hasRadius = radii.some((r) => r > 0);
+	if (!hasRadius) {
+		// 角丸不要: 通常の矩形クリップ（clipFunc は解除しておく）。
+		layer.clipFunc(undefined as never);
+		layer.clip(rect);
+		return;
+	}
+
+	// 角丸あり: clipFunc で角丸矩形のパスを描く（clip は解除して二重掛けを避ける）。
+	layer.clip(null as never);
+	layer.clipFunc((ctx) => {
+		roundedRectPath(ctx, rect, radii);
+	});
+}
+
+/** 角丸矩形のパスを現在のコンテキストに描く（[左上, 右上, 右下, 左下] の順の半径）。 */
+function roundedRectPath(
+	ctx: Konva.Context | CanvasRenderingContext2D,
+	rect: { x: number; y: number; width: number; height: number },
+	radii: [number, number, number, number],
+): void {
+	const { x, y, width, height } = rect;
+	// 半径が辺の長さを超えないよう抑える（極小の領域でパスが破綻しないように）。
+	const max = Math.min(width, height) / 2;
+	const [tl, tr, br, bl] = radii.map((r) => Math.max(0, Math.min(r, max))) as [
+		number,
+		number,
+		number,
+		number,
+	];
+
+	ctx.beginPath();
+	ctx.moveTo(x + tl, y);
+	ctx.lineTo(x + width - tr, y);
+	ctx.arc(x + width - tr, y + tr, tr, -Math.PI / 2, 0, false);
+	ctx.lineTo(x + width, y + height - br);
+	ctx.arc(x + width - br, y + height - br, br, 0, Math.PI / 2, false);
+	ctx.lineTo(x + bl, y + height);
+	ctx.arc(x + bl, y + height - bl, bl, Math.PI / 2, Math.PI, false);
+	ctx.lineTo(x, y + tl);
+	ctx.arc(x + tl, y + tl, tl, Math.PI, (Math.PI * 3) / 2, false);
+	ctx.closePath();
 }
