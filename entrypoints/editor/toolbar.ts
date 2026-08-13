@@ -140,6 +140,8 @@ export const EXPORT_QUALITY_OPTIONS: {
 export interface ToolbarCallbacks {
 	onToolChange(tool: ToolName): void;
 	onColorChange(color: string): void;
+	/** スポイトボタンが押されたとき（画面の色を拾って現在の色にする）。 */
+	onEyedropper(): void;
 	/** 線種（実線/破線）が選ばれたとき。 */
 	onDashChange(dash: boolean): void;
 	/** 矢印スタイル（片側 / 両側 / 曲線）が選ばれたとき。 */
@@ -186,6 +188,11 @@ export interface ToolbarCallbacks {
 export class Toolbar {
 	private toolButtons = new Map<ToolName, HTMLButtonElement>();
 	private colorButtons = new Map<string, HTMLButtonElement>();
+	/**
+	 * スポイトボタン（EyeDropper API がある環境でだけ作る）。拾った色はパレットの
+	 * どれとも一致しないことが多いので、現在の色をこのボタン自体に映して見せる。
+	 */
+	private eyedropperButton?: HTMLButtonElement;
 	/**
 	 * 線種・矢印スタイルのフライアウト本体（アンカー先ツールボタンの真下に固定表示する
 	 * 小パネル）。線系ツールがアクティブな間、または線系図形を選択中に出しっぱなしにする
@@ -316,6 +323,19 @@ export class Toolbar {
 			this.colorButtons.set(color.value, btn);
 			colorGroup.append(btn);
 		}
+
+		// スポイト: 画面上の色を拾って現在の色にする。パレットに無い色（画面内の
+		// ブランド色・エラー表示の赤など）に注釈を合わせたいとき用。EyeDropper API が
+		// 無い環境ではボタン自体を出さない（押せないボタンを見せない）。
+		if ("EyeDropper" in window) {
+			this.eyedropperButton = iconButton(icons.eyedropper, "画面の色を拾う");
+			this.eyedropperButton.classList.add("eyedropper-btn");
+			this.eyedropperButton.addEventListener("click", () =>
+				this.callbacks.onEyedropper(),
+			);
+			colorGroup.append(this.eyedropperButton);
+		}
+
 		this.root.append(colorGroup, divider());
 
 		// フチ（外枠）: どのツールにも属さない画像単位の設定なので、スタイルフライアウト
@@ -886,8 +906,18 @@ export class Toolbar {
 	}
 
 	setColor(color: string): void {
+		let matched = false;
 		for (const [value, btn] of this.colorButtons) {
-			btn.classList.toggle("active", value === color);
+			const on = value === color;
+			if (on) matched = true;
+			btn.classList.toggle("active", on);
+		}
+		// スポイトで拾った色はパレットのどれとも一致しないことが多い。その場合どの
+		// スウォッチも active にならず現在の色が分からなくなるので、スポイトボタンに
+		// 現在の色を映して「これがいまの色」と分かるようにする（一致時は素の見た目）。
+		if (this.eyedropperButton) {
+			this.eyedropperButton.style.setProperty("--swatch", color);
+			this.eyedropperButton.classList.toggle("custom-color", !matched);
 		}
 	}
 

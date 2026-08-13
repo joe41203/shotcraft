@@ -92,6 +92,10 @@ export const icons = {
 	),
 	// 範囲選択キャプチャ（クロップ枠）
 	crop: svg('<path d="M6 2v16h16"/><path d="M18 22V6H2"/>'),
+	// スポイト（画面の色を拾う）: 斜めのスポイト管＋先端のしずく
+	eyedropper: svg(
+		'<path d="M18.5 2.5a2.1 2.1 0 0 1 3 3l-2.4 2.4 1 1-2 2-1-1L9 17.9 5 19l1.1-4 8-8-1-1 2-2 1 1z"/>',
+	),
 	// フチ（外枠）: 太い外枠の内側にコンテンツを表す薄い矩形
 	border: svg(
 		'<rect x="2.5" y="4.5" width="19" height="15" rx="1.5" stroke-width="2.5"/><rect x="7" y="9" width="10" height="6" rx="1" opacity="0.5"/>',

@@ -360,6 +360,7 @@ export class EditorApp {
 		this.toolbar = new Toolbar(toolbarRoot, {
 			onToolChange: (t) => this.setTool(t),
 			onColorChange: (c) => this.setColor(c),
+			onEyedropper: () => void this.pickColorFromScreen(),
 			onDashChange: (d) => this.setDash(d),
 			onArrowStyleChange: (s) => this.setArrowStyle(s),
 			onFontSizeChange: (px) => this.setFontSize(px),
@@ -1037,6 +1038,27 @@ export class EditorApp {
 		this.applyColorToSelection(color);
 		this.toolbar.setColor(color);
 		this.persistStylePrefs();
+	}
+
+	/**
+	 * スポイトで画面上の色を拾い、現在の色にする（＝新規図形の色になり、図形を
+	 * 選択中ならその図形にも即座に適用される。以降は setColor と同じ経路）。
+	 *
+	 * EyeDropper API は拡張のタブから呼んでも画面全体（他ウィンドウを含む）から
+	 * 色を拾える。追加の権限は要らない。中断や起動失敗は例外で届くが（Esc の
+	 * キャンセルは AbortError、ユーザー操作を伴わない起動は NotAllowedError）、
+	 * いずれも押し直せば済むので種類を問わず黙って終える。
+	 */
+	async pickColorFromScreen(): Promise<void> {
+		const Picker = window.EyeDropper;
+		if (!Picker) return;
+		try {
+			const { sRGBHex } = await new Picker().open();
+			this.setColor(sRGBHex);
+		} catch {
+			// キャンセル（AbortError）と、拾えなかった場合の両方をここで飲む。
+			// 前者は正常操作、後者もリトライすれば済むのでトーストは出さない。
+		}
 	}
 
 	/**
