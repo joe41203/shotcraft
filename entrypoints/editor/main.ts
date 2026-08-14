@@ -1,26 +1,8 @@
 import { type CaptureRecord, loadCapture } from "@/lib/capture-store";
 import { createDocAutosaver, loadDoc } from "@/lib/editor/doc-store";
 import { loadStylePrefs } from "@/lib/editor/style-prefs";
-import { applyTheme, loadTheme, UI_THEME_KEY } from "@/lib/ui-theme";
 import { EditorApp } from "./app";
 import { registerTools } from "./tools";
-
-/**
- * 保存済みの UI テーマを起動時に適用し、以降の変更（他タブ＝ポップアップでの切替）を
- * storage.onChanged で監視して開いているエディタにも即反映する。popup と editor は
- * 別ページなので、片方で保存された storage.local の変化を購読して同期する。
- */
-async function initTheme(): Promise<void> {
-	applyTheme(document.documentElement, await loadTheme());
-	browser.storage.onChanged.addListener((changes, area) => {
-		if (area !== "local") return;
-		const change = changes[UI_THEME_KEY];
-		if (!change) return;
-		applyTheme(document.documentElement, change.newValue);
-	});
-}
-// 画像の有無にかかわらずテーマは常に適用する（空状態の画面も含む）。
-void initTheme();
 
 const stageContainer = document.getElementById("stage") as HTMLDivElement;
 const toolbarRoot = document.getElementById("toolbar") as HTMLElement;

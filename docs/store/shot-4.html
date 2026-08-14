@@ -2,11 +2,11 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <title>shotcraft — テーマとプライバシー</title>
+    <title>shotcraft — プライバシー</title>
     <link rel="stylesheet" href="./store.css" />
     <style>
-      /* shot-4: 5つのテーマ。すべてローカル。
-         上に見出し、中央にテーマ5色のカラーチップ、下に安心3点。 */
+      /* shot-4: すべてローカルで完結することを伝える。
+         上に見出し、下に安心3点を大きく並べる。 */
       .wrap {
         height: 100%;
         display: flex;
@@ -28,180 +28,48 @@
         margin: 18px auto 0;
         font-size: 20px;
         color: var(--text-muted);
-        max-width: 40ch;
+        max-width: 56ch;
       }
-
-      /* テーマチップ列 */
-      .themes {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 20px;
-      }
-      .theme {
-        border-radius: var(--radius-xl);
-        overflow: hidden;
-        border: 1px solid var(--border-strong);
-        box-shadow: var(--shadow-md);
-      }
-      /* 各テーマの実配色プレビュー（bg 上に surface のミニカード＋accent の面） */
-      .theme .prev {
-        height: 128px;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-      }
-      .theme .mini {
-        height: 40px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        padding: 0 12px;
-        gap: 8px;
-      }
-      .theme .mini .swt {
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-      }
-      .theme .mini .bar {
-        height: 8px;
-        border-radius: 4px;
-        flex: 1;
-      }
-      .theme .btn {
-        height: 30px;
-        border-radius: 7px;
-        display: grid;
-        place-items: center;
-        font-size: 14px;
-        font-weight: 700;
-      }
-      .theme .label {
-        padding: 12px 14px;
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .theme .label .nm { font-size: 17px; font-weight: 700; color: var(--text); }
-      .theme .label .en { font-size: 13px; color: var(--text-muted); }
-      .theme .label .badge {
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--accent-text);
-        background: var(--accent);
-        border-radius: 999px;
-        padding: 3px 9px;
-      }
-
-      /* midnight */
-      .t-mid .prev { background: #0b0f19; }
-      .t-mid .mini { background: #161b26; }
-      .t-mid .mini .swt { background: #10b981; }
-      .t-mid .mini .bar { background: rgba(255,255,255,0.14); }
-      .t-mid .btn { background: #10b981; color: #04140d; }
-      /* light */
-      .t-light .prev { background: #f4f6fa; }
-      .t-light .mini { background: #ffffff; box-shadow: 0 1px 2px rgb(15 23 42 / 10%); }
-      .t-light .mini .swt { background: #047857; }
-      .t-light .mini .bar { background: rgba(15,23,42,0.14); }
-      .t-light .btn { background: #047857; color: #ffffff; }
-      /* ocean */
-      .t-ocean .prev { background: #0a1018; }
-      .t-ocean .mini { background: #131c28; }
-      .t-ocean .mini .swt { background: #0ea5e9; }
-      .t-ocean .mini .bar { background: rgba(255,255,255,0.14); }
-      .t-ocean .btn { background: #0ea5e9; color: #04141d; }
-      /* forest */
-      .t-forest .prev { background: #0a1310; }
-      .t-forest .mini { background: #141e19; }
-      .t-forest .mini .swt { background: #22c55e; }
-      .t-forest .mini .bar { background: rgba(255,255,255,0.14); }
-      .t-forest .btn { background: #22c55e; color: #04140a; }
-      /* sunset */
-      .t-sunset .prev { background: #140d0a; }
-      .t-sunset .mini { background: #201712; }
-      .t-sunset .mini .swt { background: #f59e0b; }
-      .t-sunset .mini .bar { background: rgba(255,255,255,0.14); }
-      .t-sunset .btn { background: #f59e0b; color: #1a0e00; }
 
       /* 安心3点 */
       .safe {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 18px;
+        grid-template-columns: 1fr;
+        gap: 22px;
+        max-width: 880px;
+        margin: 0 auto;
       }
       .safe .item {
         display: flex;
         align-items: center;
-        gap: 15px;
-        padding: 20px 22px;
+        gap: 22px;
+        padding: 30px 34px;
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-lg);
       }
       .safe .ic {
         flex: 0 0 auto;
-        width: 46px;
-        height: 46px;
+        width: 62px;
+        height: 62px;
         border-radius: var(--radius-md);
         display: grid;
         place-items: center;
         background: var(--surface-2);
         border: 1px solid var(--border);
       }
-      .safe .ic svg { width: 25px; height: 25px; color: var(--accent-hover); }
-      .safe .item h3 { margin: 0 0 3px; font-size: 19px; font-weight: 700; color: var(--text); }
-      .safe .item p { margin: 0; font-size: 15px; color: var(--text-muted); }
+      .safe .ic svg { width: 34px; height: 34px; color: var(--accent-hover); }
+      .safe .item h3 { margin: 0 0 6px; font-size: 26px; font-weight: 700; color: var(--text); }
+      .safe .item p { margin: 0; font-size: 19px; color: var(--text-muted); }
     </style>
   </head>
   <body>
     <div class="canvas">
       <div class="wrap">
         <div class="head">
-          <span class="eyebrow">テーマ・プライバシー</span>
-          <h1><span class="n">好きな配色</span>で。すべてローカル。</h1>
-          <p class="sub">画面の配色は好みのテーマから選べます。処理はぜんぶブラウザの中。</p>
-        </div>
-
-        <div class="themes">
-          <div class="theme t-mid">
-            <div class="prev">
-              <div class="mini"><span class="swt"></span><span class="bar"></span></div>
-              <div class="btn">PNG保存</div>
-            </div>
-            <div class="label"><span class="nm">ミッドナイト</span><span class="badge">既定</span></div>
-          </div>
-          <div class="theme t-light">
-            <div class="prev">
-              <div class="mini"><span class="swt"></span><span class="bar"></span></div>
-              <div class="btn">PNG保存</div>
-            </div>
-            <div class="label"><span class="nm">ライト</span><span class="en">Light</span></div>
-          </div>
-          <div class="theme t-ocean">
-            <div class="prev">
-              <div class="mini"><span class="swt"></span><span class="bar"></span></div>
-              <div class="btn">PNG保存</div>
-            </div>
-            <div class="label"><span class="nm">オーシャン</span><span class="en">Ocean</span></div>
-          </div>
-          <div class="theme t-forest">
-            <div class="prev">
-              <div class="mini"><span class="swt"></span><span class="bar"></span></div>
-              <div class="btn">PNG保存</div>
-            </div>
-            <div class="label"><span class="nm">フォレスト</span><span class="en">Forest</span></div>
-          </div>
-          <div class="theme t-sunset">
-            <div class="prev">
-              <div class="mini"><span class="swt"></span><span class="bar"></span></div>
-              <div class="btn">PNG保存</div>
-            </div>
-            <div class="label"><span class="nm">サンセット</span><span class="en">Sunset</span></div>
-          </div>
+          <span class="eyebrow">プライバシー</span>
+          <h1>撮った画像は、<span class="n">外に出ません</span>。</h1>
+          <p class="sub">撮影から保存まで、ぜんぶブラウザの中だけで完結します。</p>
         </div>
 
         <div class="safe">

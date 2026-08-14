@@ -2,20 +2,13 @@
  * デザイントークン。
  * popup / editor の style.css から @import して参照する。
  *
- * :root（data-theme 無し）が既定テーマ "midnight"（現行のダーク配色）で、
- * 以降の [data-theme="..."] ブロックが各テーマの差分を上書きする。
- * テーマは lib/ui-theme.ts が document.documentElement の data-theme 属性で
- * 切り替える（midnight は属性削除＝:root の既定にフォールバック）。
- * テーマ名を増減するときは lib/ui-theme.ts の THEMES / ThemeName と同期させる。
+ * 配色は :root の 1 種類（ダーク）のみ。かつて UI テーマ 5 種を切り替えられたが、
+ * 2026-08-14 にユーザー判断で削除した（選択肢を持つ必要がないと確定）。
  *
- * midnight（:root）の値は lib/theme.ts の TS 定数と相互に同期させること。
+ * :root の値は lib/theme.ts の TS 定数と相互に同期させること。
  * content script の Shadow DOM は拡張ページの CSS 変数を参照できないため、
- * 同じ値を TS 側にも定義している。片方を変えたら必ずもう片方も変える。
- * ただし同期対象は既定の midnight だけで、テーマ切替は拡張ページ（popup /
- * editor）内の UI に閉じている。ページ上に注入される一時 UI（範囲選択オーバー
- * レイ region-select.content.ts の Shadow DOM）はテーマ切替の対象外で、常に
- * lib/theme.ts の midnight 値で描く（ページ上の一時 UI なので拡張の UI テーマを
- * 持ち込まない）。
+ * 同じ値を TS 側にも定義している。片方を変えたら必ずもう片方も変える
+ * （範囲選択オーバーレイ region-select.content.ts の Shadow DOM が使う）。
  */
 
 /*
@@ -102,28 +95,6 @@
  *   accent 上の文字（accent-text=白 対 accent #047857）5.48:1 / ring 対 surface 4.10:1。
  * text-disabled は surface 上 3.74:1（3:1 は上回る）。影はダークより薄くする。
  */
-[data-theme="light"] {
-  color-scheme: light;
-
-  --bg: #f4f6fa; /* 最深部（ページ・キャンバス領域）。白より一段グレー */
-  --surface: #ffffff; /* ツールバー・ポップアップの面（最も明るい） */
-  --surface-2: #f0f2f6; /* select・面上の面（bg より僅かに明るい灰） */
-  --surface-hover: #e8ebf1; /* hover 時の面 */
-  --border: rgba(15, 23, 42, 0.12); /* 極薄の半透明境界線（暗色を薄く重ねる） */
-  --border-strong: rgba(15, 23, 42, 0.2); /* select 等のやや明確な境界 */
-  --text: #1b2430; /* 主文字（surface 上 15.65:1） */
-  --text-muted: #5a6675; /* 補助文字（surface 上 5.85:1） */
-  --text-disabled: #7a8595; /* 無効状態（surface 上 3.74:1。3:1 以上を確保） */
-  --accent: #047857; /* 主要アクション（light 用に一段暗い emerald） */
-  --accent-hover: #065f46; /* 主要アクションの hover（さらに一段暗く） */
-  --accent-text: #ffffff; /* accent 面上の文字（白・accent #047857 上 5.48:1） */
-  --danger: #dc2626; /* 破壊的操作（surface 上 4.83:1） */
-  --ring: #0284c7; /* フォーカスリング・選択色（surface 上 4.10:1） */
-
-  /* 影はダークより薄く。白背景では濃い影が浮くため不透明度を大幅に下げる。 */
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 8%);
-  --shadow-md: 0 8px 24px rgb(15 23 42 / 12%);
-}
 
 /*
  * ダーク 3 種（ocean / forest / sunset）は midnight を土台に accent 系・ring と
@@ -133,37 +104,8 @@
  */
 
 /* ocean — 青系のアクセント。面をわずかに青へ寄せる。 */
-[data-theme="ocean"] {
-  --bg: #0a1018; /* 青みを一段深く */
-  --surface: #131c28;
-  --surface-2: #1c2735;
-  --surface-hover: #21303f;
-  --accent: #0ea5e9; /* sky */
-  --accent-hover: #38bdf8;
-  --accent-text: #04141d; /* accent(#0ea5e9) 上 6.75:1 */
-  --ring: #38bdf8;
-}
 
 /* forest — 緑系のアクセント。面をわずかに緑へ寄せる。 */
-[data-theme="forest"] {
-  --bg: #0a1310;
-  --surface: #141e19;
-  --surface-2: #1d2a23;
-  --surface-hover: #22322a;
-  --accent: #22c55e; /* green */
-  --accent-hover: #4ade80;
-  --accent-text: #04140a; /* accent(#22c55e) 上 8.31:1 */
-  --ring: #34d399;
-}
 
 /* sunset — 暖色・アンバー系のアクセント。面をわずかに暖色へ寄せる。 */
-[data-theme="sunset"] {
-  --bg: #140d0a;
-  --surface: #201712;
-  --surface-2: #2b201a;
-  --surface-hover: #33261e;
-  --accent: #f59e0b; /* amber */
-  --accent-hover: #fbbf24;
-  --accent-text: #1a0e00; /* accent(#f59e0b) 上 8.84:1 */
-  --ring: #fbbf24;
-}
+

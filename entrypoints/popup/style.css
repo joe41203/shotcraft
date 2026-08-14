@@ -74,86 +74,8 @@ main {
   min-width: 0;
 }
 
-/* --- テーマ選択（キャプチャ 3 ボタンの下・控えめな 1 行） --- */
-
-/* キャプチャ群とテーマ行を区切る細い線 + ラベルとスウォッチ群の横並び。 */
-.theme-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.theme-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.theme-swatches {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* 丸い色見本ボタン。地は各テーマの面色、中央にアクセント色の小さな点を重ねる。
-   当たり判定（24px 四方）を擬似要素で張り出し、見た目の丸（20px）は小さく保つ
-   （色スウォッチと同じ最小クリックターゲットの考え方）。 */
-.theme-swatch {
-  position: relative;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  background: var(--swatch-surface);
-  cursor: pointer;
-  transition: box-shadow 150ms ease;
-}
-
-/* アクセント色の点。中央にドットを置いてテーマの雰囲気を伝える。 */
-.theme-swatch::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--swatch-accent);
-  transform: translate(-50%, -50%);
-}
-
-/* 透明な当たり判定を 24px 四方へ張り出す（見た目のサイズは変えない）。 */
-.theme-swatch::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 24px;
-  height: 24px;
-  transform: translate(-50%, -50%);
-}
-
-.theme-swatch:hover {
-  box-shadow: 0 0 0 2px var(--surface-hover);
-}
-
-/* 選択中はリング表示（他 UI と同じ ring 色・太さ）。 */
-.theme-swatch[aria-pressed="true"] {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.theme-swatch:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .capture-method,
-  .theme-swatch {
+  .capture-method {
     transition: none;
   }
 }
