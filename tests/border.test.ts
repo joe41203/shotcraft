@@ -11,6 +11,7 @@ import {
 	borderContentRect,
 	borderedSize,
 	borderEqual,
+	borderForPrefs,
 	borderInsets,
 	borderKindOf,
 	borderOfKind,
@@ -133,6 +134,39 @@ describe("resolveBorder / borderKindOf", () => {
 	it("設定済みなら種類を返す", () => {
 		expect(borderKindOf(SIMPLE)).toBe("simple");
 		expect(borderKindOf({ kind: "browser", url: "" })).toBe("browser");
+	});
+});
+
+describe("borderForPrefs", () => {
+	// 設定は次のキャプチャに引き継がれるため、その画像固有の内容（撮影元 URL・
+	// ページタイトル）を残すと、別のページを撮ったときに前の画像の URL が
+	// 表示されてしまう（内容の取り違え・URL の意図しない露出）。
+	it("ブラウザ風の URL は保存対象から外す（前の画像の URL を持ち越さない）", () => {
+		expect(
+			borderForPrefs({ kind: "browser", url: "https://internal.example/secret" }),
+		).toEqual({ kind: "browser", url: "" });
+	});
+
+	it("ダークウィンドウのタイトルも保存対象から外す", () => {
+		expect(borderForPrefs({ kind: "dark", title: "社外秘の資料" })).toEqual({
+			kind: "dark",
+			title: "",
+		});
+	});
+
+	it("種類そのものは残す（次に開いた画像も同じフレームで始まる）", () => {
+		expect(borderForPrefs({ kind: "browser", url: "https://a.example" })?.kind).toBe(
+			"browser",
+		);
+	});
+
+	it("枠線は画像固有の内容を持たないのでそのまま残す", () => {
+		expect(borderForPrefs(SIMPLE)).toEqual(SIMPLE);
+	});
+
+	it("フチなしは null のまま", () => {
+		expect(borderForPrefs(null)).toBeNull();
+		expect(borderForPrefs(undefined)).toBeNull();
 	});
 });
 
