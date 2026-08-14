@@ -8,7 +8,6 @@ for (const el of document.querySelectorAll<HTMLElement>("[data-icon]")) {
 	if (name in icons) el.innerHTML = icons[name];
 }
 
-
 /**
  * background へメッセージを送ってからポップアップを閉じる。
  * 範囲選択はポップアップが閉じないとページ上でドラッグできないため、
@@ -28,8 +27,4 @@ document.getElementById("capture-visible")?.addEventListener("click", () => {
 
 document.getElementById("capture-region")?.addEventListener("click", () => {
 	void send({ type: "START_REGION_SELECT" });
-});
-
-document.getElementById("capture-full-page")?.addEventListener("click", () => {
-	void send({ type: "CAPTURE_FULL_PAGE" });
 });

@@ -21,14 +21,6 @@ export interface StartRegionSelectMessage {
 }
 
 /**
- * popup → service worker: ページ全体をスクロールしながら撮影し、
- * 1 枚の縦長画像に繋ぎ合わせる（フルページキャプチャ）。
- */
-export interface CaptureFullPageMessage {
-	type: "CAPTURE_FULL_PAGE";
-}
-
-/**
  * content script → service worker: 選択された矩形。
  * rect / viewport はいずれも CSS px（ビューポート基準）。
  * bitmap との軸別スケールで CSS px → 画像 px に変換する（devicePixelRatio は使わない）。
@@ -48,6 +40,5 @@ export interface RegionCancelledMessage {
 export type Message =
 	| CaptureVisibleMessage
 	| StartRegionSelectMessage
-	| CaptureFullPageMessage
 	| RegionSelectedMessage
 	| RegionCancelledMessage;

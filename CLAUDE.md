@@ -26,7 +26,7 @@ CI（.github/workflows/ci.yml）は compile → test → build → zip の順。
 
 - `lib/messages.ts` の判別可能ユニオン `Message` がメッセージ契約。popup / content script → service worker（`entrypoints/background.ts`）の全通信はここに型を足してから実装する。
 - background が `captureVisibleTab` で撮影し、結果を `lib/capture-store.ts` 経由で `storage.session` に保存してエディタタブを開く。エディタは URL パラメータでなくストアから画像を読む。
-- `captureVisibleTab` は 2 回/秒制限。background はスロット予約方式（`CAPTURE_MIN_INTERVAL_MS = 600`）で超過分を破棄せず待つ。フルページキャプチャはこの制約下でタイル撮影→連結する（上限 20000px、固定要素は 2 枚目以降非表示）。
+- `captureVisibleTab` は 2 回/秒制限。background はスロット予約方式（`CAPTURE_MIN_INTERVAL_MS = 600`）で超過分を破棄せず待つ。
 - 範囲選択オーバーレイ（`region-select.content.ts`）は静的登録せず、ボタン操作時に `scripting.executeScript` で動的注入する。これは `host_permissions` を要求しないための設計。
 
 ### エディタ（正はドキュメントモデル、Konva は投影）

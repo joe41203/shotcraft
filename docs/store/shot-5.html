@@ -2,11 +2,11 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <title>shotcraft — 3 つの撮り方</title>
+    <title>shotcraft — 2 つの撮り方</title>
     <link rel="stylesheet" href="./store.css" />
     <style>
-      /* shot-5: 撮り方は 3 つ。ぜんぶワンクリック。
-         上に中央寄せ見出し、下に 3 モードのカードを横並び。
+      /* shot-5: 撮り方は 2 つ。ぜんぶワンクリック。
+         上に中央寄せ見出し、下に 2 モードのカードを横並び。
          余白・密度は shot-4 を、カードアイコンのトーンは shot-2 を踏襲。 */
       .wrap {
         height: 100%;
@@ -32,11 +32,14 @@
         max-width: 44ch;
       }
 
-      /* 3 モードカード */
+      /* 2 モードカード */
       .modes {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 24px;
+        max-width: 880px;
+        width: 100%;
+        margin: 0 auto;
         align-items: stretch;
       }
       .mode {
@@ -79,7 +82,6 @@
       .mode .ic svg { width: 28px; height: 28px; }
       .mode.m1 .ic svg { color: var(--accent-hover); }
       .mode.m2 .ic svg { color: #38bdf8; }
-      .mode.m3 .ic svg { color: #fbbf24; }
 
       .mode h3 {
         margin: 0 0 8px;
@@ -214,105 +216,6 @@
         margin-right: 5px;
       }
 
-      /* ③ 縦に長いページを 1 枚に: 縦長ページ＋自動スクロール＋バッジ進捗 */
-      .m3 .motif {
-        display: flex;
-        align-items: stretch;
-        justify-content: center;
-        gap: 18px;
-        padding: 14px 16px;
-      }
-      /* 縦長ページ（はみ出す長さを暗示） */
-      .m3 .page {
-        position: relative;
-        width: 78px;
-        border-radius: 6px;
-        background: var(--surface);
-        border: 1px solid var(--border-strong);
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 10px 9px;
-      }
-      .m3 .page .pl {
-        height: 6px;
-        border-radius: 3px;
-        background: rgba(255, 255, 255, 0.1);
-        flex: 0 0 auto;
-      }
-      .m3 .page .pl.a { width: 90%; }
-      .m3 .page .pl.b { width: 66%; }
-      .m3 .page .pl.c { width: 80%; background: rgba(251, 191, 36, 0.32); }
-      /* いま撮影中のタイル位置を示す帯 */
-      .m3 .page .tile-now {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 40px;
-        height: 30px;
-        background: rgba(251, 191, 36, 0.14);
-        border-top: 1px dashed rgba(251, 191, 36, 0.7);
-        border-bottom: 1px dashed rgba(251, 191, 36, 0.7);
-      }
-      /* 自動スクロール矢印 */
-      .m3 .scroll {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        color: #fbbf24;
-      }
-      .m3 .scroll svg { width: 22px; height: 22px; }
-      .m3 .scroll .dots {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .m3 .scroll .dots i {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: rgba(251, 191, 36, 0.5);
-      }
-      /* 完成する 1 枚（縦長の連結結果） */
-      .m3 .stitched {
-        position: relative;
-        width: 66px;
-        border-radius: 6px;
-        background: linear-gradient(180deg, #1c2431, #141a24);
-        border: 1px solid var(--accent);
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-        padding: 9px 8px;
-      }
-      .m3 .stitched .sl {
-        height: 5px;
-        border-radius: 3px;
-        background: rgba(255, 255, 255, 0.14);
-      }
-      .m3 .stitched .sl.g { background: rgba(16, 185, 129, 0.45); }
-      /* アイコンのバッジ進捗（1/5） */
-      .m3 .badge {
-        position: absolute;
-        top: -9px;
-        right: -9px;
-        min-width: 24px;
-        height: 20px;
-        padding: 0 5px;
-        border-radius: 999px;
-        background: var(--accent);
-        color: var(--accent-text);
-        font-size: 12px;
-        font-weight: 800;
-        display: grid;
-        place-items: center;
-        border: 2px solid var(--surface);
-        letter-spacing: 0.02em;
-      }
       /* 背景のアクセント発光 */
       .modes-glow {
         position: absolute;
@@ -333,10 +236,10 @@
       <div class="modes-glow"></div>
       <div class="wrap">
         <div class="head">
-          <span class="eyebrow">3 つの撮り方</span>
-          <h1>撮り方は <span class="n">3 つ</span>。ぜんぶワンクリック。</h1>
+          <span class="eyebrow">2 つの撮り方</span>
+          <h1>撮り方は <span class="n">2 つ</span>。ぜんぶワンクリック。</h1>
           <p class="sub">
-            いま見えている画面も、選んだ範囲だけも、縦に長いページ丸ごとも。目的に合わせて撮り方を選べます。
+            いま見えている画面も、選んだ範囲だけも。目的に合わせて撮り方を選べます。
           </p>
         </div>
 
@@ -383,42 +286,6 @@
             </div>
           </div>
 
-          <!-- ③ ページ全体をキャプチャ -->
-          <div class="mode m3">
-            <div class="top">
-              <span class="step">3</span>
-              <div class="ic">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="1.5"/><line x1="9" y1="6.5" x2="15" y2="6.5"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="13.5" x2="13" y2="13.5"/></svg>
-              </div>
-            </div>
-            <h3>縦に長いページも<br />1 枚に</h3>
-            <p>自動スクロールしながら撮り、1 枚の縦長画像に連結。撮影中はアイコンに進捗表示。</p>
-            <div class="motif">
-              <div class="page">
-                <div class="pl a"></div>
-                <div class="pl b"></div>
-                <div class="pl c"></div>
-                <div class="pl a"></div>
-                <div class="pl b"></div>
-                <div class="pl a"></div>
-                <div class="tile-now"></div>
-              </div>
-              <div class="scroll">
-                <div class="dots"><i></i><i></i><i></i></div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg>
-              </div>
-              <div class="stitched">
-                <span class="badge">2/5</span>
-                <div class="sl"></div>
-                <div class="sl g"></div>
-                <div class="sl"></div>
-                <div class="sl"></div>
-                <div class="sl"></div>
-                <div class="sl"></div>
-                <div class="sl"></div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
