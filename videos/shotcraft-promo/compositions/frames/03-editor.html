@@ -1,0 +1,732 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+    }
+
+    /* — full-bleed ground: own clip layer, never a background on #root — */
+    .ed03-ground {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+    }
+
+    /* — handoff_in: 前フレームの emerald ルール棒が上端ラインへ移る — */
+    #ed03-rule-wrap {
+      position: absolute;
+      top: 66%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      margin-top: -1px;
+      display: flex;
+      justify-content: center;
+    }
+
+    #ed03-rule {
+      width: 36cqw;
+      height: 2px;
+      background: #10b981;
+      transform-origin: 50% 50%;
+    }
+
+    /* ─────────────────────────────────────────────
+       エディタ板 — handoff_out: x center / y 46% / scale 1.0
+       高さは 57cqh に抑え、キャプション込みで 83% keep-out を守る
+       ───────────────────────────────────────────── */
+    #ed03-panel {
+      position: absolute;
+      left: 11cqw; /* (100 - 78) / 2 */
+      width: 78cqw;
+      top: 17.5cqh; /* 46% - 57%/2 → 中心が y 46% */
+      height: 57cqh;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f4f6fa;
+      border: 1px solid #1f2632;
+      transform-origin: 50% 50%;
+      display: flex;
+      flex-direction: column;
+      font-family: "Noto Sans JP", sans-serif;
+    }
+
+    /* ── ダークなツールバー ── */
+    .ed03-toolbar {
+      flex: 0 0 auto;
+      height: 3.9cqh;
+      background: #161b26;
+      display: flex;
+      align-items: center;
+      gap: 0.30cqw;
+      padding: 0 0.8cqw;
+    }
+
+    .ed03-tool {
+      width: 1.58cqw;
+      height: 1.58cqw;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9aa6b8;
+      flex: 0 0 auto;
+    }
+
+    .ed03-tool svg {
+      width: 1.12cqw;
+      height: 1.12cqw;
+      display: block;
+    }
+
+    .ed03-tool.is-active {
+      background: #10b981;
+      color: #0b0f19;
+    }
+
+    .ed03-tb-div {
+      width: 1px;
+      height: 1.75cqh;
+      background: #2b3342;
+      margin: 0 0.4cqw;
+      flex: 0 0 auto;
+    }
+
+    .ed03-swatch {
+      width: 1.18cqw;
+      height: 1.18cqw;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .ed03-swatch.is-picked {
+      box-shadow:
+        0 0 0 0.16cqw #161b26,
+        0 0 0 0.32cqw #38bdf8;
+      margin: 0 0.2cqw;
+    }
+
+    .ed03-dot {
+      border-radius: 50%;
+      background: #6d7889;
+      flex: 0 0 auto;
+    }
+
+    .ed03-dot.is-picked {
+      background: #f2f5f9;
+      box-shadow: 0 0 0 0.3cqw #253044;
+      margin: 0 0.22cqw;
+    }
+
+    .ed03-zoom {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72cqw;
+      color: #9aa6b8;
+      margin-left: 0.4cqw;
+      flex: 0 0 auto;
+    }
+
+    .ed03-spacer {
+      flex: 1 1 auto;
+    }
+
+    .ed03-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.3cqw;
+      height: 2.25cqh;
+      padding: 0 0.72cqw;
+      border-radius: 5px;
+      font-size: 0.8cqw;
+      font-weight: 700;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .ed03-btn svg {
+      width: 0.95cqw;
+      height: 0.95cqw;
+      display: block;
+    }
+
+    .ed03-btn-copy {
+      background: #253044;
+      color: #f2f5f9;
+    }
+
+    .ed03-btn-save {
+      background: #10b981;
+      color: #041b12;
+    }
+
+    .ed03-meta {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72cqw;
+      color: #65707e;
+      margin-left: 0.85cqw;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .ed03-meta-title {
+      font-family: "Noto Sans JP", sans-serif;
+      font-size: 0.75cqw;
+      color: #9aa6b8;
+      margin-left: 0.7cqw;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    /* ── 明るいダッシュボード ── */
+    .ed03-page {
+      flex: 1 1 auto;
+      background: #f4f6fa;
+      padding: 1.9cqh 2.1cqw;
+      display: flex;
+      flex-direction: column;
+      gap: 1.55cqh;
+      min-height: 0;
+    }
+
+    .ed03-titlerow {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex: 0 0 auto;
+    }
+
+    .ed03-h1 {
+      font-size: 1.55cqw;
+      font-weight: 700;
+      color: #1e2536;
+      letter-spacing: -0.01em;
+    }
+
+    .ed03-week {
+      font-size: 0.82cqw;
+      font-weight: 400;
+      color: #8b95a6;
+    }
+
+    .ed03-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.05cqw;
+      flex: 0 0 auto;
+    }
+
+    .ed03-card {
+      background: #ffffff;
+      border: 1px solid #e4e8f0;
+      border-radius: 8px;
+      padding: 1.25cqh 0.95cqw;
+    }
+
+    .ed03-kpi-label {
+      font-size: 0.72cqw;
+      font-weight: 400;
+      color: #77839a;
+      margin-bottom: 0.55cqh;
+    }
+
+    .ed03-kpi-value {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 1.62cqw;
+      font-weight: 700;
+      color: #1e2536;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+    }
+
+    .ed03-kpi-delta {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.66cqw;
+      font-weight: 400;
+      margin-top: 0.5cqh;
+    }
+
+    .ed03-up {
+      color: #16a34a;
+    }
+
+    .ed03-down {
+      color: #e04a5f;
+    }
+
+    .ed03-lower {
+      display: grid;
+      grid-template-columns: 1.72fr 1fr;
+      gap: 1.05cqw;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .ed03-card-title {
+      font-size: 0.86cqw;
+      font-weight: 700;
+      color: #1e2536;
+      margin-bottom: 1.2cqh;
+    }
+
+    /* — 棒グラフ — */
+    .ed03-chart-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .ed03-bars {
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1.05cqw;
+      align-items: end;
+      min-height: 0;
+    }
+
+    .ed03-barcol {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .ed03-bar {
+      width: 100%;
+      border-radius: 5px 5px 2px 2px;
+    }
+
+    .ed03-bar-v {
+      background: linear-gradient(180deg, #8b6bf5 0%, #7c5cf0 100%);
+    }
+
+    .ed03-bar-s {
+      background: linear-gradient(180deg, #38bdf8 0%, #1ea6e6 100%);
+    }
+
+    .ed03-bar-label {
+      text-align: center;
+      font-size: 0.68cqw;
+      color: #77839a;
+      margin-top: 0.75cqh;
+      flex: 0 0 auto;
+    }
+
+    /* — デプロイ表 — */
+    .ed03-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .ed03-table th {
+      text-align: left;
+      font-size: 0.68cqw;
+      font-weight: 400;
+      color: #8b95a6;
+      padding-bottom: 0.7cqh;
+      border-bottom: 1px solid #e4e8f0;
+    }
+
+    .ed03-table td {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72cqw;
+      color: #37415a;
+      padding: 0.82cqh 0;
+      border-bottom: 1px solid #eef1f6;
+    }
+
+    .ed03-table td.ed03-status {
+      text-align: right;
+    }
+
+    .ed03-pill {
+      display: inline-block;
+      font-family: "Noto Sans JP", sans-serif;
+      font-size: 0.62cqw;
+      font-weight: 400;
+      padding: 0.28cqh 0.5cqw;
+      border-radius: 999px;
+    }
+
+    .ed03-pill-ok {
+      background: #dcf5e6;
+      color: #157f45;
+    }
+
+    .ed03-pill-retry {
+      background: #fdf0d2;
+      color: #94661a;
+    }
+
+    /* — Scene 3 キャプション — */
+    #ed03-caption {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 76.5cqh; /* 下端 890px < 83% keep-out (896px) */
+      text-align: center;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 2.8cqw;
+      line-height: 1.2;
+      color: #9aa6b8;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="03-editor"
+    data-start="0"
+    data-duration="3.4"
+    data-width="1920"
+    data-height="1080"
+  >
+    <!-- ground -->
+    <div
+      class="clip ed03-ground"
+      data-start="0"
+      data-duration="3.4"
+      data-track-index="0"
+    ></div>
+
+    <!-- handoff_in: ルール棒 → 上端ライン -->
+    <div
+      id="ed03-rule-wrap"
+      class="clip"
+      data-start="0"
+      data-duration="3.4"
+      data-track-index="1"
+    >
+      <div id="ed03-rule"></div>
+    </div>
+
+    <!-- hero: エディタ板 -->
+    <div
+      id="ed03-panel"
+      class="clip"
+      data-start="0"
+      data-duration="3.4"
+      data-track-index="2"
+    >
+      <!-- ── ダークなツールバー ── -->
+      <div class="ed03-toolbar">
+        <!-- 15 tools -->
+        <div class="ed03-tool is-active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 3l6.5 16 2.3-6.7L20.5 10z" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="19" x2="19" y2="5" />
+            <polyline points="10 5 19 5 19 14" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="19" x2="19" y2="5" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="6" width="16" height="12" rx="1" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="12" rx="9" ry="6" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="8" y="8" width="8" height="8" rx="1.5" />
+            <line x1="4" y1="4" x2="6.5" y2="6.5" />
+            <line x1="20" y1="4" x2="17.5" y2="6.5" />
+            <line x1="4" y1="20" x2="6.5" y2="17.5" />
+            <line x1="20" y1="20" x2="17.5" y2="17.5" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="5 6 5 5 19 5 19 6" />
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="9" y1="19" x2="15" y2="19" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 20l4-1 10-10-3-3L5 16z" />
+            <line x1="14.5" y1="6.5" x2="17.5" y2="9.5" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 14l-2 5 5-2 8-8-3-3z" />
+            <line x1="14" y1="6" x2="18" y2="10" />
+            <line x1="5" y1="21" x2="12" y2="21" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M11 9.5l1.8-1.2V16" stroke-width="2" fill="none" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 5h16v10H13l-3 4v-4H4z" />
+            <line x1="7.5" y1="10" x2="16.5" y2="10" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="1" />
+            <line x1="4" y1="9.5" x2="20" y2="9.5" />
+            <line x1="4" y1="14.5" x2="20" y2="14.5" />
+            <line x1="9.5" y1="4" x2="9.5" y2="20" />
+            <line x1="14.5" y1="4" x2="14.5" y2="20" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3.5c3.2 4 5 6.6 5 9a5 5 0 0 1-10 0c0-2.4 1.8-5 5-9z" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M8 17.5l-3.5-3.5a1.5 1.5 0 0 1 0-2.1l7-7a1.5 1.5 0 0 1 2.1 0l4 4a1.5 1.5 0 0 1 0 2.1L11.5 17.5z"
+            />
+            <line x1="8" y1="17.5" x2="20" y2="17.5" />
+            <line x1="9" y1="8.5" x2="15.5" y2="15" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2v16h16" />
+            <path d="M18 22V6H2" />
+          </svg>
+        </div>
+
+        <div class="ed03-tb-div"></div>
+
+        <!-- 7 colour swatches, first picked -->
+        <div class="ed03-swatch is-picked" style="background: #fb7185"></div>
+        <div class="ed03-swatch" style="background: #fbbf24"></div>
+        <div class="ed03-swatch" style="background: #34d399"></div>
+        <div class="ed03-swatch" style="background: #38bdf8"></div>
+        <div class="ed03-swatch" style="background: #a78bfa"></div>
+        <div class="ed03-swatch" style="background: #18181b"></div>
+        <div class="ed03-swatch" style="background: #fafafa"></div>
+
+        <div class="ed03-tb-div"></div>
+
+        <!-- stroke width -->
+        <div class="ed03-dot" style="width: 0.3cqw; height: 0.3cqw"></div>
+        <div class="ed03-dot is-picked" style="width: 0.48cqw; height: 0.48cqw"></div>
+        <div class="ed03-dot" style="width: 0.66cqw; height: 0.66cqw"></div>
+
+        <div class="ed03-tb-div"></div>
+
+        <!-- undo / redo -->
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 7 4 12 9 17" />
+            <path d="M4 12h10a5 5 0 0 1 0 10h-3" />
+          </svg>
+        </div>
+        <div class="ed03-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 7 20 12 15 17" />
+            <path d="M20 12H10a5 5 0 0 0 0 10h3" />
+          </svg>
+        </div>
+
+        <div class="ed03-zoom">88%</div>
+
+        <div class="ed03-spacer"></div>
+
+        <div class="ed03-btn ed03-btn-copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="11" height="11" rx="2" />
+            <path d="M5 15H4V4h11v1" />
+          </svg>
+          コピー
+        </div>
+        <div class="ed03-btn ed03-btn-save">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 4v10" />
+            <polyline points="8 11 12 15 16 11" />
+            <path d="M5 19h14" />
+          </svg>
+          PNG保存
+        </div>
+
+        <div class="ed03-meta">1280 x 800 px</div>
+        <div class="ed03-meta-title">Weekly Report</div>
+      </div>
+
+      <!-- ── 明るいダッシュボード（注釈なし・撮ったそのまま） ── -->
+      <div class="ed03-page">
+        <div class="ed03-titlerow">
+          <div class="ed03-h1">Weekly Report</div>
+          <div class="ed03-week">2026年7月 第5週</div>
+        </div>
+
+        <div class="ed03-kpis">
+          <div class="ed03-card">
+            <div class="ed03-kpi-label">アクティブユーザー</div>
+            <div class="ed03-kpi-value">8,412</div>
+            <div class="ed03-kpi-delta ed03-up">+5.2%</div>
+          </div>
+          <div class="ed03-card">
+            <div class="ed03-kpi-label">新規登録</div>
+            <div class="ed03-kpi-value">1,204</div>
+            <div class="ed03-kpi-delta ed03-up">+3.1%</div>
+          </div>
+          <div class="ed03-card">
+            <div class="ed03-kpi-label">継続率</div>
+            <div class="ed03-kpi-value">92.7%</div>
+            <div class="ed03-kpi-delta ed03-up">+0.8pt</div>
+          </div>
+          <div class="ed03-card">
+            <div class="ed03-kpi-label">問い合わせ</div>
+            <div class="ed03-kpi-value">37</div>
+            <div class="ed03-kpi-delta ed03-down">-18%</div>
+          </div>
+        </div>
+
+        <div class="ed03-lower">
+          <div class="ed03-card ed03-chart-card">
+            <div class="ed03-card-title">日次アクティブユーザー</div>
+            <div class="ed03-bars">
+              <div class="ed03-barcol">
+                <div class="ed03-bar ed03-bar-v" style="height: 52%"></div>
+                <div class="ed03-bar-label">月</div>
+              </div>
+              <div class="ed03-barcol">
+                <div class="ed03-bar ed03-bar-v" style="height: 64%"></div>
+                <div class="ed03-bar-label">火</div>
+              </div>
+              <div class="ed03-barcol">
+                <div class="ed03-bar ed03-bar-s" style="height: 72%"></div>
+                <div class="ed03-bar-label">水</div>
+              </div>
+              <div class="ed03-barcol">
+                <div class="ed03-bar ed03-bar-v" style="height: 56%"></div>
+                <div class="ed03-bar-label">木</div>
+              </div>
+              <div class="ed03-barcol">
+                <div class="ed03-bar ed03-bar-v" style="height: 80%"></div>
+                <div class="ed03-bar-label">金</div>
+              </div>
+              <div class="ed03-barcol">
+                <div class="ed03-bar ed03-bar-s" style="height: 94%"></div>
+                <div class="ed03-bar-label">土</div>
+              </div>
+              <div class="ed03-barcol">
+                <div class="ed03-bar ed03-bar-v" style="height: 68%"></div>
+                <div class="ed03-bar-label">日</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ed03-card">
+            <div class="ed03-card-title">最近のデプロイ</div>
+            <table class="ed03-table">
+              <tr>
+                <th>バージョン</th>
+                <th style="text-align: right">状態</th>
+              </tr>
+              <tr>
+                <td>v2.14.0</td>
+                <td class="ed03-status"><span class="ed03-pill ed03-pill-ok">成功</span></td>
+              </tr>
+              <tr>
+                <td>v2.13.2</td>
+                <td class="ed03-status"><span class="ed03-pill ed03-pill-ok">成功</span></td>
+              </tr>
+              <tr>
+                <td>v2.13.1</td>
+                <td class="ed03-status"><span class="ed03-pill ed03-pill-retry">再試行</span></td>
+              </tr>
+              <tr>
+                <td>v2.13.0</td>
+                <td class="ed03-status"><span class="ed03-pill ed03-pill-ok">成功</span></td>
+              </tr>
+              <tr>
+                <td>v2.12.4</td>
+                <td class="ed03-status"><span class="ed03-pill ed03-pill-ok">成功</span></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scene 3 — 板の下のひとこと -->
+    <div
+      id="ed03-caption"
+      class="clip"
+      data-start="2.0"
+      data-duration="1.4"
+      data-track-index="3"
+    >
+      撮ると、すぐこの画面。
+    </div>
+  </div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    (function () {
+      var tl = gsap.timeline({ paused: true });
+
+      // — Scene 1 (0.0–0.9s) —
+      // handoff_in: 前フレーム末端の emerald ルール棒（36cqw・y 66%）が
+      // 上端ラインへ移動しつつ全幅へ拡張する。以降 3.4s 通して残る（exit なし）。
+      // y: 66% of 1080 = 712.8px → 上端 y 8px は -704.8px
+      tl.fromTo(
+        "#ed03-rule",
+        { y: 0, scaleX: 1, opacity: 1 },
+        {
+          y: -704.8,
+          scaleX: 100 / 36, // 36cqw → 全幅
+          opacity: 1,
+          duration: 0.55,
+          ease: "power3.inOut",
+        },
+        0,
+      );
+
+      // エディタ板が下から持ち上がる。scale 0.96 → 1.0 / opacity 0 → 1。
+      // handoff_out の着地状態（center・y 46%・scale 1.0・opacity 1）で以降静止。
+      tl.fromTo(
+        "#ed03-panel",
+        { y: 54, scale: 0.96, opacity: 0 },
+        { y: 0, scale: 1, opacity: 1, duration: 0.6, ease: "power3.out" },
+        0.18,
+      );
+
+      // — Scene 2 (0.9–2.0s) —
+      // 意図的な静止。ダッシュボードの情報量そのものを読ませるので何も動かさない。
+
+      // — Scene 3 (2.0–3.4s) —
+      // 板の下にひとことが小さくフェードイン。次フレームの実演へ引き渡す。
+      tl.fromTo(
+        "#ed03-caption",
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" },
+        2.0,
+      );
+
+      window.__timelines["03-editor"] = tl;
+    })();
+  </script>
+</template>

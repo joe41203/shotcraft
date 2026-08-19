@@ -1,0 +1,972 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* "Noto Sans JP" (400/700) と "IBM Plex Mono" は HyperFrames コンパイラの
+       プリバンドル対象。@font-face は書かない（フォントファイルは同梱されない）。 */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+    }
+
+    /* ── full-bleed ink-black ground — 専用の全尺 clip レイヤー（#root には塗らない） */
+    .pf05-ground {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+    }
+
+    /* ── エディタ板（03-editor と同じ見え方・同じ位置/寸法）
+       78cqw = 1497.6px / 中心 y 46% = 496.8px。
+       高さは 72cqh = 777.6px に抑え、下端 885.6px でキャプション退避域
+       （896px = 83%）の内側に収める。 */
+    /* 03-editor / 04-annotate と同一寸法（78cqw x 57cqh、中心 y 46%）。
+       ここがズレると 04→05 のカットで板が伸び縮みして見える。 */
+    .pf05-panel {
+      position: absolute;
+      left: 211.2px; /* 11cqw */
+      top: 189px; /* 17.5cqh */
+      width: 1497.6px; /* 78cqw */
+      height: 615.6px; /* 57cqh */
+      border-radius: 10px;
+      overflow: hidden;
+      background: #161b26;
+      border: 1px solid #1f2632;
+      transform-origin: 50% 50%;
+      z-index: 1;
+    }
+
+    /* ── ツールバー（暗色） */
+    .pf05-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 18px;
+      box-sizing: border-box;
+      background: #161b26;
+    }
+
+    /* 15 個のツールアイコン */
+    .pf05-tools {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .pf05-tool {
+      width: 34px;
+      height: 34px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pf05-tool-active {
+      background: #2b3550;
+    }
+    .pf05-tool i {
+      display: block;
+      border: 1.6px solid #9aa6b8;
+      box-sizing: border-box;
+    }
+    .pf05-tool-active i {
+      border-color: #d7e2f2;
+    }
+    /* 各ツールの記号（矢印・矩形・楕円・T・ペン…をミニマルな図形で表現） */
+    .pf05-i-cursor i {
+      width: 0;
+      height: 0;
+      border: none;
+      border-left: 7px solid #d7e2f2;
+      border-right: 5px solid transparent;
+      border-bottom: 13px solid transparent;
+      border-top: 4px solid transparent;
+      transform: rotate(-16deg);
+    }
+    .pf05-i-arrow i {
+      width: 15px;
+      height: 15px;
+      border-width: 0 1.6px 1.6px 0;
+      transform: rotate(-135deg);
+    }
+    .pf05-i-rect i {
+      width: 17px;
+      height: 13px;
+      border-radius: 2px;
+    }
+    .pf05-i-ellipse i {
+      width: 17px;
+      height: 13px;
+      border-radius: 50%;
+    }
+    .pf05-i-text i {
+      width: 13px;
+      height: 13px;
+      border-width: 2px 0 0 0;
+      position: relative;
+    }
+    .pf05-i-text i::after {
+      content: "";
+      position: absolute;
+      left: 5.2px;
+      top: 0;
+      width: 1.6px;
+      height: 13px;
+      background: #9aa6b8;
+    }
+    .pf05-i-pen i {
+      width: 15px;
+      height: 3px;
+      border-width: 1.6px 0 0 0;
+      transform: rotate(-42deg);
+    }
+    .pf05-i-marker i {
+      width: 15px;
+      height: 5px;
+      border-radius: 2px;
+      transform: rotate(-42deg);
+    }
+    .pf05-i-grid i {
+      width: 15px;
+      height: 15px;
+      background:
+        linear-gradient(#9aa6b8, #9aa6b8) 0 50% / 100% 1.4px no-repeat,
+        linear-gradient(#9aa6b8, #9aa6b8) 50% 0 / 1.4px 100% no-repeat;
+    }
+    .pf05-i-crop i {
+      width: 14px;
+      height: 14px;
+      border-width: 0 1.6px 1.6px 0;
+      position: relative;
+    }
+    .pf05-i-crop i::after {
+      content: "";
+      position: absolute;
+      left: -4px;
+      top: -4px;
+      width: 14px;
+      height: 14px;
+      border-left: 1.6px solid #9aa6b8;
+      border-top: 1.6px solid #9aa6b8;
+    }
+
+    /* カラースウォッチ 7 個 */
+    .pf05-swatches {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-left: 8px;
+    }
+    .pf05-sw {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+    }
+    .pf05-sw-on {
+      box-shadow: 0 0 0 2.5px #161b26, 0 0 0 4.5px currentColor;
+    }
+
+    /* 太さピッカー（点 3 つ） */
+    .pf05-sizes {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 12px;
+    }
+    .pf05-size {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pf05-size-on {
+      background: #2b3550;
+    }
+    .pf05-size b {
+      display: block;
+      border-radius: 50%;
+      background: #cbd6e6;
+    }
+
+    .pf05-undo {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 12px;
+    }
+    .pf05-undo span {
+      width: 15px;
+      height: 8px;
+      border: 1.6px solid #9aa6b8;
+      border-bottom: none;
+      border-radius: 9px 9px 0 0;
+    }
+
+    .pf05-bar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pf05-zoom {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
+      color: #9aa6b8;
+    }
+    .pf05-copy {
+      height: 34px;
+      padding: 0 16px;
+      border-radius: 8px;
+      background: #232c3f;
+      color: #e6ecf6;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .pf05-copy u {
+      width: 11px;
+      height: 12px;
+      border: 1.5px solid #cbd6e6;
+      border-radius: 2px;
+      text-decoration: none;
+    }
+    /* emerald「PNG保存」— press-release-spring の対象 */
+    .pf05-save {
+      position: relative;
+      height: 36px;
+      padding: 0 18px;
+      border-radius: 8px;
+      background: #10b981;
+      color: #04140d;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 14.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transform-origin: 50% 50%;
+      box-shadow: 0 6px 18px rgba(16, 185, 129, 0.32);
+      z-index: 2;
+    }
+    .pf05-save u {
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 7px solid #04140d;
+      text-decoration: none;
+    }
+    /* 押下時に背後で開くバースト（button より下、z-index 1） */
+    .pf05-burst {
+      position: absolute;
+      /* 「PNG保存」ボタンの footprint に重ねる（右端の meta 表記ではなく）。
+         パネル内 x 1125.7..1275.7 = ボタン中心 1200.7 を中心とする 150px 幅。 */
+      right: 223.9px;
+      top: 10px;
+      width: 150px;
+      height: 36px;
+      border-radius: 20px;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(6, 148, 101, 0.95) 0%,
+        rgba(6, 148, 101, 0) 70%
+      );
+      filter: blur(14px);
+      opacity: 0;
+      transform-origin: 50% 50%;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .pf05-meta {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      color: #65707e;
+      white-space: nowrap;
+    }
+
+    /* ── 明るいダッシュボード面（暗いツールバーとのコントラストが本フレームの要点） */
+    .pf05-canvas {
+      position: absolute;
+      left: 0;
+      top: 56px;
+      right: 0;
+      bottom: 0;
+      background: #0f1420;
+      padding: 22px 96px 0 96px;
+      box-sizing: border-box;
+    }
+    .pf05-page {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: #f4f6fa;
+      padding: 26px 30px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .pf05-page-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .pf05-page-title {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 23px;
+      color: #131a29;
+    }
+    .pf05-page-date {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 13px;
+      color: #7b879b;
+    }
+
+    /* KPI カード 4 枚 */
+    .pf05-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .pf05-kpi {
+      position: relative;
+      background: #ffffff;
+      border: 1px solid #e4e9f2;
+      border-radius: 8px;
+      padding: 13px 15px 14px 15px;
+    }
+    .pf05-kpi-label {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 12px;
+      color: #7b879b;
+      margin-bottom: 5px;
+    }
+    .pf05-kpi-value {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 25px;
+      line-height: 1.1;
+      color: #131a29;
+    }
+    .pf05-kpi-delta {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 11.5px;
+      color: #12a06f;
+      margin-top: 4px;
+    }
+    .pf05-kpi-delta-down {
+      color: #dc7a3c;
+    }
+    /* モザイクを掛けられた KPI（1 枚目の数値 + 増減） */
+    .pf05-mosaic {
+      display: block;
+      height: 25px;
+      width: 118px;
+      margin-top: 1px;
+      background-image:
+        linear-gradient(90deg, #4a5568 0 25%, #8b93a4 25% 50%, #2f3746 50% 75%, #6b7488 75% 100%),
+        linear-gradient(90deg, #7d8496 0 25%, #3a4354 25% 50%, #9aa2b3 50% 75%, #545c6f 75% 100%);
+      background-size: 30px 13px;
+      background-position:
+        0 0,
+        14px 13px;
+      background-repeat: repeat-x;
+    }
+    .pf05-mosaic-sm {
+      display: block;
+      height: 11px;
+      width: 58px;
+      margin-top: 6px;
+      background-image: linear-gradient(
+        90deg,
+        #7fc7ab 0 25%,
+        #45806b 25% 50%,
+        #a5ddc7 50% 75%,
+        #5d9b83 75% 100%
+      );
+      background-size: 22px 11px;
+      background-repeat: repeat-x;
+    }
+
+    /* ── 下段: 棒グラフカード + テーブルカード */
+    .pf05-lower {
+      display: grid;
+      grid-template-columns: 1.62fr 1fr;
+      gap: 16px;
+      /* 明るい面の下部が空かないよう、残り高さいっぱいに伸ばす */
+      height: calc(100% - 172px);
+    }
+    .pf05-card {
+      position: relative;
+      background: #ffffff;
+      border: 1px solid #e4e9f2;
+      border-radius: 8px;
+      padding: 15px 18px 12px 18px;
+    }
+    .pf05-card-title {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: #131a29;
+      margin-bottom: 10px;
+    }
+
+    /* 7 本の棒 */
+    /* 板を 03/04 と同じ 615.6px 高に揃えたぶん、棒の領域も詰める。
+       ここを 386px のままにすると曜日ラベル(月〜日)が板の外へはみ出す。 */
+    .pf05-chart {
+      position: relative;
+      height: 232px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 6px;
+    }
+    .pf05-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      height: 100%;
+    }
+    .pf05-col b {
+      display: block;
+      width: 100%;
+      border-radius: 5px 5px 0 0;
+      background: #7c5cf0;
+    }
+    .pf05-col.pf05-sky b {
+      background: #38bdf8;
+    }
+    .pf05-col span {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 11.5px;
+      color: #7b879b;
+      margin-top: 8px;
+    }
+
+    /* coral の注釈（矢印 + テキスト）— 既に描かれている状態 */
+    /* 参照どおり「週末に急伸」から金曜の棒へ斜めに下る coral の矢印。
+       金の棒はカード内 x ≒ 470px（7 本の 5 本目）にある。 */
+    .pf05-annot-text {
+      position: absolute;
+      left: 222px;
+      top: 4px;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 17px;
+      color: #f2604f;
+      white-space: nowrap;
+    }
+    .pf05-annot-arrow {
+      position: absolute;
+      left: 233px;
+      top: 34px;
+      width: 260px;
+      height: 92px;
+      overflow: visible;
+    }
+
+    /* テーブル */
+    .pf05-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .pf05-table th {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 11.5px;
+      color: #7b879b;
+      text-align: left;
+      padding: 0 0 7px 0;
+      border-bottom: 1px solid #e4e9f2;
+    }
+    .pf05-table td {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px;
+      color: #2b3446;
+      padding: 13px 0;
+      border-bottom: 1px solid #eef1f7;
+    }
+    .pf05-pill {
+      display: inline-block;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 11px;
+      padding: 2.5px 9px;
+      border-radius: 20px;
+      background: #dcf5e6;
+      color: #147a4d;
+    }
+    .pf05-pill-warn {
+      background: #fdeed2;
+      color: #9a6413;
+    }
+    /* coral の角丸矩形（「再試行」の行を囲う）— 既に描かれている状態 */
+    /* 「再試行」の行（v2.13.1 = 4 行目）を囲う。カード padding 15px + title 14*1.4
+       + margin 10 + th 行 ≒ 見出し 62px、その下の tr が 40px ピッチ。
+       成功 3 行ぶん送った位置が再試行の行。 */
+    .pf05-row-box {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: 170px;
+      height: 42px;
+      border: 2.5px solid #f2604f;
+      border-radius: 5px;
+      pointer-events: none;
+    }
+
+    /* emerald のステップバッジ ① ② */
+    .pf05-step {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #10b981;
+      color: #04140d;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pf05-step-1 {
+      left: 190px;
+      top: 32px;
+    }
+    /* カードの内側・囲った行の右端寄りに収める（外にはみ出させない） */
+    .pf05-step-2 {
+      right: 26px;
+      top: 178px;
+    }
+
+    /* ── 保存されたファイル名チップ（板の下端からせり上がる） */
+    /* 板の下端（絶対 885.6px）付近に留まりつつ、キャプション退避域 896px の
+       内側に収まる位置。板の中ではなく板の手前レイヤーに置き、下端から
+       せり上がってくるように見せる。 */
+    .pf05-file {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 796px;
+      display: flex;
+      justify-content: center;
+      z-index: 2;
+    }
+    .pf05-file b {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      font-size: 15px;
+      color: #9aa6b8;
+      background: rgba(11, 15, 25, 0.86);
+      border: 1px solid #1f2632;
+      border-radius: 7px;
+      padding: 8px 15px;
+    }
+    .pf05-file i {
+      display: block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    /* 背景化した板をさらに沈めるスクリム（チップの可読性のため） */
+    .pf05-scrim {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+      opacity: 0;
+      z-index: 3;
+    }
+
+    /* ── 権限チップ 3 つ（板の手前） */
+    .pf05-perms {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 452px;
+      display: flex;
+      justify-content: center;
+      gap: 26px;
+      z-index: 4;
+    }
+    .pf05-perm {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 400;
+      font-size: 30px;
+      letter-spacing: 0.01em;
+      color: #f2f5f9;
+      background: #161b26;
+      border: 1px solid rgba(16, 185, 129, 0.22);
+      border-radius: 10px;
+      padding: 17px 32px;
+      white-space: nowrap;
+    }
+
+    /* ── 主張の一行 */
+    .pf05-claim {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 596px;
+      text-align: center;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      font-size: 2.8cqw;
+      line-height: 1.2;
+      color: #9aa6b8;
+      white-space: nowrap;
+      z-index: 4;
+    }
+    .pf05-claim code {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.94em;
+      color: #f2f5f9;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="05-proof"
+    data-start="0"
+    data-duration="3.9"
+    data-width="1920"
+    data-height="1080"
+  >
+    <!-- track 0 — full-bleed ground -->
+    <div class="clip pf05-ground" data-start="0" data-duration="3.9" data-track-index="0"></div>
+
+    <!-- track 1 — the editor panel, already carrying every annotation -->
+    <div
+      class="clip pf05-panel"
+      id="pf05-panel"
+      data-start="0"
+      data-duration="3.9"
+      data-track-index="1"
+    >
+      <div class="pf05-bar">
+        <div class="pf05-tools">
+          <div class="pf05-tool pf05-tool-active pf05-i-cursor"><i></i></div>
+          <div class="pf05-tool pf05-i-arrow"><i></i></div>
+          <div class="pf05-tool pf05-i-rect"><i></i></div>
+          <div class="pf05-tool pf05-i-ellipse"><i></i></div>
+          <div class="pf05-tool pf05-i-text"><i></i></div>
+          <div class="pf05-tool pf05-i-pen"><i></i></div>
+          <div class="pf05-tool pf05-i-marker"><i></i></div>
+          <div class="pf05-tool pf05-i-grid"><i></i></div>
+          <div class="pf05-tool pf05-i-crop"><i></i></div>
+          <div class="pf05-tool pf05-i-rect"><i></i></div>
+          <div class="pf05-tool pf05-i-ellipse"><i></i></div>
+          <div class="pf05-tool pf05-i-pen"><i></i></div>
+          <div class="pf05-tool pf05-i-marker"><i></i></div>
+          <div class="pf05-tool pf05-i-arrow"><i></i></div>
+          <div class="pf05-tool pf05-i-text"><i></i></div>
+        </div>
+
+        <div class="pf05-swatches">
+          <div class="pf05-sw pf05-sw-on" style="background: #f2604f; color: #f2604f"></div>
+          <div class="pf05-sw" style="background: #f2a63c"></div>
+          <div class="pf05-sw" style="background: #10b981"></div>
+          <div class="pf05-sw" style="background: #22c3a6"></div>
+          <div class="pf05-sw" style="background: #38bdf8"></div>
+          <div class="pf05-sw" style="background: #7c5cf0"></div>
+          <div class="pf05-sw" style="background: #0f1420"></div>
+        </div>
+
+        <div class="pf05-sizes">
+          <div class="pf05-size"><b style="width: 5px; height: 5px"></b></div>
+          <div class="pf05-size pf05-size-on"><b style="width: 9px; height: 9px"></b></div>
+          <div class="pf05-size"><b style="width: 13px; height: 13px"></b></div>
+        </div>
+
+        <div class="pf05-undo">
+          <span></span>
+          <span style="transform: scaleX(-1)"></span>
+        </div>
+
+        <div class="pf05-bar-right">
+          <div class="pf05-zoom">88%</div>
+          <div class="pf05-copy"><u></u>コピー</div>
+          <div class="pf05-save" id="pf05-save"><u></u>PNG保存</div>
+          <div class="pf05-meta">1280 x 800 px&nbsp;&nbsp;Weekly Report</div>
+        </div>
+      </div>
+
+      <!-- 押下バーストはボタンの背後（z-index 1）に置く -->
+      <div class="pf05-burst" id="pf05-burst"></div>
+
+      <div class="pf05-canvas">
+        <div class="pf05-page">
+          <div class="pf05-page-head">
+            <div class="pf05-page-title">Weekly Report</div>
+            <div class="pf05-page-date">2026年7月 第5週</div>
+          </div>
+
+          <div class="pf05-kpis">
+            <div class="pf05-kpi">
+              <div class="pf05-kpi-label">アクティブユーザー</div>
+              <!-- モザイクが掛かった数値 -->
+              <span class="pf05-mosaic"></span>
+              <span class="pf05-mosaic-sm"></span>
+            </div>
+            <div class="pf05-kpi">
+              <div class="pf05-kpi-label">新規登録</div>
+              <div class="pf05-kpi-value">1,204</div>
+              <div class="pf05-kpi-delta">+3.1%</div>
+            </div>
+            <div class="pf05-kpi">
+              <div class="pf05-kpi-label">継続率</div>
+              <div class="pf05-kpi-value">92.7%</div>
+              <div class="pf05-kpi-delta">+0.8pt</div>
+            </div>
+            <div class="pf05-kpi">
+              <div class="pf05-kpi-label">問い合わせ</div>
+              <div class="pf05-kpi-value">37</div>
+              <div class="pf05-kpi-delta pf05-kpi-delta-down">-18%</div>
+            </div>
+          </div>
+
+          <div class="pf05-lower">
+            <div class="pf05-card">
+              <div class="pf05-card-title">日次アクティブユーザー</div>
+              <div class="pf05-chart">
+                <div class="pf05-col"><b style="height: 55%"></b><span>月</span></div>
+                <div class="pf05-col"><b style="height: 68%"></b><span>火</span></div>
+                <div class="pf05-col pf05-sky"><b style="height: 74%"></b><span>水</span></div>
+                <div class="pf05-col"><b style="height: 60%"></b><span>木</span></div>
+                <div class="pf05-col"><b style="height: 82%"></b><span>金</span></div>
+                <div class="pf05-col pf05-sky"><b style="height: 95%"></b><span>土</span></div>
+                <div class="pf05-col"><b style="height: 79%"></b><span>日</span></div>
+              </div>
+
+              <!-- coral の注釈テキスト + 矢印（既に描かれている） -->
+              <div class="pf05-annot-text">週末に急伸</div>
+              <svg class="pf05-annot-arrow" viewBox="0 0 260 92" fill="none">
+                <path d="M8 8 L250 57.5" stroke="#f2604f" stroke-width="4" stroke-linecap="round" />
+                <path
+                  d="M250 57.5 L226 51 M250 57.5 L235 73"
+                  stroke="#f2604f"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                />
+              </svg>
+
+              <!-- emerald のステップバッジ ① -->
+              <div class="pf05-step pf05-step-1">①</div>
+            </div>
+
+            <div class="pf05-card">
+              <div class="pf05-card-title">最近のデプロイ</div>
+              <table class="pf05-table">
+                <tr>
+                  <th>バージョン</th>
+                  <th>状態</th>
+                </tr>
+                <tr>
+                  <td>v2.14.0</td>
+                  <td><span class="pf05-pill">成功</span></td>
+                </tr>
+                <tr>
+                  <td>v2.13.2</td>
+                  <td><span class="pf05-pill">成功</span></td>
+                </tr>
+                <tr>
+                  <td>v2.13.1</td>
+                  <td><span class="pf05-pill pf05-pill-warn">再試行</span></td>
+                </tr>
+                <tr>
+                  <td>v2.13.0</td>
+                  <td><span class="pf05-pill">成功</span></td>
+                </tr>
+                <tr>
+                  <td>v2.12.4</td>
+                  <td><span class="pf05-pill">成功</span></td>
+                </tr>
+              </table>
+
+              <!-- coral の角丸矩形が「再試行」の行を囲う（既に描かれている） -->
+              <div class="pf05-row-box"></div>
+
+              <!-- emerald のステップバッジ ② -->
+              <div class="pf05-step pf05-step-2">②</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- track 2 — saved-file chip rising from the panel's bottom edge -->
+    <div
+      class="clip pf05-file"
+      id="pf05-file"
+      data-start="0.3"
+      data-duration="3.6"
+      data-track-index="2"
+    >
+      <b><i></i>Weekly Report.png</b>
+    </div>
+
+    <!-- track 2b — scrim: darkens the receded板 so the foreground chips read cleanly -->
+    <div
+      class="clip pf05-scrim"
+      id="pf05-scrim"
+      data-start="0.85"
+      data-duration="3.05"
+      data-track-index="5"
+    ></div>
+
+    <!-- track 3 — the three permission chips, in front of the receded panel -->
+    <div
+      class="clip pf05-perms"
+      data-start="0.9"
+      data-duration="3"
+      data-track-index="3"
+    >
+      <div class="pf05-perm" data-layout-allow-overlap id="pf05-perm-1">activeTab</div>
+      <div class="pf05-perm" data-layout-allow-overlap id="pf05-perm-2">scripting</div>
+      <div class="pf05-perm" data-layout-allow-overlap id="pf05-perm-3">storage</div>
+    </div>
+
+    <!-- track 4 — the claim line -->
+    <div
+      class="clip pf05-claim"
+      id="pf05-claim"
+      data-layout-allow-overlap
+      data-start="2.0"
+      data-duration="1.9"
+      data-track-index="4"
+    >
+      <code>host_permissions</code> なし ・ 外部送信ゼロ
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ── Scene 1 (0.0–0.8s) — press-release-spring on 「PNG保存」
+         入力は linear の圧縮、出力は back.out のスプリング復帰。
+         RELEASE_START = PRESS_START + PRESS_DUR で状態連続性を担保する。 */
+      var PRESS_START = 0.1;
+      var PRESS_DUR = 0.16; // subtle variation
+      var RELEASE_START = PRESS_START + PRESS_DUR; // 0.26 — 隣接が連続性の条件
+
+      tl.to(
+        "#pf05-save",
+        {
+          scale: 0.96, // subtle press
+          boxShadow: "0 2px 6px rgba(16,185,129,0.22)",
+          duration: PRESS_DUR,
+          ease: "power1.in",
+        },
+        PRESS_START,
+      );
+      tl.to(
+        "#pf05-save",
+        {
+          scale: 1,
+          boxShadow: "0 6px 18px rgba(16,185,129,0.32)",
+          duration: 0.46,
+          ease: "back.out(1.4)", // BOUNCE_FACTOR 1.4 — soft
+        },
+        RELEASE_START,
+      );
+
+      // バーストはボタンの背後で開き、すぐ引く（burst は blur 担当・shadow は触らない）
+      tl.fromTo(
+        "#pf05-burst",
+        { scale: 1, opacity: 0 },
+        { scale: 3, opacity: 0.6, duration: 0.34, ease: "power2.out" },
+        RELEASE_START,
+      );
+      tl.to("#pf05-burst", { opacity: 0, duration: 0.4, ease: "power2.in" }, RELEASE_START + 0.34);
+
+      // 保存されたファイル名チップが板の下端からせり上がる
+      tl.fromTo(
+        "#pf05-file",
+        { y: 34, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" },
+        0.34,
+      );
+
+      /* ── Scene 2 (0.8–2.0s) — 板が引いて背景化（scale 1.0 → 0.9 / opacity 1 → 0.25） */
+      tl.fromTo(
+        "#pf05-panel",
+        { scale: 1, opacity: 1 },
+        { scale: 0.9, opacity: 0.25, duration: 0.6, ease: "power3.out" },
+        0.85,
+      );
+      // ファイル名チップも板と一緒に沈める（手前の権限チップに主役を譲る）
+      tl.to("#pf05-file", { opacity: 0.3, duration: 0.5, ease: "power2.out" }, 0.95);
+
+      // スクリムが板と同時に立ち上がり、明るいダッシュボードを沈める
+      tl.fromTo(
+        "#pf05-scrim",
+        { opacity: 0 },
+        { opacity: 0.55, duration: 0.6, ease: "power3.out" },
+        0.85,
+      );
+
+      // 権限チップが左から 0.2s 間隔で 3 つ入る
+      tl.fromTo(
+        "#pf05-perm-1",
+        { x: -66, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.5, ease: "power3.out" },
+        1.0,
+      );
+      tl.fromTo(
+        "#pf05-perm-2",
+        { x: -66, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.5, ease: "power3.out" },
+        1.2,
+      );
+      tl.fromTo(
+        "#pf05-perm-3",
+        { x: -66, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.5, ease: "power3.out" },
+        1.4,
+      );
+
+      /* ── Scene 3 (2.0–3.4s) — チップ列の直下に主張の一行がフェードで留まる。以後静止。 */
+      tl.fromTo(
+        "#pf05-claim",
+        { y: 14, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" },
+        2.05,
+      );
+
+      /* handoff_out: 板は opacity 0.25 / scale 0.9 のまま薄く残る。
+         exit なし — 次フレームが完全消去とアイコン実体化を担う。 */
+      tl.to({}, { duration: 3.4 }, 0);
+
+      window.__timelines["05-proof"] = tl;
+    })();
+  </script>
+</template>

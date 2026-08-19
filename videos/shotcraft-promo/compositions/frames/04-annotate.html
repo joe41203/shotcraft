@@ -1,0 +1,993 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+    }
+
+    /* — full-bleed ground: own clip layer, never a background on #root — */
+    .an04-ground {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+    }
+
+    /* — handoff_in: 前フレームの emerald ルール棒が上端ラインへ移る — */
+    /* handoff_in: Frame 3 末端の emerald ライン（全幅・上端）をそのまま静止で受ける */
+    #an04-rule {
+      position: absolute;
+      top: 7px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #10b981;
+    }
+
+    /* ─────────────────────────────────────────────
+       エディタ板 — handoff_out: x center / y 46% / scale 1.0
+       高さは 57cqh に抑え、キャプション込みで 83% keep-out を守る
+       ───────────────────────────────────────────── */
+    #an04-panel {
+      position: absolute;
+      left: 11cqw; /* (100 - 78) / 2 */
+      width: 78cqw;
+      top: 17.5cqh; /* 46% - 57%/2 → 中心が y 46% */
+      height: 57cqh;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f4f6fa;
+      border: 1px solid #1f2632;
+      transform-origin: 50% 50%;
+      display: flex;
+      flex-direction: column;
+      font-family: "Noto Sans JP", sans-serif;
+    }
+
+    /* ── ダークなツールバー ── */
+    .an04-toolbar {
+      flex: 0 0 auto;
+      height: 3.9cqh;
+      background: #161b26;
+      display: flex;
+      align-items: center;
+      gap: 0.30cqw;
+      padding: 0 0.8cqw;
+    }
+
+    .an04-tool {
+      width: 1.58cqw;
+      height: 1.58cqw;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9aa6b8;
+      flex: 0 0 auto;
+    }
+
+    .an04-tool svg {
+      width: 1.12cqw;
+      height: 1.12cqw;
+      display: block;
+    }
+
+    .an04-tool.is-active {
+      background: #10b981;
+      color: #0b0f19;
+    }
+
+    .an04-tb-div {
+      width: 1px;
+      height: 1.75cqh;
+      background: #2b3342;
+      margin: 0 0.4cqw;
+      flex: 0 0 auto;
+    }
+
+    .an04-swatch {
+      width: 1.18cqw;
+      height: 1.18cqw;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .an04-swatch.is-picked {
+      box-shadow:
+        0 0 0 0.16cqw #161b26,
+        0 0 0 0.32cqw #38bdf8;
+      margin: 0 0.2cqw;
+    }
+
+    .an04-dot {
+      border-radius: 50%;
+      background: #6d7889;
+      flex: 0 0 auto;
+    }
+
+    .an04-dot.is-picked {
+      background: #f2f5f9;
+      box-shadow: 0 0 0 0.3cqw #253044;
+      margin: 0 0.22cqw;
+    }
+
+    .an04-zoom {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72cqw;
+      color: #9aa6b8;
+      margin-left: 0.4cqw;
+      flex: 0 0 auto;
+    }
+
+    .an04-spacer {
+      flex: 1 1 auto;
+    }
+
+    .an04-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.3cqw;
+      height: 2.25cqh;
+      padding: 0 0.72cqw;
+      border-radius: 5px;
+      font-size: 0.8cqw;
+      font-weight: 700;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .an04-btn svg {
+      width: 0.95cqw;
+      height: 0.95cqw;
+      display: block;
+    }
+
+    .an04-btn-copy {
+      background: #253044;
+      color: #f2f5f9;
+    }
+
+    .an04-btn-save {
+      background: #10b981;
+      color: #041b12;
+    }
+
+    .an04-meta {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72cqw;
+      color: #65707e;
+      margin-left: 0.85cqw;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .an04-meta-title {
+      font-family: "Noto Sans JP", sans-serif;
+      font-size: 0.75cqw;
+      color: #9aa6b8;
+      margin-left: 0.7cqw;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    /* ── 明るいダッシュボード ── */
+    .an04-page {
+      flex: 1 1 auto;
+      background: #f4f6fa;
+      padding: 1.9cqh 2.1cqw;
+      display: flex;
+      flex-direction: column;
+      gap: 1.55cqh;
+      min-height: 0;
+    }
+
+    .an04-titlerow {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex: 0 0 auto;
+    }
+
+    .an04-h1 {
+      font-size: 1.55cqw;
+      font-weight: 700;
+      color: #1e2536;
+      letter-spacing: -0.01em;
+    }
+
+    .an04-week {
+      font-size: 0.82cqw;
+      font-weight: 400;
+      color: #8b95a6;
+    }
+
+    .an04-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.05cqw;
+      flex: 0 0 auto;
+    }
+
+    .an04-card {
+      position: relative;
+      background: #ffffff;
+      border: 1px solid #e4e8f0;
+      border-radius: 8px;
+      padding: 1.25cqh 0.95cqw;
+    }
+
+    .an04-kpi-label {
+      font-size: 0.72cqw;
+      font-weight: 400;
+      color: #77839a;
+      margin-bottom: 0.55cqh;
+    }
+
+    .an04-kpi-value {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 1.62cqw;
+      font-weight: 700;
+      color: #1e2536;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+    }
+
+    .an04-kpi-delta {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.66cqw;
+      font-weight: 400;
+      margin-top: 0.5cqh;
+    }
+
+    .an04-up {
+      color: #16a34a;
+    }
+
+    .an04-down {
+      color: #e04a5f;
+    }
+
+    .an04-lower {
+      display: grid;
+      grid-template-columns: 1.72fr 1fr;
+      gap: 1.05cqw;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .an04-card-title {
+      font-size: 0.86cqw;
+      font-weight: 700;
+      color: #1e2536;
+      margin-bottom: 1.2cqh;
+    }
+
+    /* — 棒グラフ — */
+    .an04-chart-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .an04-bars {
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1.05cqw;
+      align-items: end;
+      min-height: 0;
+    }
+
+    .an04-barcol {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .an04-bar {
+      width: 100%;
+      border-radius: 5px 5px 2px 2px;
+    }
+
+    .an04-bar-v {
+      background: linear-gradient(180deg, #8b6bf5 0%, #7c5cf0 100%);
+    }
+
+    .an04-bar-s {
+      background: linear-gradient(180deg, #38bdf8 0%, #1ea6e6 100%);
+    }
+
+    .an04-bar-label {
+      text-align: center;
+      font-size: 0.68cqw;
+      color: #77839a;
+      margin-top: 0.75cqh;
+      flex: 0 0 auto;
+    }
+
+    /* — デプロイ表 — */
+    .an04-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .an04-table th {
+      text-align: left;
+      font-size: 0.68cqw;
+      font-weight: 400;
+      color: #8b95a6;
+      padding-bottom: 0.7cqh;
+      border-bottom: 1px solid #e4e8f0;
+    }
+
+    .an04-table td {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72cqw;
+      color: #37415a;
+      padding: 0.82cqh 0;
+      border-bottom: 1px solid #eef1f6;
+    }
+
+    .an04-table td.an04-status {
+      text-align: right;
+    }
+
+    .an04-pill {
+      display: inline-block;
+      font-family: "Noto Sans JP", sans-serif;
+      font-size: 0.62cqw;
+      font-weight: 400;
+      padding: 0.28cqh 0.5cqw;
+      border-radius: 999px;
+    }
+
+    .an04-pill-ok {
+      background: #dcf5e6;
+      color: #157f45;
+    }
+
+    .an04-pill-retry {
+      background: #fdf0d2;
+      color: #94661a;
+    }
+
+
+    /* ═══════════ 注釈レイヤー（すべて板の子・clip ではない） ═══════════ */
+
+    /* — Scene 1: モザイク（粗いピクセルブロック） — */
+    #an04-mosaic {
+      position: absolute;
+      left: 0.78cqw;
+      top: 3.55cqh;
+      width: 8.5cqw;
+      height: 3.6cqh;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      overflow: hidden;
+    }
+
+    #an04-mosaic i {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* — Scene 2: コーラルのテキスト＋矢印 — */
+    #an04-arrowtext {
+      position: absolute;
+      left: 18.07cqw;
+      top: 4.17cqh;
+      font-family: "Noto Sans JP", sans-serif;
+      font-size: 1.12cqw;
+      font-weight: 400;
+      color: #fb7185;
+      white-space: nowrap;
+    }
+
+    #an04-arrow {
+      position: absolute;
+      left: 20.94cqw;
+      top: 8.15cqh;
+      height: 1.04cqw; /* 頭の高さぶん確保。軸は align-items:center で通す */
+      display: flex;
+      align-items: center;
+      transform: rotate(27.9deg);
+      transform-origin: 0% 50%;
+      overflow: hidden;
+    }
+
+    #an04-arrow-shaft {
+      flex: 1 1 auto;
+      height: 0.3cqw;
+      background: #fb7185;
+      border-radius: 1px;
+      min-width: 0;
+    }
+
+    #an04-arrow-head {
+      flex: 0 0 auto;
+      width: 0;
+      height: 0;
+      border-top: 0.52cqw solid transparent;
+      border-bottom: 0.52cqw solid transparent;
+      border-left: 0.95cqw solid #fb7185;
+    }
+
+    /* — Scene 3: 矩形強調（再試行の行） — */
+    #an04-rect {
+      position: absolute;
+      left: 0.68cqw;
+      top: 14.54cqh;
+      width: 25.36cqw;
+      height: 5.0cqh;
+      border: 4px solid #fb7185;
+      border-radius: 5px;
+      box-sizing: border-box;
+      transform-origin: 50% 50%;
+    }
+
+    /* — Scene 4: ステップバッジ — */
+    .an04-badge {
+      position: absolute;
+      width: 2.05cqw;
+      height: 2.05cqw;
+      border-radius: 50%;
+      background: #10b981;
+      color: #041b12;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 1.05cqw;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    #an04-badge-1 {
+      left: 15.05cqw;
+      top: 0.35cqh;
+    }
+
+    #an04-badge-2 {
+      left: 24.55cqw;
+      top: 13.05cqh;
+    }
+
+    /* — 板の下のツールラベル — */
+    .an04-label {
+      position: absolute;
+      left: 0;
+      right: 0;
+      /* GIF は 960px 幅まで縮むため、1.15cqw(=22px→GIF上11px)では読めない。
+         2.4cqw まで上げ、keep-out(896px)に収まるよう位置も上へ詰める。 */
+      top: 75.8cqh;
+      text-align: center;
+      white-space: nowrap;
+      color: #9aa6b8;
+    }
+
+    .an04-label-key {
+      /* ── は U+2500。Plex Mono に無い場合に備え、同梱の Noto Sans JP を後段に置く */
+      font-family: "IBM Plex Mono", "Noto Sans JP", monospace;
+      font-size: 2.4cqw;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      color: #10b981;
+    }
+
+    .an04-label-name {
+      font-family: "Noto Sans JP", sans-serif;
+      font-size: 2.4cqw;
+      font-weight: 400;
+      margin-left: 0.8cqw;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="04-annotate"
+    data-start="0"
+    data-duration="6.4"
+    data-width="1920"
+    data-height="1080"
+  >
+    <!-- ground -->
+    <div
+      id="an04-ground"
+      class="clip an04-ground"
+      data-start="0"
+      data-duration="6.4"
+      data-track-index="0"
+    ></div>
+
+    <!-- handoff_in: Frame 3 と同じ全幅 emerald ライン（静止） -->
+    <div
+      id="an04-rule"
+      class="clip"
+      data-start="0"
+      data-duration="6.4"
+      data-track-index="1"
+    ></div>
+
+    <!-- hero: エディタ板 -->
+    <div
+      id="an04-panel"
+      class="clip"
+      data-start="0"
+      data-duration="6.4"
+      data-track-index="2"
+    >
+      <!-- ── ダークなツールバー ── -->
+      <div class="an04-toolbar">
+        <!-- 15 tools -->
+        <div class="an04-tool is-active" id="an04-t-select">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 3l6.5 16 2.3-6.7L20.5 10z" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
+        <div class="an04-tool" id="an04-t-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="19" x2="19" y2="5" />
+            <polyline points="10 5 19 5 19 14" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="19" x2="19" y2="5" />
+          </svg>
+        </div>
+        <div class="an04-tool" id="an04-t-rect">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="6" width="16" height="12" rx="1" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="12" rx="9" ry="6" />
+          </svg>
+        </div>
+        <div class="an04-tool" id="an04-t-mosaic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="8" y="8" width="8" height="8" rx="1.5" />
+            <line x1="4" y1="4" x2="6.5" y2="6.5" />
+            <line x1="20" y1="4" x2="17.5" y2="6.5" />
+            <line x1="4" y1="20" x2="6.5" y2="17.5" />
+            <line x1="20" y1="20" x2="17.5" y2="17.5" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="5 6 5 5 19 5 19 6" />
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="9" y1="19" x2="15" y2="19" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 20l4-1 10-10-3-3L5 16z" />
+            <line x1="14.5" y1="6.5" x2="17.5" y2="9.5" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 14l-2 5 5-2 8-8-3-3z" />
+            <line x1="14" y1="6" x2="18" y2="10" />
+            <line x1="5" y1="21" x2="12" y2="21" />
+          </svg>
+        </div>
+        <div class="an04-tool" id="an04-t-step">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M11 9.5l1.8-1.2V16" stroke-width="2" fill="none" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 5h16v10H13l-3 4v-4H4z" />
+            <line x1="7.5" y1="10" x2="16.5" y2="10" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="1" />
+            <line x1="4" y1="9.5" x2="20" y2="9.5" />
+            <line x1="4" y1="14.5" x2="20" y2="14.5" />
+            <line x1="9.5" y1="4" x2="9.5" y2="20" />
+            <line x1="14.5" y1="4" x2="14.5" y2="20" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3.5c3.2 4 5 6.6 5 9a5 5 0 0 1-10 0c0-2.4 1.8-5 5-9z" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M8 17.5l-3.5-3.5a1.5 1.5 0 0 1 0-2.1l7-7a1.5 1.5 0 0 1 2.1 0l4 4a1.5 1.5 0 0 1 0 2.1L11.5 17.5z"
+            />
+            <line x1="8" y1="17.5" x2="20" y2="17.5" />
+            <line x1="9" y1="8.5" x2="15.5" y2="15" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2v16h16" />
+            <path d="M18 22V6H2" />
+          </svg>
+        </div>
+
+        <div class="an04-tb-div"></div>
+
+        <!-- 7 colour swatches, first picked -->
+        <div class="an04-swatch is-picked" style="background: #fb7185"></div>
+        <div class="an04-swatch" style="background: #fbbf24"></div>
+        <div class="an04-swatch" style="background: #34d399"></div>
+        <div class="an04-swatch" style="background: #38bdf8"></div>
+        <div class="an04-swatch" style="background: #a78bfa"></div>
+        <div class="an04-swatch" style="background: #18181b"></div>
+        <div class="an04-swatch" style="background: #fafafa"></div>
+
+        <div class="an04-tb-div"></div>
+
+        <!-- stroke width -->
+        <div class="an04-dot" style="width: 0.3cqw; height: 0.3cqw"></div>
+        <div class="an04-dot is-picked" style="width: 0.48cqw; height: 0.48cqw"></div>
+        <div class="an04-dot" style="width: 0.66cqw; height: 0.66cqw"></div>
+
+        <div class="an04-tb-div"></div>
+
+        <!-- undo / redo -->
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 7 4 12 9 17" />
+            <path d="M4 12h10a5 5 0 0 1 0 10h-3" />
+          </svg>
+        </div>
+        <div class="an04-tool">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 7 20 12 15 17" />
+            <path d="M20 12H10a5 5 0 0 0 0 10h3" />
+          </svg>
+        </div>
+
+        <div class="an04-zoom">88%</div>
+
+        <div class="an04-spacer"></div>
+
+        <div class="an04-btn an04-btn-copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="11" height="11" rx="2" />
+            <path d="M5 15H4V4h11v1" />
+          </svg>
+          コピー
+        </div>
+        <div class="an04-btn an04-btn-save">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 4v10" />
+            <polyline points="8 11 12 15 16 11" />
+            <path d="M5 19h14" />
+          </svg>
+          PNG保存
+        </div>
+
+        <div class="an04-meta">1280 x 800 px</div>
+        <div class="an04-meta-title">Weekly Report</div>
+      </div>
+
+      <!-- ── 明るいダッシュボード（注釈なし・撮ったそのまま） ── -->
+      <div class="an04-page">
+        <div class="an04-titlerow">
+          <div class="an04-h1">Weekly Report</div>
+          <div class="an04-week">2026年7月 第5週</div>
+        </div>
+
+        <div class="an04-kpis">
+          <div class="an04-card">
+            <div class="an04-kpi-label">アクティブユーザー</div>
+            <div class="an04-kpi-value" data-layout-allow-occlusion>8,412</div>
+            <div class="an04-kpi-delta an04-up">+5.2%</div>
+
+            <!-- Scene 1 — モザイクで数値を伏せる（粗いピクセルブロック） -->
+            <div id="an04-mosaic" data-layout-allow-occlusion>
+              <i style="background: #98a1b2"></i>
+              <i style="background: #7b8598"></i>
+              <i style="background: #b4bcc8"></i>
+              <i style="background: #6f798d"></i>
+              <i style="background: #a8b0be"></i>
+              <i style="background: #8992a4"></i>
+              <i style="background: #b9c0cb"></i>
+              <i style="background: #7f8a9e"></i>
+              <i style="background: #949dae"></i>
+              <i style="background: #6a748a"></i>
+              <i style="background: #aeb6c3"></i>
+              <i style="background: #828c9f"></i>
+              <i style="background: #a1a9b9"></i>
+              <i style="background: #737e93"></i>
+              <i style="background: #bcc2cd"></i>
+              <i style="background: #8b94a6"></i>
+              <i style="background: #9ba3b3"></i>
+              <i style="background: #778299"></i>
+              <i style="background: #adb5c2"></i>
+              <i style="background: #868fa1"></i>
+              <i style="background: #c0c6d0"></i>
+              <i style="background: #748195"></i>
+              <i style="background: #9ea6b6"></i>
+              <i style="background: #6d7789"></i>
+            </div>
+
+            <!-- Scene 4 — ステップ ① -->
+            <div class="an04-badge" id="an04-badge-1">1</div>
+          </div>
+          <div class="an04-card">
+            <div class="an04-kpi-label">新規登録</div>
+            <div class="an04-kpi-value" data-layout-allow-occlusion>1,204</div>
+            <div class="an04-kpi-delta an04-up">+3.1%</div>
+          </div>
+          <div class="an04-card">
+            <div class="an04-kpi-label">継続率</div>
+            <div class="an04-kpi-value" data-layout-allow-occlusion>92.7%</div>
+            <div class="an04-kpi-delta an04-up">+0.8pt</div>
+          </div>
+          <div class="an04-card">
+            <div class="an04-kpi-label">問い合わせ</div>
+            <div class="an04-kpi-value" data-layout-allow-occlusion>37</div>
+            <div class="an04-kpi-delta an04-down">-18%</div>
+          </div>
+        </div>
+
+        <div class="an04-lower">
+          <div class="an04-card an04-chart-card">
+            <div class="an04-card-title">日次アクティブユーザー</div>
+
+            <!-- Scene 2 — コーラルのテキスト＋金曜の棒を指す矢印 -->
+            <div id="an04-arrowtext">週末に急伸</div>
+            <div id="an04-arrow">
+              <div id="an04-arrow-shaft"></div>
+              <div id="an04-arrow-head"></div>
+            </div>
+            <div class="an04-bars">
+              <div class="an04-barcol">
+                <div class="an04-bar an04-bar-v" style="height: 52%"></div>
+                <div class="an04-bar-label">月</div>
+              </div>
+              <div class="an04-barcol">
+                <div class="an04-bar an04-bar-v" style="height: 64%"></div>
+                <div class="an04-bar-label">火</div>
+              </div>
+              <div class="an04-barcol">
+                <div class="an04-bar an04-bar-s" style="height: 72%"></div>
+                <div class="an04-bar-label">水</div>
+              </div>
+              <div class="an04-barcol">
+                <div class="an04-bar an04-bar-v" style="height: 56%"></div>
+                <div class="an04-bar-label">木</div>
+              </div>
+              <div class="an04-barcol">
+                <div class="an04-bar an04-bar-v" style="height: 80%"></div>
+                <div class="an04-bar-label">金</div>
+              </div>
+              <div class="an04-barcol">
+                <div class="an04-bar an04-bar-s" style="height: 94%"></div>
+                <div class="an04-bar-label">土</div>
+              </div>
+              <div class="an04-barcol">
+                <div class="an04-bar an04-bar-v" style="height: 68%"></div>
+                <div class="an04-bar-label">日</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="an04-card">
+            <div class="an04-card-title">最近のデプロイ</div>
+
+            <!-- Scene 3 — 再試行の行を矩形で囲む -->
+            <div id="an04-rect"></div>
+
+            <!-- Scene 4 — ステップ ② -->
+            <div class="an04-badge" id="an04-badge-2">2</div>
+            <table class="an04-table">
+              <tr>
+                <th>バージョン</th>
+                <th style="text-align: right">状態</th>
+              </tr>
+              <tr>
+                <td>v2.14.0</td>
+                <td class="an04-status"><span class="an04-pill an04-pill-ok">成功</span></td>
+              </tr>
+              <tr>
+                <td>v2.13.2</td>
+                <td class="an04-status"><span class="an04-pill an04-pill-ok">成功</span></td>
+              </tr>
+              <tr>
+                <td>v2.13.1</td>
+                <td class="an04-status"><span class="an04-pill an04-pill-retry">再試行</span></td>
+              </tr>
+              <tr>
+                <td>v2.13.0</td>
+                <td class="an04-status"><span class="an04-pill an04-pill-ok">成功</span></td>
+              </tr>
+              <tr>
+                <td>v2.12.4</td>
+                <td class="an04-status"><span class="an04-pill an04-pill-ok">成功</span></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+    <!-- 板の下のツールラベル（同一トラック・時間は重ならない） -->
+
+    <div
+      id="an04-label-1"
+      class="clip an04-label"
+      data-start="0"
+      data-duration="1.5"
+      data-track-index="3"
+    >
+      <span class="an04-label-key">X ──</span><span class="an04-label-name">モザイクで伏せる</span>
+    </div>
+
+    <div
+      id="an04-label-2"
+      class="clip an04-label"
+      data-start="1.5"
+      data-duration="1.7"
+      data-track-index="3"
+    >
+      <span class="an04-label-key">A ──</span><span class="an04-label-name">矢印で指す</span>
+    </div>
+
+    <div
+      id="an04-label-3"
+      class="clip an04-label"
+      data-start="3.2"
+      data-duration="1.5"
+      data-track-index="3"
+    >
+      <span class="an04-label-key">R ──</span><span class="an04-label-name">矩形で囲む</span>
+    </div>
+
+    <div
+      id="an04-label-4"
+      class="clip an04-label"
+      data-start="4.7"
+      data-duration="1.7"
+      data-track-index="3"
+    >
+      <span class="an04-label-key">S ──</span><span class="an04-label-name">番号を振る</span>
+    </div>
+  </div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    (function () {
+      var tl = gsap.timeline({ paused: true });
+
+      var ACTIVE_BG = "#10b981";
+      var ACTIVE_FG = "#0b0f19";
+      var IDLE_BG = "rgba(0,0,0,0)";
+      var IDLE_FG = "#9aa6b8";
+
+      // ツールバーのアクティブ切替（0 秒 set で seek-safe）
+      function activate(onSel, offSel, at) {
+        tl.set(offSel, { backgroundColor: IDLE_BG, color: IDLE_FG }, at);
+        tl.set(onSel, { backgroundColor: ACTIVE_BG, color: ACTIVE_FG }, at);
+      }
+
+      // ── Scene 1 (0.0–1.5s) モザイク ──────────────────────────
+      // t=0 は Frame 3 とまったく同じ状態（選択ツールがアクティブ）。
+      // 0.12s でモザイクツールへ持ち替える。
+      activate("#an04-t-mosaic", "#an04-t-select", 0.12);
+
+      // 粗いピクセルブロックが左から順に埋まる（合計 0.35s）
+      tl.fromTo(
+        "#an04-mosaic i",
+        { opacity: 0 },
+        {
+          opacity: 1,
+          duration: 0.12,
+          ease: "power3.out",
+          stagger: { each: 0.0096, from: "start" },
+        },
+        0.22,
+      );
+
+      tl.fromTo(
+        "#an04-label-1",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.32, ease: "power3.out" },
+        0.12,
+      );
+      tl.to("#an04-label-1", { opacity: 0, duration: 0.26, ease: "power3.in" }, 1.24);
+      tl.set("#an04-label-1", { opacity: 0 }, 1.5);
+
+      // ── Scene 2 (1.5–3.2s) 矢印とテキスト ────────────────────
+      activate("#an04-t-arrow", "#an04-t-mosaic", 1.55);
+
+      // 先にコーラルのテキストが出る
+      tl.fromTo(
+        "#an04-arrowtext",
+        { y: 8, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.34, ease: "power3.out" },
+        1.62,
+      );
+
+      // そこから金曜の棒へ矢印が伸びる。width を伸ばすので頭は潰れない。
+      tl.fromTo(
+        "#an04-arrow",
+        { width: "0cqw", opacity: 1 },
+        { width: "9.25cqw", duration: 0.45, ease: "power3.out" },
+        2.02,
+      );
+
+      tl.fromTo(
+        "#an04-label-2",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.32, ease: "power3.out" },
+        1.58,
+      );
+      tl.to("#an04-label-2", { opacity: 0, duration: 0.26, ease: "power3.in" }, 2.94);
+      tl.set("#an04-label-2", { opacity: 0 }, 3.2);
+
+      // ── Scene 3 (3.2–4.7s) 矩形強調 ─────────────────────────
+      activate("#an04-t-rect", "#an04-t-arrow", 3.25);
+
+      // 再試行の行を囲む角丸矩形が広がる（0.4s）
+      tl.fromTo(
+        "#an04-rect",
+        { scaleX: 0.42, scaleY: 0.55, opacity: 0 },
+        { scaleX: 1, scaleY: 1, opacity: 1, duration: 0.4, ease: "power3.out" },
+        3.34,
+      );
+
+      tl.fromTo(
+        "#an04-label-3",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.32, ease: "power3.out" },
+        3.28,
+      );
+      tl.to("#an04-label-3", { opacity: 0, duration: 0.26, ease: "power3.in" }, 4.44);
+      tl.set("#an04-label-3", { opacity: 0 }, 4.7);
+
+      // ── Scene 4 (4.7–6.4s) ステップ ─────────────────────────
+      activate("#an04-t-step", "#an04-t-rect", 4.75);
+
+      // ① モザイクした KPI カードへ、② 囲んだ表の行へ。0.3s 間隔で弾んで置かれる。
+      tl.fromTo(
+        "#an04-badge-1",
+        { scale: 0.6, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.42, ease: "back.out(1.6)" },
+        4.84,
+      );
+      tl.fromTo(
+        "#an04-badge-2",
+        { scale: 0.6, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.42, ease: "back.out(1.6)" },
+        5.14,
+      );
+
+      tl.fromTo(
+        "#an04-label-4",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.32, ease: "power3.out" },
+        4.78,
+      );
+
+      // 最後の約 0.6s は静止。注釈が全部乗った板をそのまま読ませる。
+
+      window.__timelines["04-annotate"] = tl;
+    })();
+  </script>
+</template>

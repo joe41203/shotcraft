@@ -1,0 +1,150 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    /* "Noto Sans JP" は HyperFrames コンパイラのプリバンドル対象（400 / 700 のみ）。
+       宣言は不要 — data URI として自動埋め込みされる。 */
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+    }
+
+    /* full-bleed ink-black ground — own full-duration clip layer, never on #root */
+    .hook01-ground {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+    }
+
+    /* centred single column, 14cqw side margins */
+    .hook01-stage {
+      position: absolute;
+      left: 14cqw;
+      right: 14cqw;
+      top: 0;
+      bottom: 0;
+    }
+
+    .hook01-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      white-space: nowrap;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 7.5cqw;
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+      color: #f2f5f9;
+    }
+
+    /* 2 行のブロック中心を y 50% に保ちつつ 18cqh 間隔。
+       行ボックスは 12cqh（129.6px）。GSAP の入場オフセット y:24px ぶん
+       アニメ中に上へ寄るため、その分を吸収できる間隔を取っている。
+       （静止時 64.8px / 入場中 40.8px の空きが残る）*/
+    .hook01-line-a {
+      top: 35.0cqh;
+    }
+    .hook01-line-b {
+      top: 53.0cqh;
+    }
+
+    /* 文節チャンク送り — 日本語なので per-word ではなく文節単位で刻む。
+       inline-block の箱は既定のフォントメトリクス（≒ font-size × 1.4）で
+       立ち上がり、行間より高くなって隣の行と衝突する。line-height を
+       明示継承し vertical-align を top に寄せて箱を行と同じ高さに締める。 */
+    .hook01-chunk {
+      display: inline-block;
+      line-height: 0.9;
+      vertical-align: top;
+      will-change: transform, opacity;
+    }
+
+    .hook01-mark {
+      display: inline-block;
+      transform-origin: 50% 80%;
+      will-change: transform;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="01-hook"
+    data-start="0"
+    data-duration="2.8"
+    data-width="1920"
+    data-height="1080"
+  >
+    <div
+      class="clip hook01-ground"
+      data-start="0"
+      data-duration="2.8"
+      data-track-index="0"
+    ></div>
+
+    <div
+      class="clip hook01-stage"
+      data-start="0"
+      data-duration="2.8"
+      data-track-index="1"
+    >
+      <div class="hook01-line hook01-line-a">
+        <span class="hook01-chunk hook01-c1">その</span
+        ><span class="hook01-chunk hook01-c2">スクショ、</span>
+      </div>
+      <div class="hook01-line hook01-line-b">
+        <span class="hook01-chunk hook01-c3">どこに</span
+        ><span class="hook01-chunk hook01-c4">送ってる</span
+        ><span class="hook01-chunk hook01-c5 hook01-mark">？</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      var ENTER = { y: 24, opacity: 0 };
+      var LAND = { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" };
+
+      function land(sel, at) {
+        tl.fromTo(
+          sel,
+          { y: ENTER.y, opacity: ENTER.opacity },
+          { y: LAND.y, opacity: LAND.opacity, duration: LAND.duration, ease: LAND.ease },
+          at
+        );
+      }
+
+      // ── Scene 1 (0.0–0.9s) — 「そのスクショ、」文節チャンクの staggered reveal
+      land(".hook01-c1", 0.0);
+      land(".hook01-c2", 0.14);
+
+      // ── Scene 2 (0.9–1.9s) — 「どこに送ってる？」で問いが完成
+      land(".hook01-c3", 0.8);
+      land(".hook01-c4", 0.94);
+      land(".hook01-c5", 1.08);
+
+      // ── Scene 3 (1.9–3.4s) — held read。「？」だけ低振幅の subtle jitter
+      // repeat / yoyo は使わず、明示的な微小トゥイーンを連ねて静止に着地させる
+      tl.to(".hook01-mark", { rotation: 1.6, y: -2, duration: 0.2, ease: "power3.out" }, 1.75);
+      tl.to(".hook01-mark", { rotation: -1.2, y: 1, duration: 0.22, ease: "power3.inOut" }, 1.95);
+      tl.to(".hook01-mark", { rotation: 0.8, y: -1, duration: 0.2, ease: "power3.inOut" }, 2.17);
+      tl.to(".hook01-mark", { rotation: -0.4, y: 0.5, duration: 0.2, ease: "power3.inOut" }, 2.37);
+      tl.to(".hook01-mark", { rotation: 0, y: 0, duration: 0.25, ease: "power3.out" }, 2.57);
+
+      // 全尺アンカー（handoff_out: 見出し 2 行はここで静止・opacity 1・scale 1）
+      tl.to({}, { duration: 2.8 }, 0);
+
+      window.__timelines["01-hook"] = tl;
+    })();
+  </script>
+</template>

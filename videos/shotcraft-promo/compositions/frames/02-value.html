@@ -1,0 +1,197 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+    }
+
+    /* — full-bleed ground: its own clip layer, never a background on #root — */
+    .v02-ground {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+    }
+
+    /* — shared centered text row: no CSS transform (GSAP owns transforms) — */
+    .v02-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      padding: 0 5.5cqw;
+      text-align: center;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* Scene 1 — the previous frame's question, exiting upward */
+    #v02-handoff {
+      top: 50%;
+      margin-top: -6.75cqw; /* 2 lines × 7.5cqw × 0.9 line-height ÷ 2 → block center at y 50% */
+      font-size: 7.5cqw;
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+      color: #f2f5f9;
+    }
+
+    /* Scene 2 — the preamble (h2, cream-muted) */
+    #v02-preamble {
+      top: 40%;
+      margin-top: -2.475cqw; /* 4.5cqw × 1.1 ÷ 2 → optical center on y 40% */
+      font-size: 4.5cqw;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: #9aa6b8;
+    }
+
+    /* Scene 3 — the payoff (h1, cream with one emerald clause) */
+    /* h1 ramp stepped down 7.5cqw → 6.0cqw per frame.md fit-to-measure:
+       13 CJK glyphs at 7.5cqw run ~95cqw, over the ≤78cqw block cap. */
+    #v02-payoff {
+      top: 54%;
+      margin-top: -2.7cqw; /* 6.0cqw × 0.9 ÷ 2 → optical center on y 54% */
+      font-size: 6cqw;
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+      color: #f2f5f9;
+      transform-origin: 50% 50%;
+    }
+
+    #v02-payoff .v02-accent {
+      color: #10b981;
+    }
+
+    /* Scene 4 — the rule stub, the system's only ornament */
+    #v02-rule-wrap {
+      position: absolute;
+      top: 66%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      margin-top: -1px; /* the 2px bar sits centered on y 66% */
+      display: flex;
+      justify-content: center;
+    }
+
+    #v02-rule {
+      width: 36cqw;
+      height: 2px;
+      background: #10b981;
+      transform-origin: 50% 50%;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="02-value"
+    data-start="0"
+    data-duration="3.5"
+    data-width="1920"
+    data-height="1080"
+  >
+    <div
+      class="clip v02-ground"
+      data-start="0"
+      data-duration="3.5"
+      data-track-index="0"
+    ></div>
+
+    <div
+      id="v02-handoff"
+      class="clip v02-row"
+      data-start="0"
+      data-duration="0.5"
+      data-track-index="1"
+    >
+      そのスクショ、<br />どこに送ってる？
+    </div>
+
+    <div
+      id="v02-preamble"
+      class="clip v02-row"
+      data-start="0.5"
+      data-duration="3"
+      data-track-index="1"
+    >
+      撮影も、編集も、書き出しも。
+    </div>
+
+    <div
+      id="v02-payoff"
+      class="clip v02-row"
+      data-start="1.3"
+      data-duration="2.2"
+      data-track-index="2"
+    >
+      ぜんぶ、<span class="v02-accent">ブラウザの中だけ</span>。
+    </div>
+
+    <div
+      id="v02-rule-wrap"
+      class="clip"
+      data-start="2.2"
+      data-duration="1.3"
+      data-track-index="3"
+    >
+      <div id="v02-rule"></div>
+    </div>
+  </div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    (function () {
+      var tl = gsap.timeline({ paused: true });
+
+      // cut-the-curve: one upward move split across the seam.
+      // Same axis, same distance (86px ≈ 8% of 1080), mirrored power4 eases.
+      var CURVE = 86;
+
+      // — Scene 1 (0.0–0.6s): the previous frame's question exits upward.
+      // handoff_in: block center y 50% → y 42%, opacity 1 → 0.
+      tl.fromTo(
+        "#v02-handoff",
+        { y: 0, opacity: 1 },
+        { y: -CURVE, opacity: 0, duration: 0.5, ease: "power4.in" },
+        0,
+      );
+      // hard kill at the clip boundary: 非線形シークでフェード後に着地しても
+      // 前フレームの問いが残らないようにする
+      tl.set("#v02-handoff", { opacity: 0 }, 0.5);
+
+      // — Scene 2 (0.6–1.6s): the preamble continues the same upward travel
+      // and decelerates into place at y 40%.
+      tl.fromTo(
+        "#v02-preamble",
+        { y: CURVE, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.55, ease: "power4.out" },
+        0.5,
+      );
+
+      // — Scene 3 (1.6–2.6s): the signature payoff — the colour inversion.
+      // A single smooth settle, scale 1.04 → 1.0, no hand-keyed overshoot.
+      tl.fromTo(
+        "#v02-payoff",
+        { y: 34, scale: 1.04, opacity: 0 },
+        { y: 0, scale: 1, opacity: 1, duration: 0.55, ease: "power3.out" },
+        1.3,
+      );
+
+      // — Scene 4 (2.6–3.8s): the rule bar draws from centre outward,
+      // 0 → 36cqw over 0.5s, then rests. handoff_out: static from 3.1s.
+      tl.fromTo(
+        "#v02-rule",
+        { scaleX: 0, opacity: 1 },
+        { scaleX: 1, opacity: 1, duration: 0.45, ease: "power3.out" },
+        2.2,
+      );
+
+      window.__timelines["02-value"] = tl;
+    })();
+  </script>
+</template>

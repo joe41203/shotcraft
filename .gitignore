@@ -13,3 +13,11 @@ node_modules/
 chrome-cws/
 chrome-profile/
 .chrome-*/
+
+# HyperFrames 動画プロジェクトの生成物（ソースの index.html / compositions は追跡する）
+videos/*/renders/
+videos/*/snapshots/
+videos/*/.hyperframes/
+videos/*/node_modules/
+# capture/assets は docs/images と public/icon の複製（no-capture パスで手動コピー）
+videos/*/capture/assets/

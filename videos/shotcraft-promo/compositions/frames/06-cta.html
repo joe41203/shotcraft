@@ -1,0 +1,272 @@
+<template>
+  <style>
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      container-type: size;
+      overflow: hidden;
+    }
+
+    /* --- full-bleed ground: its own full-duration clip layer --- */
+    .cta04-ground {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+    }
+
+    /* --- content stage --- */
+    .cta04-stage {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* handoff_in: the previous frame's editor panel, centre y 46% */
+    /* 前フレーム(05-proof)から引き継ぐ板の残像。
+       05 側の実寸(left 211.2 / top 189 / 1497.6 x 615.6)と一致させる。
+       05 は板を opacity 0.25 + スクリム重ねで実効 0.1 まで落として終えるので、
+       ここも同じ薄さから受ける(1.0 から始めると継ぎ目で板が光って戻る)。 */
+    .cta04-panel {
+      position: absolute;
+      left: 211.2px;
+      top: 189px;
+      width: 1497.6px;
+      height: 615.6px;
+      border-radius: 10px;
+      background: #161b26;
+      border: 1px solid #1f2632;
+      transform-origin: 50% 50%;
+      z-index: 1;
+    }
+
+    .cta04-panel-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 44px;
+      background: #161b26;
+      border-bottom: 1px solid #1f2632;
+    }
+
+    /* 05 の板の中身は明るいダッシュボード。残像なので細部は描かず、
+       明るい面だけを置いて色が食い違わないようにする。 */
+    .cta04-panel-canvas {
+      position: absolute;
+      left: 0;
+      top: 44px;
+      width: 1497.6px;
+      height: 571.6px;
+      background: #f4f6fa;
+    }
+
+    /* --- lockup row -----------------------------------------------------
+       Anchored at left:50% and shrink-wrapped to its content, so its width is
+       whatever the real font renders. Horizontal placement is carried purely
+       by the GSAP tween:
+         Scene 1  xPercent: 0,   x: -76.8  -> row's left edge at 960-76.8, which
+                                              puts the ICON's centre on 960 (the
+                                              icon is 153.6 wide and first in the
+                                              row, so its centre is a fixed
+                                              76.8px from the row's left edge).
+         Scene 2  xPercent: -50, x: 0      -> the row is centred on 960, i.e. the
+                                              FINISHED lockup is centred at any
+                                              wordmark width. No JS measurement.
+       Vertical: the row is 153.6px tall with its centre on y 42% (453.6px).
+    -------------------------------------------------------------------- */
+    .cta04-lockup {
+      position: absolute;
+      left: 50%;
+      top: 376.8px; /* 453.6 - 76.8 */
+      width: fit-content;
+      height: 153.6px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      z-index: 2;
+    }
+
+    /* icon — hero, 8cqw square */
+    .cta04-icon {
+      flex: 0 0 auto;
+      width: 153.6px;
+      height: 153.6px;
+      transform-origin: 50% 50%;
+    }
+
+    .cta04-icon img {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* the breathing room the icon's leftward ease opens up */
+    .cta04-gap {
+      flex: 0 0 auto;
+      width: 38.4px; /* 2cqw */
+      height: 1px;
+    }
+
+    /* wordmark — h1 ramp 7.5cqw, cream, Noto Sans JP 700 */
+    .cta04-wordmark {
+      flex: 0 0 auto;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 144px; /* 7.5cqw */
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+      color: #f2f5f9;
+      white-space: nowrap;
+      margin-top: -8px; /* optical: sit the x-height on the icon's centre axis */
+    }
+
+    /* CTA line — h3 ramp 2.8cqw, emerald, centre y 60% */
+    .cta04-cta {
+      position: absolute;
+      left: 0;
+      top: 615.7px; /* 648 - 32.3 (half the 64.5px line box) */
+      width: 100%;
+      text-align: center;
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 700;
+      font-size: 53.76px; /* 2.8cqw */
+      line-height: 1.2;
+      color: #10b981;
+      z-index: 2;
+    }
+
+    /* meta line — label ramp, cream-hint, centre y 70% */
+    .cta04-meta {
+      position: absolute;
+      left: 0;
+      top: 735.3px; /* 756 - 20.7 (half the 41.5px line box) */
+      width: 100%;
+      text-align: center;
+      font-family: "IBM Plex Mono", "Noto Sans JP", monospace;
+      font-weight: 500;
+      font-size: 27.65px; /* label ramp, lifted to clear the GIF legibility floor */
+      line-height: 1.5;
+      letter-spacing: 0.14em;
+      color: #65707e;
+      z-index: 2;
+    }
+
+    .cta04-meta-ja {
+      font-family: "Noto Sans JP", sans-serif;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="06-cta"
+    data-start="0"
+    data-duration="3.0"
+    data-width="1920"
+    data-height="1080"
+  >
+    <!-- full-bleed ground, lowest track, full duration -->
+    <div
+      class="clip cta04-ground"
+      data-start="0"
+      data-duration="3.0"
+      data-track-index="0"
+    ></div>
+
+    <!-- content stage, full duration; every reveal is timeline-driven -->
+    <div
+      class="clip cta04-stage"
+      data-start="0"
+      data-duration="3.0"
+      data-track-index="1"
+    >
+      <div class="cta04-panel" id="cta04-panel">
+        <div class="cta04-panel-bar"></div>
+        <div class="cta04-panel-canvas"></div>
+      </div>
+
+      <div class="cta04-lockup" id="cta04-lockup">
+        <div class="cta04-icon" id="cta04-icon">
+          <img src="assets/icon-128.png" alt="" />
+        </div>
+        <div class="cta04-gap"></div>
+        <div class="cta04-wordmark" id="cta04-wordmark">shotcraft</div>
+      </div>
+
+      <div class="cta04-cta" id="cta04-cta">Chrome ウェブストアで公開中</div>
+
+      <div class="cta04-meta" id="cta04-meta">
+        MIT License<span class="cta04-meta-ja"> · 無料 · </span>v0.10.0
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      // ---- Scene 1 (0.0-0.7s) — the scale-swap on one shared centre.
+      // Outgoing: 05-proof が残した薄い板(実効 opacity ≒ 0.1、scale 0.9)を
+      // その状態から受け取って消す。1.0 から始めると継ぎ目で板が光り戻る。
+      tl.fromTo(
+        "#cta04-panel",
+        { scale: 0.9, opacity: 0.1 },
+        { scale: 0.86, opacity: 0, duration: 0.45, ease: "power2.in" },
+        0,
+      );
+
+      // Incoming: the icon springs in at that same centre. The lockup row is
+      // held so the ICON (not the row) is on 960 — see the .cta04-lockup note.
+      tl.fromTo(
+        "#cta04-icon",
+        { scale: 0.6, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.6)" },
+        0.15,
+      );
+
+      // ---- Scene 2 (0.7-1.4s) — the icon eases left as the row resolves to a
+      // truly centred lockup; the wordmark slides in from the left and fades up.
+      // fromTo's immediateRender pins the Scene 1 offset from t=0, so no setter
+      // tween is needed and the frame is correct under seek.
+      tl.fromTo(
+        "#cta04-lockup",
+        { xPercent: 0, x: -76.8 },
+        { xPercent: -50, x: 0, duration: 0.5, ease: "power3.out" },
+        0.72,
+      );
+      tl.fromTo(
+        "#cta04-wordmark",
+        { x: -16, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.55, ease: "power3.out" },
+        0.9,
+      );
+
+      // ---- Scene 3 (1.4-2.3s) — the one CTA line fades in below the lockup.
+      tl.fromTo(
+        "#cta04-cta",
+        { y: 14, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" },
+        1.45,
+      );
+
+      // ---- Scene 4 (2.3-3.2s) — the quiet meta line, then a still hold.
+      // No exit and no fade-out: the held dark centred frame IS the loop seam
+      // back into Frame 1.
+      tl.fromTo(
+        "#cta04-meta",
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" },
+        2.35,
+      );
+
+      // Hold the finished, centred lockup still to the end of the 3.2s window.
+      // This is the loop seam back into Frame 1 — no exit, no fade, no drift.
+      tl.set({}, {}, 3.0);
+
+      window.__timelines["06-cta"] = tl;
+    })();
+  </script>
+</template>
