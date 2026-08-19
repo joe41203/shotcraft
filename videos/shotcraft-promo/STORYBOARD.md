@@ -1,46 +1,50 @@
 ---
 format: 1920x1080
-duration: 22s
-message: "撮ったスクショを、外に出さずにその場で仕上げる"
-arc: "Hook（不安）→ Answer（価値）→ Demo（実演）→ Proof（権限）→ CTA（導線）"
+duration: 20s
+message: "撮ったスクショを、その場で仕上げて渡せる"
+arc: "Hook（手間）→ Answer（価値）→ Demo（実演・保存まで）→ CTA（導線）"
 audience: "Chrome 拡張を探している開発者・デザイナー（GitHub README の読者）"
 mode: autonomous
 music: none
 ---
 
-## Frame 1 — そのスクショ、どこに送ってる？
+## Frame 1 — そのスクショ、加工するの面倒くない？
 
 - status: animated
 - src: compositions/frames/01-hook.html
 - duration: 2.8s
 - transition_in: cut
-- scene: 「そのスクショ、どこに送ってる？」を全画面のタイプで打ち出し、送信先の不安を一息で提示する
-- voiceover: （無音・画面テキストのみ）そのスクショ、どこに送ってる？
+- scene: 「そのスクショ、加工するの面倒くない？」を全画面のタイプで打ち出し、手間の面倒さを一息で提示する
+- voiceover: （無音・画面テキストのみ）そのスクショ、加工するの面倒くない？
 - blueprint: kinetic-type-beats
 - narrative_role: hook — 視聴者の言葉で「なぜ気にすべきか」を提示する
 
-暗い地（ink-black）に大きな日本語のタイプだけ。スクショ拡張の多くがアップロードや
-アカウント登録を伴う事実を、糾弾ではなく素朴な疑問として置く。ロゴも UI もまだ出さない。
+暗い地（ink-black）に大きな日本語のタイプだけ。別アプリを開いて貼って加工して…という
+手間を、素朴な疑問として置く。ロゴも UI もまだ出さない。
+
+**プライバシー訴求はしない**（ユーザー指示）。「外部送信」「権限」の話は初見では
+何のことか分からず離脱を招くため、動画では機能の価値だけを見せる。
 
 Adapt: 署名の「フルスクリーンのビートで文が組み上がる」構造は保つ。英語想定の
 per-word stagger は日本語に合わないため、**文節単位**のチャンク送りに置き換える。
 
 - Scene 1 (0.0–0.8s): 地のみ。中央やや上に「そのスクショ、」がチャンク送りで入る
   （下から 24px、power3.out、0.5s）。Layout: 中央寄せ 1 カラム、左右マージン 14cqw。
-- Scene 2 (0.8–1.6s): 直下に「どこに送ってる？」が同じ入り方で続き、問いが完成する。
-  文字は cream `#f2f5f9`、h1 級 7.5cqw で 2 行。行間は 18cqh（入場オフセットを吸収）。
+- Scene 2 (0.8–1.6s): 直下に「加工するの面倒くない？」が同じ入り方で続き、問いが完成する。
+  文字は cream `#f2f5f9`。2 行目が 11 字と長いためステージ幅 72cqw に収まる 6.0cqw を使う
+  （7.5cqw だと 82.5cqw ではみ出す）。行間は 15cqh。
 - Scene 3 (1.6–2.8s): 静止して読ませる。「？」にだけ低振幅の jitter。
 
 `handoff_out:` 見出し 2 行 — x: center, y: 50%, scale 1.0, opacity 1, 静止。
 
-## Frame 2 — ぜんぶ、ブラウザの中だけ
+## Frame 2 — ぜんぶ、この 1 タブで
 
 - status: animated
 - src: compositions/frames/02-value.html
 - duration: 3.0s
 - transition_in: cut
 - scene: 問いに答える一行が入れ替わりで着地し、エメラルドのルールバーが引かれる
-- voiceover: （無音・画面テキストのみ）撮影も、編集も、書き出しも。ぜんぶ、ブラウザの中だけ。
+- voiceover: （無音・画面テキストのみ）撮影も、編集も、書き出しも。ぜんぶ、この 1 タブで。
 - blueprint: kinetic-type-beats
 - narrative_role: value — ブリーフの message をビート 2 で着地させる
 
@@ -50,9 +54,10 @@ Adapt: 署名の「ビートごとに文が組み上がりペイオフに着地�
 - Scene 1 (0.0–0.5s): 前フレームの問いが上へ抜けながら opacity 1 → 0（cut-the-curve）。
 - Scene 2 (0.5–1.3s): 「撮影も、編集も、書き出しも。」が下から入る（h2 級 4.5cqw、
   cream-muted `#9aa6b8`）。まだ答えではなく前置き。
-- Scene 3 (1.3–2.2s): 直下に「ぜんぶ、ブラウザの中だけ。」が入る。**「ブラウザの中だけ」
-  だけ emerald `#10b981`**、他は cream。13 文字あるため 6.0cqw（fit-to-measure で
-  7.5cqw から段階を下げる）。scale 1.04 → 1.0 で着地。
+- Scene 3 (1.3–2.2s): 直下に「ぜんぶ、この 1 タブで。」が入る。**「この 1 タブ」だけ
+  emerald `#10b981`**、他は cream。文字数があるため 6.0cqw（fit-to-measure で 7.5cqw から
+  段階を下げる）。scale 1.04 → 1.0 で着地。ここは「外に出さない」ではなく
+  **「別アプリに移らず済む」**という手間の解決として読ませる。
 - Scene 4 (2.2–3.0s): 見出し下に emerald のルールバーが中央から左右へ引かれる。
 
 `handoff_in:` 前フレームの見出しが上へ抜ける。
@@ -105,10 +110,10 @@ Adapt: 署名の「ビートごとに文が組み上がりペイオフに着地�
 
 - status: animated
 - src: compositions/frames/04-annotate.html
-- duration: 6.4s
+- duration: 8.0s
 - transition_in: cut
-- scene: 同じ板の中で、モザイク・矢印とテキスト・矩形強調・ステップバッジが順に足されていく
-- voiceover: （無音・画面テキストのみ）伏せる。指す。囲む。番号を振る。
+- scene: 同じ板の中で注釈が順に足され、最後に PNG保存 を押して仕上がりを渡すところまで見せる
+- voiceover: （無音・画面テキストのみ）伏せる。指す。囲む。番号を振る。そして保存。
 - blueprint: cursor-ui-demo
 - roles: エディタ板 = hero · ツールバーのアクティブ状態 = supporting
 - narrative_role: demo — 「何ができる拡張なのか」をこのフレームだけで伝える
@@ -129,40 +134,19 @@ Adapt: 署名の「ビートごとに文が組み上がりペイオフに着地�
   コーラルの角丸矩形が描かれる（線幅 4px、0.4s で広がる）。ラベル「R ── 矩形で囲む」。
 - Scene 4 (4.7–6.4s): **ステップ**。ステップアイコンが emerald に。KPI カードの上に
   emerald の丸バッジ ① ② が 0.3s 間隔で置かれる（scale 0.6 → 1.0, back.out(1.6)）。
-  ラベル「S ── 番号を振る」。最後の 0.6s は静止して全体を読ませる。
+  ラベル「S ── 番号を振る」。
+- Scene 5 (6.4–8.0s): **保存**。ラベル列が引き、ツールバー右端の emerald「PNG保存」が
+  押される（scale 0.96 まで沈んで back.out で戻る press-release-spring）。続いて板の下に
+  `Weekly Report.png を保存しました` がせり上がる（IBM Plex Mono、ファイル名だけ emerald）。
+  最後は静止して全体を読ませる。
 
 `handoff_in:` cut。板は Frame 3 と同一の見え方から始まる。
 `handoff_out:` 注釈が全部乗った板 — x: center, y: 46%, scale 1.0, opacity 1。
 
-## Frame 5 — 保存して終わり（権限は 3 つだけ）
+## Frame 5 — shotcraft / ウェブストアで公開中
 
 - status: animated
-- src: compositions/frames/05-proof.html
-- duration: 3.4s
-- transition_in: cut
-- scene: PNG保存ボタンが押され、板が引きながら権限 3 つと外部送信ゼロが留まる
-- voiceover: （無音・画面テキストのみ）保存はローカルへ。権限は 3 つだけ、外部送信ゼロ。
-- blueprint: device-surface-showcase
-- narrative_role: proof — 実演のあとに、その全部がローカルで完結していたと明かす
-
-事実は README・コードと一致させる（誇張しない）。権限は `activeTab` / `scripting` /
-`storage` の 3 つのみ、`host_permissions` は要求しない、実行時の外部リクエストなし。
-
-- Scene 1 (0.0–0.8s): 右上の emerald「PNG保存」ボタンが押される表現
-  （scale 0.96 まで沈んで戻る press-release-spring）。板の下端から保存されたファイル名の
-  チップ `Weekly Report.png` がせり上がる。
-- Scene 2 (0.8–2.0s): 板が scale 1.0 → 0.9 / opacity 1 → 0.25 まで引いて背景化し、
-  手前に権限チップが左から 3 つ、0.2s 間隔で入る — `activeTab` / `scripting` / `storage`
-  （IBM Plex Mono、縁 emerald 22%）。
-- Scene 3 (2.0–3.4s): チップ列の直下に「host_permissions なし ・ 外部送信ゼロ」が
-  フェードで留まる（h3 級 2.8cqw、cream-muted）。以後静止。
-
-`handoff_out:` 板は薄く残ったまま。次フレームで完全に消え、中心にアイコンが実体化する。
-
-## Frame 6 — shotcraft / ウェブストアで公開中
-
-- status: animated
-- src: compositions/frames/06-cta.html
+- src: compositions/frames/05-cta.html
 - duration: 3.0s
 - transition_in: crossfade
 - scene: アイコンとワードマークが中央に組み上がり、下にウェブストアの導線が出る
@@ -175,7 +159,7 @@ Adapt: 署名の「ビートごとに文が組み上がりペイオフに着地�
 Adapt: パーツからの組み上げではなく、**前フレームの板が消えた中心からスプリングで実体化**
 する scale-swap で受ける（尺が短いため組み上げの尺がない）。
 
-- Scene 1 (0.0–0.7s): 残っていた板が opacity 0 へ。同じ中心にアイコンが
+- Scene 1 (0.0–0.7s): 注釈入りの板が scale 0.92 まで縮みながら opacity 0 へ。同じ中心にアイコンが
   scale 0.6 → 1.0 のスプリングで着地（back.out(1.6), 0.5s）。アイコンは 8cqw 角。
 - Scene 2 (0.7–1.3s): アイコンが左へ寄り、空いた右にワードマーク「shotcraft」が
   スライドインしてフェード（h1 級 7.5cqw、cream）。**ロックアップ全体が中央に来るよう
@@ -186,7 +170,8 @@ Adapt: パーツからの組み上げではなく、**前フレームの板が�
   label 級、cream-hint で控えめに入る。以後静止。終端は暗い地・中央構図のまま終わり、
   Frame 1 へループでつながる。
 
-`handoff_in:` 前フレームの板が消えた中心にアイコンが scale-swap で入る。
+`handoff_in:` 前フレームの注釈入りの板を opacity 1 / scale 1 のまま受け取り、
+縮めながら消す。同じ中心にアイコンが scale-swap で入る。
 
 ## Video direction
 
@@ -194,15 +179,18 @@ Adapt: パーツからの組み上げではなく、**前フレームの板が�
   emerald 全面の register は使わない。
 - **エディタの中身は明るい**: 実物どおり、暗いツールバーの中に明るいダッシュボードが載る。
   この明暗差が画の情報量を作る（前回はここを暗くして質素に見えた）。
-- **板は Frame 3〜5 で動かさない**: 同じ位置・同じ大きさに置き続け、中身の変化だけを見せる。
+- **板は Frame 3〜4 で動かさない**: 同じ位置・同じ大きさに置き続け、中身の変化だけを見せる。
   カメラは静止（GIF でフレームが間引かれるため）。
-- **アクセントの節約**: emerald は「アクティブなツール」「保存ボタン」「権限チップの縁」
+- **アクセントの節約**: emerald は「アクティブなツール」「保存ボタン」「保存したファイル名」
   「CTA」に限る。注釈自体はコーラル `#fb7185` を主に使い、emerald と役割を分ける。
+- **プライバシー訴求はしない**（ユーザー指示）: 「外部送信ゼロ」「権限は 3 つだけ」
+  「host_permissions なし」は初見では文脈が分からず離脱を招くため、動画では扱わない。
+  これらは README とストア掲載文で説明する。
 - **モーションの原則**: 動きは 0.3〜0.6s、power3 系。GIF で間引かれるため微細で長い
   イージングは使わない。
 - **可読性**: GIF は 960px 幅程度に縮む。UI の細部（KPI の数値等）は読めなくてよいが、
   **注釈・ラベル・権限チップは読める大きさ**にする。最小 h3（2.8cqw）。
-- **ループ設計**: Frame 6 の終端と Frame 1 の始端はどちらも暗い地・中央構図。
+- **ループ設計**: Frame 5 の終端と Frame 1 の始端はどちらも暗い地・中央構図。
 - **書体**: 表示は Noto Sans JP（400/700 のみ）、ラベル・英数字は IBM Plex Mono。
   Mochiy Pop One は製品の注釈書体であり動画では使わない。
 - **フォント宣言禁止**: Noto Sans JP / IBM Plex Mono はコンパイラのプリバンドル対象。

@@ -22,10 +22,10 @@
     }
 
     /* handoff_in: the previous frame's editor panel, centre y 46% */
-    /* 前フレーム(05-proof)から引き継ぐ板の残像。
-       05 側の実寸(left 211.2 / top 189 / 1497.6 x 615.6)と一致させる。
-       05 は板を opacity 0.25 + スクリム重ねで実効 0.1 まで落として終えるので、
-       ここも同じ薄さから受ける(1.0 から始めると継ぎ目で板が光って戻る)。 */
+    /* 前フレーム(04-annotate)から引き継ぐ板。
+       04 と同じ実寸(left 211.2 / top 189 / 1497.6 x 615.6)にする。
+       04 は注釈の乗った板を opacity 1 / scale 1 のまま終えるので、
+       ここもその状態から受け取って縮めながら消す。 */
     .cta04-panel {
       position: absolute;
       left: 211.2px;
@@ -44,7 +44,7 @@
       left: 0;
       top: 0;
       width: 100%;
-      height: 44px;
+      height: 42.1px; /* 04 のツールバー 3.9cqh に合わせる */
       background: #161b26;
       border-bottom: 1px solid #1f2632;
     }
@@ -54,9 +54,9 @@
     .cta04-panel-canvas {
       position: absolute;
       left: 0;
-      top: 44px;
+      top: 42.1px;
       width: 1497.6px;
-      height: 571.6px;
+      height: 573.5px;
       background: #f4f6fa;
     }
 
@@ -160,7 +160,7 @@
 
   <div
     id="root"
-    data-composition-id="06-cta"
+    data-composition-id="05-cta"
     data-start="0"
     data-duration="3.0"
     data-width="1920"
@@ -209,12 +209,12 @@
       var tl = gsap.timeline({ paused: true });
 
       // ---- Scene 1 (0.0-0.7s) — the scale-swap on one shared centre.
-      // Outgoing: 05-proof が残した薄い板(実効 opacity ≒ 0.1、scale 0.9)を
-      // その状態から受け取って消す。1.0 から始めると継ぎ目で板が光り戻る。
+      // Outgoing: 04-annotate が残した注釈入りの板を、そのままの見え方から
+      // 受け取って縮めながら消す(scale-swap の外側)。
       tl.fromTo(
         "#cta04-panel",
-        { scale: 0.9, opacity: 0.1 },
-        { scale: 0.86, opacity: 0, duration: 0.45, ease: "power2.in" },
+        { scale: 1, opacity: 1 },
+        { scale: 0.92, opacity: 0, duration: 0.45, ease: "power2.in" },
         0,
       );
 
@@ -266,7 +266,7 @@
       // This is the loop seam back into Frame 1 — no exit, no fade, no drift.
       tl.set({}, {}, 3.0);
 
-      window.__timelines["06-cta"] = tl;
+      window.__timelines["05-cta"] = tl;
     })();
   </script>
 </template>

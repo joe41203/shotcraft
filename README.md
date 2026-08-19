@@ -11,7 +11,7 @@
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/pkhbgheiebgdikjbhegjfbidgbphccfo)](https://chromewebstore.google.com/detail/shotcraft/pkhbgheiebgdikjbhegjfbidgbphccfo)
 [![license: MIT](https://img.shields.io/badge/license-MIT-yellow)](./LICENSE)
 
-![shotcraft の紹介: 撮影から注釈・書き出しまでブラウザ内で完結し、要求する権限は 3 つだけ](docs/images/demo.gif)
+![shotcraft の紹介: 撮ったダッシュボードにモザイク・矢印・矩形・番号バッジを重ね、PNG で保存するまでの流れ](docs/images/demo.gif)
 
 [English](./README.en.md) · **日本語** · [简体中文](./README.zh-CN.md)
 

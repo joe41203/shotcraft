@@ -11,7 +11,7 @@
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/pkhbgheiebgdikjbhegjfbidgbphccfo)](https://chromewebstore.google.com/detail/shotcraft/pkhbgheiebgdikjbhegjfbidgbphccfo)
 [![license: MIT](https://img.shields.io/badge/license-MIT-yellow)](./LICENSE)
 
-![shotcraft overview: capture, annotate, and export entirely inside the browser, with only three permissions](docs/images/demo.gif)
+![shotcraft overview: pixelating, arrowing, boxing, and numbering a captured dashboard, then saving it as PNG](docs/images/demo.gif)
 
 **English** · [日本語](./README.md) · [简体中文](./README.zh-CN.md)
 

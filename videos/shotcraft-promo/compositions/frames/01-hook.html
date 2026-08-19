@@ -39,21 +39,23 @@
       white-space: nowrap;
       font-family: "Noto Sans JP", sans-serif;
       font-weight: 700;
-      font-size: 7.5cqw;
+      /* 2 行目が 11 字と長いため、72cqw のステージ幅に収まる 6.0cqw まで下げる
+         （7.5cqw だと 82.5cqw になり左右にはみ出す）。 */
+      font-size: 6cqw;
       line-height: 0.9;
       letter-spacing: -0.03em;
       color: #f2f5f9;
     }
 
-    /* 2 行のブロック中心を y 50% に保ちつつ 18cqh 間隔。
-       行ボックスは 12cqh（129.6px）。GSAP の入場オフセット y:24px ぶん
+    /* 2 行のブロック中心を y 50% に保ちつつ 15cqh 間隔。
+       行ボックスは 9.6cqh（103.7px）。GSAP の入場オフセット y:24px ぶん
        アニメ中に上へ寄るため、その分を吸収できる間隔を取っている。
-       （静止時 64.8px / 入場中 40.8px の空きが残る）*/
+       （静止時 58.3px / 入場中 34.3px の空きが残る）*/
     .hook01-line-a {
-      top: 35.0cqh;
+      top: 37.7cqh;
     }
     .hook01-line-b {
-      top: 53.0cqh;
+      top: 52.7cqh;
     }
 
     /* 文節チャンク送り — 日本語なので per-word ではなく文節単位で刻む。
@@ -100,8 +102,8 @@
         ><span class="hook01-chunk hook01-c2">スクショ、</span>
       </div>
       <div class="hook01-line hook01-line-b">
-        <span class="hook01-chunk hook01-c3">どこに</span
-        ><span class="hook01-chunk hook01-c4">送ってる</span
+        <span class="hook01-chunk hook01-c3">加工するの</span
+        ><span class="hook01-chunk hook01-c4">面倒くない</span
         ><span class="hook01-chunk hook01-c5 hook01-mark">？</span>
       </div>
     </div>
@@ -128,7 +130,7 @@
       land(".hook01-c1", 0.0);
       land(".hook01-c2", 0.14);
 
-      // ── Scene 2 (0.9–1.9s) — 「どこに送ってる？」で問いが完成
+      // ── Scene 2 (0.8–1.6s) — 「加工するの面倒くない？」で問いが完成
       land(".hook01-c3", 0.8);
       land(".hook01-c4", 0.94);
       land(".hook01-c5", 1.08);

@@ -153,6 +153,7 @@
     }
 
     .an04-btn-save {
+      transform-origin: 50% 50%;
       background: #10b981;
       color: #041b12;
     }
@@ -203,7 +204,7 @@
     .an04-week {
       font-size: 0.82cqw;
       font-weight: 400;
-      color: #8b95a6;
+      color: #67717f;
     }
 
     .an04-kpis {
@@ -322,7 +323,7 @@
       text-align: left;
       font-size: 0.68cqw;
       font-weight: 400;
-      color: #8b95a6;
+      color: #67717f;
       padding-bottom: 0.7cqh;
       border-bottom: 1px solid #e4e8f0;
     }
@@ -456,9 +457,30 @@
       top: 0.35cqh;
     }
 
+    /* 「再試行」の行の左脇に置く。右へ寄せると状態ピル(成功/再試行)に
+       かぶって text_occluded になるため、表の左端側に逃がす。 */
     #an04-badge-2 {
-      left: 24.55cqw;
+      left: 21.4cqw;
       top: 13.05cqh;
+    }
+
+    /* — 保存されたファイル名のチップ（板の下端からせり上がる） — */
+    .an04-savedchip {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 75.8cqh;
+      text-align: center;
+      white-space: nowrap;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 2.0cqw;
+      font-weight: 500;
+      color: #9aa6b8;
+      opacity: 0;
+    }
+    .an04-savedchip b {
+      color: #10b981;
+      font-weight: 700;
     }
 
     /* — 板の下のツールラベル — */
@@ -495,7 +517,7 @@
     id="root"
     data-composition-id="04-annotate"
     data-start="0"
-    data-duration="6.4"
+    data-duration="8.5"
     data-width="1920"
     data-height="1080"
   >
@@ -504,7 +526,7 @@
       id="an04-ground"
       class="clip an04-ground"
       data-start="0"
-      data-duration="6.4"
+      data-duration="8.5"
       data-track-index="0"
     ></div>
 
@@ -513,7 +535,7 @@
       id="an04-rule"
       class="clip"
       data-start="0"
-      data-duration="6.4"
+      data-duration="8.5"
       data-track-index="1"
     ></div>
 
@@ -522,7 +544,7 @@
       id="an04-panel"
       class="clip"
       data-start="0"
-      data-duration="6.4"
+      data-duration="8.5"
       data-track-index="2"
     >
       <!-- ── ダークなツールバー ── -->
@@ -670,7 +692,7 @@
           </svg>
           コピー
         </div>
-        <div class="an04-btn an04-btn-save">
+        <div class="an04-btn an04-btn-save" id="an04-save">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 4v10" />
             <polyline points="8 11 12 15 16 11" />
@@ -868,6 +890,17 @@
     >
       <span class="an04-label-key">S ──</span><span class="an04-label-name">番号を振る</span>
     </div>
+
+    <!-- 保存の瞬間。ラベル列とは別レーン（track 4）に置く -->
+    <div
+      id="an04-savedchip"
+      class="clip an04-savedchip"
+      data-start="6.4"
+      data-duration="2.1"
+      data-track-index="4"
+    >
+      <b>Weekly Report.png</b> を保存しました
+    </div>
   </div>
 
   <script>
@@ -986,6 +1019,23 @@
       );
 
       // 最後の約 0.6s は静止。注釈が全部乗った板をそのまま読ませる。
+
+      // ── Scene 5 (6.4–8.0s) 保存 ───────────────────────────
+      // ラベル列を引き取り、PNG保存ボタンを押して結果を見せる。
+      tl.to("#an04-label-4", { opacity: 0, duration: 0.24, ease: "power3.in" }, 6.16);
+      tl.set("#an04-label-4", { opacity: 0 }, 6.4);
+
+      // press-release-spring: 沈んでからスプリングで戻る
+      tl.to("#an04-save", { scale: 0.96, duration: 0.12, ease: "power1.in" }, 6.45);
+      tl.to("#an04-save", { scale: 1, duration: 0.34, ease: "back.out(1.8)" }, 6.57);
+
+      // 保存されたファイル名がせり上がる
+      tl.fromTo(
+        "#an04-savedchip",
+        { y: 14, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" },
+        6.72,
+      );
 
       window.__timelines["04-annotate"] = tl;
     })();

@@ -11,7 +11,7 @@
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/pkhbgheiebgdikjbhegjfbidgbphccfo)](https://chromewebstore.google.com/detail/shotcraft/pkhbgheiebgdikjbhegjfbidgbphccfo)
 [![license: MIT](https://img.shields.io/badge/license-MIT-yellow)](./LICENSE)
 
-![shotcraft 介绍：从截图到标注、导出全部在浏览器内完成，仅需三项权限](docs/images/demo.gif)
+![shotcraft 介绍：在截取的仪表盘上依次添加马赛克、箭头、矩形和序号徽章，最后保存为 PNG](docs/images/demo.gif)
 
 [English](./README.en.md) · [日本語](./README.md) · **简体中文**
 

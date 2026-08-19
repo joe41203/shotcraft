@@ -37,7 +37,7 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="22"
+      data-duration="20.2"
       data-width="1920"
       data-height="1080"
     >
@@ -77,28 +77,18 @@
         data-composition-id="04-annotate"
         data-composition-src="compositions/frames/04-annotate.html"
         data-start="9.2"
-        data-duration="6.4"
+        data-duration="8.5"
         data-track-index="1"
       ></div>
 
       <div
-        id="el-05-proof"
+        id="el-05-cta"
         class="scene"
-        data-composition-id="05-proof"
-        data-composition-src="compositions/frames/05-proof.html"
-        data-start="15.6"
-        data-duration="3.9"
-        data-track-index="0"
-      ></div>
-
-      <div
-        id="el-06-cta"
-        class="scene"
-        data-composition-id="06-cta"
-        data-composition-src="compositions/frames/06-cta.html"
-        data-start="19"
+        data-composition-id="05-cta"
+        data-composition-src="compositions/frames/05-cta.html"
+        data-start="17.2"
         data-duration="3"
-        data-track-index="1"
+        data-track-index="0"
       ></div>
 
     </div>
@@ -110,9 +100,9 @@
       (function () { var tl = window.__timelines["main"];
         tl.to("#el-02-value", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 5.8);
         tl.fromTo("#el-03-editor", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 5.8);
-        tl.to("#el-05-proof", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 19);
-        tl.fromTo("#el-06-cta", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 19);
-        tl.to({}, { duration: 22 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+        tl.to("#el-04-annotate", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 17.2);
+        tl.fromTo("#el-05-cta", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 17.2);
+        tl.to({}, { duration: 20.2 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
       })();
     </script>
   </body>
