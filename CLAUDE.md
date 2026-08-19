@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-shotcraft は Chrome MV3 拡張。タブを撮影し、Konva キャンバス上で注釈・モザイク・クロップを施して PNG 出力する。[WXT](https://wxt.dev/) + vanilla TypeScript（フレームワークなし）。README.md が機能・制限・アーキテクチャを詳細に記述しており、機能を変えたら README も更新する。コメント・ドキュメント・コミットメッセージ（Conventional Commits）は日本語。
+shotcraft は Chrome MV3 拡張。タブを撮影し、Konva キャンバス上で注釈・モザイク・クロップを施して PNG 出力する。[WXT](https://wxt.dev/) + vanilla TypeScript（フレームワークなし）。README.md が機能とアーキテクチャを記述しており、機能を変えたら README も更新する（日本語版のほか README.en.md / README.zh-CN.md があるので 3 つとも揃える）。既知の制限の一覧は README に置かない方針。コメント・ドキュメント・コミットメッセージ（Conventional Commits）は日本語。
 
 ## コマンド
 

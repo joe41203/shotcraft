@@ -172,32 +172,6 @@ pnpm test          # 用 Vitest 运行单元测试
 
 裁剪坐标、马赛克粒度、模糊半径、智能橡皮擦的 IDW 混合、边框尺寸计算、对齐吸附、气泡框换行、步骤编号等纯计算逻辑都拆分在 `lib/editor/` 中，并有 [Vitest](https://vitest.dev/) 测试覆盖。CI 按 compile → test → build → zip 的顺序执行。
 
-## 已知限制
-
-<details>
-<summary>部分页面无法截图</summary>
-
-在 `chrome://` 等浏览器内部页面、Chrome 应用商店、扩展管理页面以及其他扩展的页面上，由于 Chrome 自身的限制，无法进行截图和区域选择。执行时扩展图标会显示失败标记（红底 `!`，几秒后自动消失），同时在 Service Worker 的控制台输出警告并结束。
-</details>
-
-<details>
-<summary>连续截图受浏览器端限制</summary>
-
-`captureVisibleTab` 被浏览器限制为每秒 2 次。短时间内连续截图时，超出的请求不会被丢弃，而是等待空闲槽位后再执行。
-</details>
-
-<details>
-<summary>JPEG 无法保留透明度</summary>
-
-由于 JPEG 不支持透明通道，导出前会先与白色背景合成（这是防止透明区域变黑的保护措施）。使用圆角边框时的四角同理；PNG / WebP 则会保留透明。
-</details>
-
-<details>
-<summary>多选状态下无法缩放和旋转</summary>
-
-在多选或分组选择状态下，为保持操作简洁，仅支持移动、删除、复制和微调（恢复为单选后控制点会重新出现）。马赛克、模糊、智能橡皮擦和聚光灯即使单选也无法旋转；文字只能通过四角控制点缩放；步骤徽章尺寸固定，仅支持移动和删除。
-</details>
-
 ## 反馈
 
 缺陷报告和功能建议请提交到 [Issue](https://github.com/joe41203/shotcraft/issues)。如果是「某个页面无法截图」这类问题，附上目标页面的 URL 和 Chrome 版本会更容易复现。欢迎使用中文或英文提交。

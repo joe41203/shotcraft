@@ -172,32 +172,6 @@ pnpm test          # Run unit tests with Vitest
 
 Pure computations — crop coordinates, pixelation granularity, blur radius, the smart eraser's IDW blend, frame dimensions, alignment snapping, callout text wrapping, step numbering — live in `lib/editor/` and are covered by [Vitest](https://vitest.dev/). CI runs compile → test → build → zip.
 
-## Known limitations
-
-<details>
-<summary>Some pages cannot be captured</summary>
-
-Chrome itself blocks capture and region selection on internal pages such as `chrome://`, the Chrome Web Store, the extensions management page, and other extensions' pages. If you try, the extension icon shows a failure badge (a red `!` that disappears after a few seconds) and a warning is logged to the service worker console.
-</details>
-
-<details>
-<summary>Rapid captures are rate-limited by the browser</summary>
-
-`captureVisibleTab` is limited to twice per second by the browser. When captures come in faster than that, the extra ones are not dropped — they wait for the next available slot.
-</details>
-
-<details>
-<summary>JPEG cannot preserve transparency</summary>
-
-Because JPEG has no alpha channel, the image is composited onto a white background before export (this keeps transparent areas from turning black). The same applies to the corners of rounded frames; PNG and WebP keep them transparent.
-</details>
-
-<details>
-<summary>Resize and rotate are unavailable with a multi-selection</summary>
-
-To keep things simple, a multi-selection or group selection supports only move, delete, duplicate, and nudge (the handles return once you go back to a single selection). Pixelate, blur, smart eraser, and spotlight cannot be rotated even when selected alone; text scales only via its corner handles; and step badges are fixed size, supporting only move and delete.
-</details>
-
 ## Feedback
 
 Please report bugs and feature requests via [Issues](https://github.com/joe41203/shotcraft/issues). For reports like "this page can't be captured", including the page URL and your Chrome version makes it much easier to reproduce. Issues in English are welcome.
