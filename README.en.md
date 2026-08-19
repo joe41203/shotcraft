@@ -202,6 +202,8 @@ To keep things simple, a multi-selection or group selection supports only move, 
 
 Please report bugs and feature requests via [Issues](https://github.com/joe41203/shotcraft/issues). For reports like "this page can't be captured", including the page URL and your Chrome version makes it much easier to reproduce. Issues in English are welcome.
 
+Found a vulnerability? Please report it privately per the [security policy](./SECURITY.md) rather than in a public issue.
+
 ## Credits
 
 - **Font**: Text annotations use the bundled [Mochiy Pop One](https://fonts.google.com/specimen/Mochiy+Pop+One) (SIL OFL 1.1, Copyright 2020 The Mochiypop Project Authors). To avoid external requests, the WOFF2 is bundled rather than loaded as a web font; it comes to about 2.1 MB. The full license text is at [`public/fonts/mochiy-pop-one/OFL.txt`](public/fonts/mochiy-pop-one/OFL.txt). The UI itself uses your OS system fonts.

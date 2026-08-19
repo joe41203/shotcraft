@@ -200,6 +200,8 @@ JPEG は透過を持てないため、書き出し前に白背景で合成して
 
 不具合の報告や機能の要望は [Issue](https://github.com/joe41203/shotcraft/issues) へお寄せください。「このページで撮影できない」といった報告では、対象ページの URL と Chrome のバージョンがあると再現しやすくなります。
 
+脆弱性を見つけた場合は、公開の Issue ではなく [セキュリティポリシー](./SECURITY.md)の手順に従って非公開でご報告ください。
+
 ## クレジット
 
 - **フォント**: テキスト注釈に [Mochiy Pop One](https://fonts.google.com/specimen/Mochiy+Pop+One)（SIL OFL 1.1、Copyright 2020 The Mochiypop Project Authors）を同梱しています。外部リクエストを避けるため Web フォント読み込みは使わず WOFF2 を同梱しており、容量は約 2.1 MB です。ライセンス全文は [`public/fonts/mochiy-pop-one/OFL.txt`](public/fonts/mochiy-pop-one/OFL.txt) を参照してください。UI は OS のシステムフォントを使います。

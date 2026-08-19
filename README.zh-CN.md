@@ -202,6 +202,8 @@ pnpm test          # 用 Vitest 运行单元测试
 
 缺陷报告和功能建议请提交到 [Issue](https://github.com/joe41203/shotcraft/issues)。如果是「某个页面无法截图」这类问题，附上目标页面的 URL 和 Chrome 版本会更容易复现。欢迎使用中文或英文提交。
 
+如果发现安全漏洞，请不要提交公开 Issue，而是按照[安全政策](./SECURITY.md)非公开报告。
+
 ## 致谢
 
 - **字体**：文字标注使用内置的 [Mochiy Pop One](https://fonts.google.com/specimen/Mochiy+Pop+One)（SIL OFL 1.1，Copyright 2020 The Mochiypop Project Authors）。为避免外部请求，没有采用 Web 字体加载，而是直接内置 WOFF2 文件，体积约 2.1 MB。许可证全文见 [`public/fonts/mochiy-pop-one/OFL.txt`](public/fonts/mochiy-pop-one/OFL.txt)。界面本身使用操作系统的系统字体。
